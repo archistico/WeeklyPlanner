@@ -11,7 +11,7 @@
 - scheduler manuale con avanzamento deterministico degli intervalli nei test;
 - test di polling lento, cambio intervallo, errori consecutivi, recovery, errore strutturale,
   perdita del lease e dispose durante una callback attiva;
-- 114 test dichiarati;
+- 114 test dichiarati e validati su Windows;
 - comportamento UI e schema SQLite v3 invariati.
 
 ## M3.1 — Composizione applicativa e dependency injection
@@ -123,7 +123,8 @@ Ogni milestone deve:
 | M2.2.3 — Pan orizzontale | **Validata** | build, test e prova manuale riusciti; autore corsivo e pan con tasto centrale |
 | M2.3 — Impostazioni | **Validata** | build, test e prova manuale riusciti; configurazione runtime, tema, geometria finestra e versione centralizzata |
 | M3.1 — Composizione e DI | **Validata** | composition root, constructor injection, sessione/orologio/scheduler astratti e test senza SQLite |
-| M3.2 — Timer deterministici | **Implementata, verifica richiesta** | callback seriali, stop asincrono, tempo simulato e test completi del lifecycle |
+| M3.2 — Timer deterministici | **Validata** | callback seriali, stop asincrono, tempo simulato e test completi del lifecycle |
+| M3.2.1 — Feedback persistenza | **Implementata, verifica richiesta** | floppy per tutte le modifiche della card e footer riallineato |
 | M3.3 — Logging e diagnostica | Pianificata | logging locale, correlazione errori e informazioni runtime |
 | M4 — Packaging MVP locale | Pianificata | publish Windows, backup documentato, smoke test e pacchetto distribuibile |
 
@@ -401,3 +402,12 @@ Poi verificare manualmente:
 7. cambiare database e verificare il messaggio di riavvio, senza scollegare la board corrente;
 8. ridimensionare, spostare o massimizzare la finestra e verificare il ripristino al riavvio;
 9. verificare il cursore di pan durante il trascinamento con tasto centrale.
+
+## M3.2.1 — Feedback completo di persistenza
+
+- floppy verde dopo inserimento, salvataggio, spostamento fra colonne e riordino;
+- tooltip specifico: `Card inserita`, `Card salvata`, `Card spostata`, `Ordine aggiornato`;
+- rimozione automatica del feedback precedente quando arriva una modifica esterna;
+- padding esplicito e condiviso fra titolo, note e testo autore;
+- 119 test dichiarati;
+- nessuna modifica allo schema SQLite.

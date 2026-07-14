@@ -171,8 +171,48 @@ public sealed class CardViewModelTests
         viewModel.RefreshFromModel(persisted);
 
         Assert.True(viewModel.HasSaveSuccess);
-        Assert.Equal("Salvata", viewModel.SaveStatusText);
+        Assert.Equal("Card salvata", viewModel.SaveStatusText);
         Assert.False(viewModel.IsEditing);
+    }
+
+    [Theory]
+    [InlineData("Card inserita")]
+    [InlineData("Card salvata")]
+    [InlineData("Card spostata")]
+    [InlineData("Ordine aggiornato")]
+    public void Persistence_feedback_supports_every_card_modification(string statusText)
+    {
+        var viewModel = CreateViewModel();
+
+        viewModel.MarkPersistenceSuccess(statusText);
+
+        Assert.True(viewModel.HasSaveSuccess);
+        Assert.False(viewModel.HasSaveError);
+        Assert.False(viewModel.IsSaving);
+        Assert.Equal(statusText, viewModel.SaveStatusText);
+    }
+
+    [Fact]
+    public void External_reorder_clears_a_previous_persistence_success()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.MarkPersistenceSuccess("Card salvata");
+
+        viewModel.RefreshFromModel(new Card
+        {
+            Id = 1,
+            ColumnId = 0,
+            Title = "Originale",
+            Notes = "Note originali",
+            SortOrder = 1,
+            CreatedBy = "Emilie",
+            UpdatedBy = "Alice",
+            UpdatedAtUtc = "2026-07-14T18:01:00.0000000Z",
+            Version = 1,
+        });
+
+        Assert.False(viewModel.HasSaveSuccess);
+        Assert.Null(viewModel.SaveStatusText);
     }
 
     [Fact]

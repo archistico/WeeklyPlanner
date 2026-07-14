@@ -1,7 +1,7 @@
 # WeeklyPlanner
 
 
-> **M3.2** — Scheduler deterministici e lifecycle verificabile. Polling e heartbeat sono eseguiti in modo seriale, i tick sovrapposti vengono scartati e lo shutdown attende esplicitamente le callback periodiche in corso.
+> **M3.2.1** — Feedback completo di persistenza. La floppy verde conferma creazione, salvataggio, spostamento e riordino della card; polling e heartbeat restano deterministici e non sovrapposti.
 
 Planner settimanale desktop in **C# / .NET 10 / Avalonia**, sviluppato per milestone piccole,
 test automatici e documentazione aggiornata insieme al codice.
@@ -43,12 +43,14 @@ compilazione, test e prova manuale sono riusciti.
 La milestone **M2.3 — Impostazioni e rifinitura della sessione** è stata validata su Windows: build,
 test e prova manuale sono riusciti.
 
-La milestone **M3.1 — Composizione applicativa e dependency injection** è stata validata su Windows:
-compilazione e test sono riusciti.
+La milestone **M3.1 — Composizione applicativa e dependency injection** è stata validata su Windows.
+La milestone **M3.2 — Scheduler deterministici e lifecycle verificabile** è stata validata su Windows:
+polling e heartbeat sono serializzati, arrestabili e testabili senza timer reali.
 
-La milestone corrente **M3.2 — Scheduler deterministici e lifecycle verificabile** separa la sorgente
-dei tick dall'esecuzione asincrona. Polling e heartbeat non possono sovrapporsi, ogni callback attiva
-è tracciata e lo shutdown la annulla e la attende prima di rilasciare i lock della sessione.
+La milestone corrente **M3.2.1 — Feedback completo di persistenza** estende la floppy verde a tutte
+le operazioni riuscite sulla card: inserimento, salvataggio, spostamento fra colonne e riordino nella
+stessa colonna. Il tooltip indica l'ultima operazione registrata e il footer autore è allineato alla
+stessa rientranza dei campi titolo e note.
 
 Per la fase corrente è stata adottata una persistenza **SQLite locale senza server**. Il database
 deve risiedere su un disco locale della macchina; la sincronizzazione fra computer e l'apertura del
@@ -78,15 +80,10 @@ Le astrazioni principali introdotte in M3.1 sono:
 - `IRecurringTaskScheduler`;
 - `IViewModelFactory`.
 
-Il timer Avalonia è confinato in `AvaloniaRecurringTaskScheduler`. L'esecuzione delle callback è
-gestita da `AsyncRecurringTaskCoordinator`, che garantisce una sola esecuzione attiva, osserva le
-eccezioni inattese e fornisce uno stop asincrono attendibile. I test usano uno scheduler manuale che
-può avanzare il tempo simulato e generare tick senza attese reali o dispatcher Avalonia.
-
+Il timer Avalonia è confinato in `AvaloniaRecurringTaskScheduler`. I test usano uno scheduler manuale
+che può richiamare polling e heartbeat senza aspettare il tempo reale o inizializzare il dispatcher.
 La milestone non cambia il comportamento della board né lo schema SQLite, che resta alla versione 3.
-Le decisioni sono descritte in
-[`docs/ADR-0005-composition-root.md`](docs/ADR-0005-composition-root.md) e
-[`docs/ADR-0006-scheduler-deterministici.md`](docs/ADR-0006-scheduler-deterministici.md).
+La decisione è descritta in [`docs/ADR-0005-composition-root.md`](docs/ADR-0005-composition-root.md).
 
 ## Prerequisiti
 
@@ -313,3 +310,8 @@ framework-dependent.
 La sequenza aggiornata è in [`docs/MILESTONES.md`](docs/MILESTONES.md). La visione funzionale e la
 roadmap di prodotto sono in
 [`WeeklyPlanner-Obiettivi-e-Roadmap.md`](WeeklyPlanner-Obiettivi-e-Roadmap.md).
+
+## Feedback di persistenza della card
+
+La floppy verde nel footer conferma tutte le operazioni persistite sulla card, non soltanto il salvataggio di titolo e note. Il tooltip distingue `Card inserita`, `Card salvata`, `Card spostata` e `Ordine aggiornato`. Il testo autore è allineato alla stessa rientranza dei campi della card.
+

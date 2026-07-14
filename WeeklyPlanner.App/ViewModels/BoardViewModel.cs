@@ -912,8 +912,9 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                 UpdatedBy = _settings.UserName,
             };
 
-            await _cardRepository.CreateAsync(newCard, cancellationToken);
+            var createdCard = await _cardRepository.CreateAsync(newCard, cancellationToken);
             await MergeCardsAsync(cancellationToken);
+            MarkCardPersistenceSuccess(createdCard.Id, "Card inserita");
         },
         "Creazione card...");
 
@@ -988,16 +989,32 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                         "La card trascinata non appartiene più alla board corrente.");
                 }
 
+                var sourceColumnId = card.ColumnId;
+                var cardId = card.Model.Id;
+
                 await _cardRepository.MoveAsync(
-                    card.Model.Id,
+                    cardId,
                     targetColumn.Id,
                     targetIndex,
                     _settings.UserName,
                     cancellationToken);
 
                 await MergeCardsAsync(cancellationToken);
+                MarkCardPersistenceSuccess(
+                    cardId,
+                    sourceColumnId == targetColumn.Id
+                        ? "Ordine aggiornato"
+                        : "Card spostata");
             },
             "Spostamento card...");
+
+    private void MarkCardPersistenceSuccess(long cardId, string statusText)
+    {
+        var card = Columns
+            .SelectMany(column => column.Cards)
+            .SingleOrDefault(candidate => candidate.Model.Id == cardId);
+        card?.MarkPersistenceSuccess(statusText);
+    }
 
     private async Task ExecuteWriteAsync(
         Func<CancellationToken, Task> operation,

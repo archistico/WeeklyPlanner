@@ -383,7 +383,7 @@ public sealed partial class CardViewModel : ViewModelBase
 
         CopyPersistedModel(persistedCard, updateEditorText: true);
         EndEditState();
-        MarkSaved();
+        MarkPersistenceSuccess("Card salvata");
     }
 
     public void CompleteWithoutChanges()
@@ -400,6 +400,20 @@ public sealed partial class CardViewModel : ViewModelBase
         HasSaveSuccess = false;
         HasSaveError = true;
         SaveStatusText = message;
+    }
+
+    /// <summary>
+    /// Mostra il feedback di persistenza riuscita per qualunque operazione che
+    /// modifica la card: creazione, salvataggio, spostamento o riordino.
+    /// </summary>
+    public void MarkPersistenceSuccess(string statusText)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(statusText);
+
+        IsSaving = false;
+        HasSaveError = false;
+        HasSaveSuccess = true;
+        SaveStatusText = statusText;
     }
 
     public void CancelEdit()
@@ -463,8 +477,11 @@ public sealed partial class CardViewModel : ViewModelBase
         var persistedStateChanged =
             updatedModel.Version != Model.Version ||
             updatedModel.ColumnId != Model.ColumnId ||
+            updatedModel.SortOrder != Model.SortOrder ||
             !string.Equals(updatedModel.Title, Model.Title, StringComparison.Ordinal) ||
-            !string.Equals(updatedModel.Notes, Model.Notes, StringComparison.Ordinal);
+            !string.Equals(updatedModel.Notes, Model.Notes, StringComparison.Ordinal) ||
+            !string.Equals(updatedModel.UpdatedBy, Model.UpdatedBy, StringComparison.Ordinal) ||
+            !string.Equals(updatedModel.UpdatedAtUtc, Model.UpdatedAtUtc, StringComparison.Ordinal);
 
         if (persistedStateChanged)
         {
@@ -545,14 +562,6 @@ public sealed partial class CardViewModel : ViewModelBase
         IsLockedByAnotherUser = false;
         EditingUserName = null;
         RaiseDerivedStateChanged();
-    }
-
-    private void MarkSaved()
-    {
-        IsSaving = false;
-        HasSaveError = false;
-        HasSaveSuccess = true;
-        SaveStatusText = "Salvata";
     }
 
     private void ClearSaveFeedbackAfterUserChange()

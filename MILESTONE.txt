@@ -1,11 +1,9 @@
-WeeklyPlanner M3.2 — Scheduler deterministici e lifecycle verificabile
+WeeklyPlanner M3.2.1 — Feedback completo di persistenza
 
-- callback periodiche serializzate da AsyncRecurringTaskCoordinator;
-- tick sovrapposti scartati senza creare code arretrate;
-- rimosso async void dallo scheduler Avalonia;
-- IRecurringTaskScheduler con StopAsync e dispose asincrono;
-- polling e heartbeat annullati e attesi durante la chiusura;
-- scheduler manuale con avanzamento del tempo simulato;
-- test deterministici per intervalli, overlap, recovery, errori e perdita lock;
-- 114 test dichiarati;
-- nessuna modifica visibile e schema SQLite v3 invariato.
+- La floppy verde conferma inserimento, salvataggio, spostamento e riordino.
+- Il tooltip indica l’ultima operazione persistita sulla card.
+- I feedback obsoleti vengono rimossi quando arriva una modifica esterna.
+- Autore corsivo allineato al padding esplicito di titolo e note.
+- 119 test dichiarati.
+- Scheduler deterministici della M3.2 invariati.
+- Schema SQLite invariato alla versione 3.
