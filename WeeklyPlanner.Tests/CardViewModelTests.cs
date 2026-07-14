@@ -7,16 +7,30 @@ namespace WeeklyPlanner.Tests;
 public sealed class CardViewModelTests
 {
     [Fact]
-    public void BeginEdit_keeps_characters_entered_while_lock_was_being_acquired_as_dirty()
+    public void Editor_is_read_only_until_the_current_session_acquires_the_lock()
     {
         var viewModel = CreateViewModel();
-        viewModel.Title = "OriginaleX";
+
+        Assert.True(viewModel.IsEditorReadOnly);
 
         viewModel.BeginEdit(CreateLock("session-a", "Emilie"), "session-a");
+
+        Assert.True(viewModel.IsEditing);
+        Assert.False(viewModel.IsEditorReadOnly);
+    }
+
+    [Fact]
+    public void BeginEdit_allows_a_local_draft_without_changing_the_persisted_model()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.BeginEdit(CreateLock("session-a", "Emilie"), "session-a");
+
+        viewModel.Title = "OriginaleX";
 
         Assert.True(viewModel.IsDirty);
         Assert.True(viewModel.CanSave);
         Assert.Equal("OriginaleX", viewModel.Title);
+        Assert.Equal("Originale", viewModel.Model.Title);
     }
 
     [Fact]

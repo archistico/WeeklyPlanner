@@ -334,3 +334,11 @@ L'MVP è concluso soltanto quando:
 - il passaggio fra versioni di schema è testato;
 - la persistenza adottata è coerente con l'ADR definitiva;
 - README e documentazione descrivono il comportamento effettivo, non quello previsto.
+
+### Correzione M1.3.1 — distribuzione e ingresso in modifica
+
+- pacchetto ZIP con struttura piatta per evitare l'avvio accidentale di una copia precedente;
+- badge applicativo visibile `M1.3.1`;
+- campi titolo/note read-only prima dell'acquisizione del lease;
+- la bozza diventa modificabile solo dopo `BeginEdit`;
+- resta vietata la sovrascrittura della bozza da parte del polling.

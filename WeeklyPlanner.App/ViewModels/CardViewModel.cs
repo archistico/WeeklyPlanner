@@ -124,7 +124,11 @@ public sealed partial class CardViewModel : ViewModelBase
          !string.Equals(Notes, _originalNotes, StringComparison.Ordinal));
 
     public bool IsEditorReadOnly =>
-        IsLockedByAnotherUser || IsDeletedExternally || HasLostEditLock;
+        !IsEditing ||
+        IsLockedByAnotherUser ||
+        IsDeletedExternally ||
+        HasLostEditLock ||
+        HasExternalChanges;
 
     public bool CanDrag =>
         !IsEditing && !IsLockedByAnotherUser && !IsDeletedExternally;

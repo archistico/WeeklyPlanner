@@ -1,5 +1,14 @@
 # WeeklyPlanner — Milestone operative
 
+## M1.3.1 — Pacchetto e ingresso in editing verificabili
+
+- archivio distribuito con i file del progetto direttamente alla radice;
+- badge visibile `M1.3.1` nella finestra per escludere l'avvio di copie precedenti;
+- editor in sola lettura finché il lease non è stato acquisito;
+- test sullo stato read-only prima e dopo `BeginEdit`;
+- resta valida la protezione della bozza dal polling introdotta in M1.3.
+
+
 Ultimo aggiornamento: 14 luglio 2026.
 
 ## Regole di sviluppo

@@ -1,5 +1,8 @@
 # WeeklyPlanner
 
+
+> **M1.3.1** — pacchetto correttivo con radice piatta. La finestra mostra il badge `M1.3.1`; se non è visibile, si sta eseguendo una copia precedente del progetto. I campi restano in sola lettura fino all'acquisizione del lock, così il polling non può sovrascrivere caratteri digitati prima dell'ingresso effettivo in modifica.
+
 Planner settimanale desktop in **C# / .NET 10 / Avalonia**, sviluppato per milestone piccole,
 test automatici e documentazione aggiornata insieme al codice.
 
