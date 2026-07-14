@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace WeeklyPlanner.Core.Configuration;
 
-public sealed class AppSettingsService
+public sealed class AppSettingsService : IAppSettingsService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

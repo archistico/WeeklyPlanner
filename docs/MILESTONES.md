@@ -1,5 +1,18 @@
 # WeeklyPlanner — Milestone operative
 
+## M3.1 — Composizione applicativa e dependency injection
+
+- composition root unico in `ApplicationCompositionRoot`;
+- costruzione centralizzata di settings, ViewModel, SQLite, repository e scheduler;
+- `BoardViewModel` configurato esclusivamente tramite constructor injection;
+- astrazioni per settings, inizializzazione database, sessione, orologio e scheduler;
+- `DispatcherTimer` confinato nell'adapter `AvaloniaRecurringTaskScheduler`;
+- session ID e nome macchina forniti da una singola `ApplicationSession`;
+- nessuna apertura o creazione del database durante la costruzione dei ViewModel;
+- test con initializer, repository, clock e scheduler controllabili;
+- 103 test dichiarati;
+- comportamento UI e schema SQLite v3 invariati.
+
 ## M2.3 — Impostazioni e rifinitura della sessione
 
 - finestra Impostazioni accessibile dall'header;
@@ -94,8 +107,10 @@ Ogni milestone deve:
 | M2.2 — Tastiera e drop feedback | **Validata** | build e test passati; linea di inserimento, no-op rifiutati, `Alt` + frecce, focus e metadati accessibili |
 | M2.2.1 — Rifinitura visuale | **Validata tramite M2.2.3** | aggiunta nell’header colonna, titolo più grande, floppy verde e cestino a destra |
 | M2.2.3 — Pan orizzontale | **Validata** | build, test e prova manuale riusciti; autore corsivo e pan con tasto centrale |
-| M2.3 — Impostazioni | **Implementata, verifica richiesta** | configurazione runtime, tema, geometria finestra e versione centralizzata |
-| M3 — Osservabilità e composizione | Pianificata | dependency injection, logging locale, correlazione errori e test ViewModel con dipendenze controllabili |
+| M2.3 — Impostazioni | **Validata** | build, test e prova manuale riusciti; configurazione runtime, tema, geometria finestra e versione centralizzata |
+| M3.1 — Composizione e DI | **Implementata, verifica richiesta** | composition root, constructor injection, sessione/orologio/scheduler astratti e test senza SQLite |
+| M3.2 — Timer deterministici | Pianificata | controllo completo delle esecuzioni periodiche, cancellazione e lifecycle nei test |
+| M3.3 — Logging e diagnostica | Pianificata | logging locale, correlazione errori e informazioni runtime |
 | M4 — Packaging MVP locale | Pianificata | publish Windows, backup documentato, smoke test e pacchetto distribuibile |
 
 ## M1.1.1 — SQLite locale affidabile

@@ -8,7 +8,7 @@ public sealed class ApplicationVersionInfoTests
     [Fact]
     public void Milestone_is_read_from_centralized_assembly_metadata()
     {
-        Assert.Equal("M2.3", ApplicationVersionInfo.Milestone);
-        Assert.Contains("M2.3", ApplicationVersionInfo.WindowTitle);
+        Assert.Equal("M3.1", ApplicationVersionInfo.Milestone);
+        Assert.Contains("M3.1", ApplicationVersionInfo.WindowTitle);
     }
 }

@@ -6,7 +6,7 @@ namespace WeeklyPlanner.App.ViewModels;
 
 public sealed partial class SettingsViewModel : ViewModelBase
 {
-    private readonly AppSettingsService _settingsService;
+    private readonly IAppSettingsService _settingsService;
     private readonly IFolderLauncher _folderLauncher;
     private readonly AppSettings _originalSettings;
 
@@ -83,7 +83,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public event EventHandler<SettingsSaveResult>? Completed;
 
     public SettingsViewModel(
-        AppSettingsService settingsService,
+        IAppSettingsService settingsService,
         AppSettings existingSettings,
         bool canEditIdentityAndDatabase,
         IFolderLauncher? folderLauncher = null)

@@ -5,7 +5,7 @@ namespace WeeklyPlanner.App.ViewModels;
 
 public sealed partial class OnboardingViewModel : ViewModelBase
 {
-    private readonly AppSettingsService _settingsService;
+    private readonly IAppSettingsService _settingsService;
     private readonly AppSettings _existingSettings;
 
     private string _databasePath;
@@ -47,7 +47,7 @@ public sealed partial class OnboardingViewModel : ViewModelBase
 
     public event EventHandler<AppSettings>? Completed;
 
-    public OnboardingViewModel(AppSettingsService settingsService, AppSettings existingSettings)
+    public OnboardingViewModel(IAppSettingsService settingsService, AppSettings existingSettings)
     {
         _settingsService = settingsService;
         _existingSettings = existingSettings.Clone();

@@ -307,13 +307,25 @@ Lo stato operativo dettagliato è mantenuto in [`docs/MILESTONES.md`](docs/MILES
 - **M2.3:** impostazioni modificabili dall'app, tema e polling applicati a runtime, cambio database
   differito al riavvio, geometria finestra persistita e versione centralizzata nei metadati assembly.
 
-### M3 — Osservabilità e composizione
+### M3.1 — Composizione applicativa e dependency injection
 
-- dependency injection e composizione centralizzata;
-- logging locale rolling con retention;
-- correlazione degli errori mostrati in UI con i log tecnici;
-- test ViewModel con timer e dipendenze controllabili;
-- diagnostica e pagina informazioni runtime.
+- `ApplicationCompositionRoot` è l'unico punto di costruzione del grafo runtime;
+- `BoardViewModel` non istanzia più connection factory, repository, retry policy, sessione o timer;
+- settings e initializer sono esposti tramite interfacce;
+- session ID e nome macchina appartengono a una sessione applicativa condivisa;
+- polling e heartbeat dipendono da `IRecurringTaskScheduler`;
+- l'orario dell'ultimo sync dipende da `IClock`;
+- i test possono avviare e stimolare il ViewModel senza database SQLite e senza dispatcher Avalonia;
+- lo schema resta alla versione 3 e non sono previste differenze funzionali visibili.
+
+### M3 — Composizione, lifecycle deterministico e osservabilità
+
+- **M3.1:** composition root unico, constructor injection, sessione e orologio astratti, scheduler
+  Avalonia confinati in adapter e test ViewModel senza SQLite o dispatcher reale;
+- **M3.2:** scheduler completamente deterministici, cancellazione e prevenzione delle sovrapposizioni
+  verificate senza tempo reale;
+- **M3.3:** logging locale rolling con retention e correlazione degli errori mostrati in UI;
+- **M3.4:** diagnostica runtime e test UI headless dei flussi critici.
 
 Retry, classificazione degli errori, stato online/offline e recupero automatico sono anticipati in
 M1.4 perché necessari a proteggere il lifecycle dell'editing.

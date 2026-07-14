@@ -2,7 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
-using WeeklyPlanner.App.ViewModels;
+using WeeklyPlanner.App.Composition;
 using WeeklyPlanner.App.Views;
 using WeeklyPlanner.Core.Configuration;
 
@@ -19,17 +19,17 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var settingsService = new AppSettingsService();
-            var settings = settingsService.Load();
+            var compositionRoot = new ApplicationCompositionRoot();
+            var settings = compositionRoot.SettingsService.Load();
             ApplyThemePreference(settings.ThemePreference);
 
             if (!settings.IsComplete())
             {
-                OpenOnboarding(desktop, settingsService, settings);
+                OpenOnboarding(desktop, compositionRoot, settings);
             }
             else
             {
-                desktop.MainWindow = CreateMainWindow(settingsService, settings);
+                desktop.MainWindow = CreateMainWindow(compositionRoot, settings);
             }
         }
 
@@ -48,10 +48,10 @@ public partial class App : Application
 
     private static void OpenOnboarding(
         IClassicDesktopStyleApplicationLifetime desktop,
-        AppSettingsService settingsService,
+        ApplicationCompositionRoot compositionRoot,
         AppSettings settings)
     {
-        var viewModel = new OnboardingViewModel(settingsService, settings);
+        var viewModel = compositionRoot.CreateOnboardingViewModel(settings);
         var window = new OnboardingWindow
         {
             DataContext = viewModel,
@@ -64,7 +64,7 @@ public partial class App : Application
                 app.ApplyThemePreference(completedSettings.ThemePreference);
             }
 
-            var mainWindow = CreateMainWindow(settingsService, completedSettings);
+            var mainWindow = CreateMainWindow(compositionRoot, completedSettings);
             desktop.MainWindow = mainWindow;
             mainWindow.Show();
             window.Close();
@@ -74,16 +74,19 @@ public partial class App : Application
     }
 
     private static MainWindow CreateMainWindow(
-        AppSettingsService settingsService,
+        ApplicationCompositionRoot compositionRoot,
         AppSettings settings)
     {
-        var viewModel = new BoardViewModel(settings);
+        var viewModel = compositionRoot.CreateBoardViewModel(settings);
         var mainWindow = new MainWindow
         {
             DataContext = viewModel,
         };
 
-        mainWindow.ConfigureSettings(settingsService, settings);
+        mainWindow.ConfigureApplicationServices(
+            compositionRoot.SettingsService,
+            compositionRoot,
+            settings);
         mainWindow.Opened += async (_, _) => await viewModel.StartAsync();
         return mainWindow;
     }

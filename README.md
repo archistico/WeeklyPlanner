@@ -1,7 +1,7 @@
 # WeeklyPlanner
 
 
-> **M2.3** — Impostazioni e rifinitura della sessione. Nome utente, polling, tema e percorso del database sono gestibili dall'app; dimensione, posizione e stato della finestra vengono ripristinati automaticamente.
+> **M3.1** — Composizione applicativa e dependency injection. Il grafo dell'applicazione è costruito in un unico composition root e il `BoardViewModel` riceve repository, sessione, orologio e scheduler tramite interfacce.
 
 Planner settimanale desktop in **C# / .NET 10 / Avalonia**, sviluppato per milestone piccole,
 test automatici e documentazione aggiornata insieme al codice.
@@ -40,10 +40,13 @@ l’autore a sinistra e le icone di salvataggio ed eliminazione a destra.
 La milestone **M2.2.3 — Pan orizzontale e allineamento autore** è stata validata su Windows:
 compilazione, test e prova manuale sono riusciti.
 
-La milestone corrente **M2.3 — Impostazioni e rifinitura della sessione** aggiunge una finestra
-Impostazioni accessibile dall'header. Tema e polling vengono applicati immediatamente; nome utente e
-percorso del database sono protetti durante l'editing. Il cambio database viene salvato per il
-successivo avvio, senza scollegare la sessione corrente.
+La milestone **M2.3 — Impostazioni e rifinitura della sessione** è stata validata su Windows: build,
+test e prova manuale sono riusciti.
+
+La milestone corrente **M3.1 — Composizione applicativa e dependency injection** centralizza la
+creazione di ViewModel, repository e servizi runtime. `BoardViewModel` non costruisce più direttamente
+SQLite, Polly, sessione o timer Avalonia e può essere verificato con dipendenze controllate senza
+aprire il database né avviare il dispatcher UI.
 
 Per la fase corrente è stata adottata una persistenza **SQLite locale senza server**. Il database
 deve risiedere su un disco locale della macchina; la sincronizzazione fra computer e l'apertura del
@@ -52,11 +55,31 @@ file tramite share di rete non fanno parte del perimetro attuale. La decisione �
 
 ## Struttura
 
-- `WeeklyPlanner.Core`: modelli, repository, resilienza, configurazione e migrazioni SQLite;
-- `WeeklyPlanner.App`: applicazione Avalonia con MVVM, onboarding, board e polling;
+- `WeeklyPlanner.Core`: modelli, repository, resilienza, configurazione, orologio e migrazioni SQLite;
+- `WeeklyPlanner.App`: applicazione Avalonia con MVVM, composition root, onboarding, board e scheduler;
 - `WeeklyPlanner.Tests`: test unitari e di integrazione su file SQLite temporanei;
 - `docs`: decisioni architetturali e milestone operative;
 - `scripts`: verifica e pubblicazione da PowerShell.
+
+## Composizione applicativa
+
+`ApplicationCompositionRoot` è l'unico punto che costruisce il grafo runtime. Condivide una sola
+`ApplicationSession` per l'intera esecuzione e crea i repository a partire dal percorso SQLite
+normalizzato. I ViewModel dipendono da interfacce e non conoscono la costruzione concreta dei servizi.
+
+Le astrazioni principali introdotte in M3.1 sono:
+
+- `IAppSettingsService`;
+- `IDatabaseInitializer`;
+- `IApplicationSession`;
+- `IClock`;
+- `IRecurringTaskScheduler`;
+- `IViewModelFactory`.
+
+Il timer Avalonia è confinato in `AvaloniaRecurringTaskScheduler`. I test usano uno scheduler manuale
+che può richiamare polling e heartbeat senza aspettare il tempo reale o inizializzare il dispatcher.
+La milestone non cambia il comportamento della board né lo schema SQLite, che resta alla versione 3.
+La decisione è descritta in [`docs/ADR-0005-composition-root.md`](docs/ADR-0005-composition-root.md).
 
 ## Prerequisiti
 

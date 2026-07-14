@@ -7,7 +7,7 @@ namespace WeeklyPlanner.Core.Data;
 /// <summary>
 /// Inizializza il database e applica in ordine tutte le migrazioni embedded mancanti.
 /// </summary>
-public sealed class DatabaseInitializer
+public sealed class DatabaseInitializer : IDatabaseInitializer
 {
     public const int ExpectedSchemaVersion = 3;
 

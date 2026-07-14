@@ -14,12 +14,13 @@ public sealed class BoardViewModelSettingsTests : IDisposable
     public async Task ApplyRuntimeSettings_updates_user_and_polling_without_switching_database()
     {
         var originalDatabase = Path.Combine(_tempDirectory, "current", "weeklyplanner.db");
-        var viewModel = new BoardViewModel(new AppSettings
+        var context = BoardViewModelTestDoubles.Create(new AppSettings
         {
             DatabasePath = originalDatabase,
             UserName = "Emilie",
             PollingIntervalSeconds = 7,
         });
+        var viewModel = context.ViewModel;
         var updatedSettings = new AppSettings
         {
             DatabasePath = Path.Combine(_tempDirectory, "future", "weeklyplanner.db"),

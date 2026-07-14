@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using WeeklyPlanner.App.Interaction;
+using WeeklyPlanner.App.Services;
 using WeeklyPlanner.App.ViewModels;
 using WeeklyPlanner.Core.Configuration;
 
@@ -28,7 +29,8 @@ public partial class MainWindow : Window
     private bool _boardPanInProgress;
     private Point _boardPanStartPoint;
     private Vector _boardPanStartOffset;
-    private AppSettingsService? _settingsService;
+    private IAppSettingsService? _settingsService;
+    private IViewModelFactory? _viewModelFactory;
     private AppSettings? _applicationSettings;
     private bool _windowPlacementRestored;
 
@@ -61,14 +63,17 @@ public partial class MainWindow : Window
         Resized += (_, _) => CaptureNormalWindowPlacement();
     }
 
-    public void ConfigureSettings(
-        AppSettingsService settingsService,
+    public void ConfigureApplicationServices(
+        IAppSettingsService settingsService,
+        IViewModelFactory viewModelFactory,
         AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settingsService);
+        ArgumentNullException.ThrowIfNull(viewModelFactory);
         ArgumentNullException.ThrowIfNull(settings);
 
         _settingsService = settingsService;
+        _viewModelFactory = viewModelFactory;
         _applicationSettings = settings.Clone();
         _applicationSettings.Normalize();
 
@@ -204,14 +209,14 @@ public partial class MainWindow : Window
     private async void OnOpenSettingsClick(object? sender, RoutedEventArgs e)
     {
         if (_settingsService is null ||
+            _viewModelFactory is null ||
             _applicationSettings is null ||
             DataContext is not BoardViewModel boardViewModel)
         {
             return;
         }
 
-        var viewModel = new SettingsViewModel(
-            _settingsService,
+        var viewModel = _viewModelFactory.CreateSettingsViewModel(
             _applicationSettings,
             boardViewModel.CanChangeIdentityAndDatabaseSettings);
         var window = new SettingsWindow

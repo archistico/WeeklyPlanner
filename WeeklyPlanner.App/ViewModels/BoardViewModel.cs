@@ -1,12 +1,13 @@
 using System.Collections.ObjectModel;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Input;
+using WeeklyPlanner.App.Services;
 using WeeklyPlanner.Core.Configuration;
 using WeeklyPlanner.Core.Data;
 using WeeklyPlanner.Core.Models;
 using WeeklyPlanner.Core.Polling;
 using WeeklyPlanner.Core.Repositories;
 using WeeklyPlanner.Core.Resilience;
+using WeeklyPlanner.Core.Time;
 
 namespace WeeklyPlanner.App.ViewModels;
 
@@ -17,17 +18,17 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
     private static readonly TimeSpan EditLockHeartbeatInterval = TimeSpan.FromSeconds(10);
 
     private readonly AppSettings _settings;
-    private readonly DatabaseInitializer _databaseInitializer;
+    private readonly IDatabaseInitializer _databaseInitializer;
     private readonly ICardRepository _cardRepository;
     private readonly ICardEditLockRepository _editLockRepository;
     private readonly IColumnRepository _columnRepository;
     private readonly IBoardChangeDetector _changeDetector;
-    private readonly DispatcherTimer _pollingTimer;
-    private readonly DispatcherTimer _lockHeartbeatTimer;
+    private readonly IRecurringTaskScheduler _pollingScheduler;
+    private readonly IRecurringTaskScheduler _lockHeartbeatScheduler;
     private readonly SemaphoreSlim _operationGate = new(1, 1);
     private readonly CancellationTokenSource _lifetimeCancellation = new();
-    private readonly string _sessionId = Guid.NewGuid().ToString("N");
-    private readonly string _machineName = Environment.MachineName;
+    private readonly IApplicationSession _applicationSession;
+    private readonly IClock _clock;
 
     private int _consecutiveFailures;
     private bool _automaticRetryAllowed = true;
@@ -176,7 +177,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
 
         _settings.UserName = normalized.UserName;
         _settings.PollingIntervalSeconds = normalized.PollingIntervalSeconds;
-        _pollingTimer.Interval = TimeSpan.FromSeconds(_settings.PollingIntervalSeconds);
+        _pollingScheduler.Interval = TimeSpan.FromSeconds(_settings.PollingIntervalSeconds);
 
         OnPropertyChanged(nameof(CurrentUserName));
         OnPropertyChanged(nameof(PollingIntervalSeconds));
@@ -186,41 +187,43 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
             : null;
     }
 
-    public BoardViewModel(AppSettings settings)
+    public BoardViewModel(
+        AppSettings settings,
+        IDatabaseInitializer databaseInitializer,
+        ICardRepository cardRepository,
+        ICardEditLockRepository editLockRepository,
+        IColumnRepository columnRepository,
+        IBoardChangeDetector changeDetector,
+        IRecurringTaskScheduler pollingScheduler,
+        IRecurringTaskScheduler lockHeartbeatScheduler,
+        IApplicationSession applicationSession,
+        IClock clock)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(databaseInitializer);
+        ArgumentNullException.ThrowIfNull(cardRepository);
+        ArgumentNullException.ThrowIfNull(editLockRepository);
+        ArgumentNullException.ThrowIfNull(columnRepository);
+        ArgumentNullException.ThrowIfNull(changeDetector);
+        ArgumentNullException.ThrowIfNull(pollingScheduler);
+        ArgumentNullException.ThrowIfNull(lockHeartbeatScheduler);
+        ArgumentNullException.ThrowIfNull(applicationSession);
+        ArgumentNullException.ThrowIfNull(clock);
 
         _settings = settings.Clone();
         _settings.Normalize();
+        _databaseInitializer = databaseInitializer;
+        _cardRepository = cardRepository;
+        _editLockRepository = editLockRepository;
+        _columnRepository = columnRepository;
+        _changeDetector = changeDetector;
+        _pollingScheduler = pollingScheduler;
+        _lockHeartbeatScheduler = lockHeartbeatScheduler;
+        _applicationSession = applicationSession;
+        _clock = clock;
 
-        var connectionFactory = new SqliteConnectionFactory(_settings.DatabasePath);
-        _databaseInitializer = new DatabaseInitializer(connectionFactory);
-
-        var writePipeline = RetryPolicyFactory.CreateSqliteWritePipeline();
-        var readPipeline = RetryPolicyFactory.CreateSqliteReadPipeline();
-        _cardRepository = new CardRepository(
-            connectionFactory,
-            writePipeline,
-            readPipeline: readPipeline);
-        _editLockRepository = new CardEditLockRepository(
-            connectionFactory,
-            writePipeline,
-            readPipeline: readPipeline);
-        _columnRepository = new ColumnRepository(connectionFactory, readPipeline);
-        _changeDetector = new BoardChangeDetector(
-            new BoardRevisionRepository(connectionFactory, readPipeline));
-
-        _pollingTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromSeconds(_settings.PollingIntervalSeconds),
-        };
-        _pollingTimer.Tick += OnPollingTimerTick;
-
-        _lockHeartbeatTimer = new DispatcherTimer
-        {
-            Interval = EditLockHeartbeatInterval,
-        };
-        _lockHeartbeatTimer.Tick += OnLockHeartbeatTimerTick;
+        _pollingScheduler.Interval = TimeSpan.FromSeconds(_settings.PollingIntervalSeconds);
+        _lockHeartbeatScheduler.Interval = EditLockHeartbeatInterval;
     }
 
     public async Task StartAsync()
@@ -240,8 +243,8 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
 
         if (!_isDisposed)
         {
-            _pollingTimer.Start();
-            _lockHeartbeatTimer.Start();
+            _pollingScheduler.Start(PollBoardAsync, _lifetimeCancellation.Token);
+            _lockHeartbeatScheduler.Start(HeartbeatEditingLocksAsync, _lifetimeCancellation.Token);
         }
     }
 
@@ -278,13 +281,13 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
 
                 var result = await _editLockRepository.TryAcquireAsync(
                     card.Model.Id,
-                    _sessionId,
+                    _applicationSession.SessionId,
                     _settings.UserName,
-                    _machineName,
+                    _applicationSession.MachineName,
                     EditLockLeaseDuration,
                     cancellationToken);
 
-                card.ApplyLockState(result.CurrentLock, _sessionId);
+                card.ApplyLockState(result.CurrentLock, _applicationSession.SessionId);
                 if (!result.Acquired)
                 {
                     card.RefreshFromModel(card.Model);
@@ -293,7 +296,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                     return false;
                 }
 
-                card.BeginEdit(result.CurrentLock, _sessionId);
+                card.BeginEdit(result.CurrentLock, _applicationSession.SessionId);
                 MarkConnectionHealthy();
                 StatusMessage = null;
                 return true;
@@ -389,7 +392,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                     card.CompleteWithoutChanges();
                     await _editLockRepository.ReleaseAsync(
                         card.Model.Id,
-                        _sessionId,
+                        _applicationSession.SessionId,
                         cancellationToken);
                     await MergeCardsAsync(cancellationToken);
                     MarkConnectionHealthy();
@@ -400,14 +403,14 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                 var editedCard = card.CreateEditedModel(_settings.UserName);
                 var persistedCard = await _cardRepository.UpdateAsync(
                     editedCard,
-                    _sessionId,
+                    _applicationSession.SessionId,
                     cancellationToken);
 
                 card.CompleteSave(persistedCard);
                 contentPersisted = true;
                 await _editLockRepository.ReleaseAsync(
                     card.Model.Id,
-                    _sessionId,
+                    _applicationSession.SessionId,
                     cancellationToken);
                 await MergeCardsAsync(cancellationToken);
 
@@ -447,7 +450,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         {
             var activeLocks = await TryGetActiveLocksAsync();
             activeLocks.TryGetValue(card.Model.Id, out var currentLock);
-            card.MarkLockLost(currentLock, _sessionId);
+            card.MarkLockLost(currentLock, _applicationSession.SessionId);
             card.MarkSaveError(ex.Message);
             MarkConnectionHealthy();
             StatusMessage = ex.Message;
@@ -490,7 +493,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                 card.CancelEdit();
                 await _editLockRepository.ReleaseAsync(
                     card.Model.Id,
-                    _sessionId,
+                    _applicationSession.SessionId,
                     cancellationToken);
                 await MergeCardsAsync(cancellationToken);
                 MarkConnectionHealthy();
@@ -515,9 +518,10 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         }
     }
 
-    private async void OnPollingTimerTick(object? sender, EventArgs e)
+    private async Task PollBoardAsync(CancellationToken cancellationToken)
     {
         if (_isDisposed ||
+            cancellationToken.IsCancellationRequested ||
             (ConnectionState == BoardConnectionState.Error && !_automaticRetryAllowed))
         {
             return;
@@ -529,9 +533,10 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
             showActivity: false);
     }
 
-    private async void OnLockHeartbeatTimerTick(object? sender, EventArgs e)
+    private async Task HeartbeatEditingLocksAsync(CancellationToken cancellationToken)
     {
         if (_isDisposed ||
+            cancellationToken.IsCancellationRequested ||
             (ConnectionState == BoardConnectionState.Error && !_automaticRetryAllowed))
         {
             return;
@@ -668,7 +673,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
             {
                 if (!await _editLockRepository.RenewAsync(
                         card.Model.Id,
-                        _sessionId,
+                        _applicationSession.SessionId,
                         EditLockLeaseDuration,
                         cancellationToken))
                 {
@@ -683,9 +688,9 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                 {
                     activeLocks.TryGetValue(card.Model.Id, out var currentLock);
                     if (currentLock is null ||
-                        !string.Equals(currentLock.SessionId, _sessionId, StringComparison.Ordinal))
+                        !string.Equals(currentLock.SessionId, _applicationSession.SessionId, StringComparison.Ordinal))
                     {
-                        card.MarkLockLost(currentLock, _sessionId);
+                        card.MarkLockLost(currentLock, _applicationSession.SessionId);
                     }
                 }
 
@@ -757,7 +762,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
 
             var cardViewModel = new CardViewModel(card);
             locksByCardId.TryGetValue(card.Id, out var editLock);
-            cardViewModel.ApplyLockState(editLock, _sessionId);
+            cardViewModel.ApplyLockState(editLock, _applicationSession.SessionId);
             column.Cards.Add(cardViewModel);
         }
 
@@ -831,7 +836,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         foreach (var cardViewModel in Columns.SelectMany(column => column.Cards))
         {
             activeLocks.TryGetValue(cardViewModel.Model.Id, out var editLock);
-            cardViewModel.ApplyLockState(editLock, _sessionId);
+            cardViewModel.ApplyLockState(editLock, _applicationSession.SessionId);
         }
     }
 
@@ -841,7 +846,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         foreach (var cardViewModel in Columns.SelectMany(column => column.Cards))
         {
             activeLocks.TryGetValue(cardViewModel.Model.Id, out var editLock);
-            cardViewModel.ApplyLockState(editLock, _sessionId);
+            cardViewModel.ApplyLockState(editLock, _applicationSession.SessionId);
         }
     }
 
@@ -1090,7 +1095,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         _consecutiveFailures = 0;
         _automaticRetryAllowed = true;
         ConnectionState = BoardConnectionState.Online;
-        _lastSuccessfulSyncAt = DateTimeOffset.Now;
+        _lastSuccessfulSyncAt = _clock.Now;
         OnPropertyChanged(nameof(LastSuccessfulSyncText));
         OnPropertyChanged(nameof(HasLastSuccessfulSync));
     }
@@ -1138,10 +1143,8 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         _isDisposed = true;
         ConnectionState = BoardConnectionState.ShuttingDown;
         SetActivity("Rilascio dei lock e chiusura...");
-        _pollingTimer.Stop();
-        _pollingTimer.Tick -= OnPollingTimerTick;
-        _lockHeartbeatTimer.Stop();
-        _lockHeartbeatTimer.Tick -= OnLockHeartbeatTimerTick;
+        _pollingScheduler.Stop();
+        _lockHeartbeatScheduler.Stop();
         _lifetimeCancellation.Cancel();
 
         // Attendere la conclusione dell'operazione eventualmente in corso prima di rilasciare
@@ -1149,18 +1152,25 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         await _operationGate.WaitAsync(CancellationToken.None);
         try
         {
-            try
+            if (_isStarted)
             {
-                await _editLockRepository.ReleaseSessionAsync(_sessionId, CancellationToken.None);
-            }
-            catch
-            {
-                // Cleanup best effort: in caso di errore il lease scadrà automaticamente.
+                try
+                {
+                    await _editLockRepository.ReleaseSessionAsync(
+                        _applicationSession.SessionId,
+                        CancellationToken.None);
+                }
+                catch
+                {
+                    // Cleanup best effort: in caso di errore il lease scadrà automaticamente.
+                }
             }
         }
         finally
         {
             _operationGate.Release();
+            _pollingScheduler.Dispose();
+            _lockHeartbeatScheduler.Dispose();
             _operationGate.Dispose();
             _lifetimeCancellation.Dispose();
         }

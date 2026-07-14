@@ -1,10 +1,10 @@
-WeeklyPlanner M2.3 — Impostazioni e rifinitura della sessione
+WeeklyPlanner M3.1 — Composizione applicativa e dependency injection
 
-- impostazioni accessibili dall'header;
-- tema e polling applicati immediatamente;
-- nome e database protetti durante l'editing;
-- cambio database applicato al riavvio;
-- apertura cartelle locali;
-- geometria finestra persistita;
-- versione centralizzata;
-- schema SQLite v3 invariato.
+- composition root unico per settings, ViewModel e servizi runtime;
+- BoardViewModel privo di costruzione diretta di SQLite, repository, sessione e timer;
+- constructor injection per repository, initializer, change detector, scheduler, sessione e orologio;
+- IAppSettingsService e IDatabaseInitializer sostituibili;
+- sessione applicativa condivisa e identificata esplicitamente;
+- scheduler ricorrenti astratti dal DispatcherTimer Avalonia;
+- test ViewModel senza accesso a SQLite o dispatcher UI;
+- nessuna modifica funzionale e schema SQLite v3 invariato.
