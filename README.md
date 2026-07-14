@@ -1,7 +1,7 @@
 # WeeklyPlanner
 
 
-> **M2.2.3** — Pan orizzontale e allineamento autore. Il tasto centrale del mouse consente di trascinare la board fra i giorni; la firma dell’autore è corsiva e allineata ai contenuti della card.
+> **M2.3** — Impostazioni e rifinitura della sessione. Nome utente, polling, tema e percorso del database sono gestibili dall'app; dimensione, posizione e stato della finestra vengono ripristinati automaticamente.
 
 Planner settimanale desktop in **C# / .NET 10 / Avalonia**, sviluppato per milestone piccole,
 test automatici e documentazione aggiornata insieme al codice.
@@ -37,9 +37,13 @@ La milestone **M2.2.1 — Rifinitura visuale della board** sposta l’azione di 
 nell’intestazione della colonna, aumenta leggermente il titolo della card e riallinea il footer con
 l’autore a sinistra e le icone di salvataggio ed eliminazione a destra.
 
-La milestone corrente **M2.2.3 — Pan orizzontale e allineamento autore** rende corsiva la firma
-`di <utente>`, la allinea al testo dei campi e permette di spostarsi fra i giorni trascinando la
-board con il tasto centrale del mouse. La scrollbar orizzontale resta disponibile come alternativa.
+La milestone **M2.2.3 — Pan orizzontale e allineamento autore** è stata validata su Windows:
+compilazione, test e prova manuale sono riusciti.
+
+La milestone corrente **M2.3 — Impostazioni e rifinitura della sessione** aggiunge una finestra
+Impostazioni accessibile dall'header. Tema e polling vengono applicati immediatamente; nome utente e
+percorso del database sono protetti durante l'editing. Il cambio database viene salvato per il
+successivo avvio, senza scollegare la sessione corrente.
 
 Per la fase corrente è stata adottata una persistenza **SQLite locale senza server**. Il database
 deve risiedere su un disco locale della macchina; la sincronizzazione fra computer e l'apertura del
@@ -95,6 +99,28 @@ Al primo avvio vengono proposti:
 Si può indicare direttamente un file `.db` oppure una cartella esistente o terminante con un
 separatore: in quest'ultimo caso l'app aggiunge `weeklyplanner.db`. La cartella padre viene creata
 automaticamente se non esiste.
+
+## Impostazioni locali
+
+Il pulsante a forma di ingranaggio nell'header apre le impostazioni senza modificare lo schema SQLite.
+Sono configurabili:
+
+- nome registrato sulle modifiche;
+- percorso del database SQLite locale;
+- intervallo di polling da 3 a 60 secondi;
+- tema Sistema, Chiaro o Scuro;
+- apertura rapida della cartella database e della cartella `%APPDATA%\WeeklyPlanner`.
+
+Tema e polling vengono applicati immediatamente. Nome e database non possono essere cambiati mentre
+una card è in modifica o durante un'operazione critica. Un nuovo percorso database viene usato al
+riavvio successivo: la sessione attiva continua a lavorare sul file già aperto.
+
+Dimensione, posizione e stato massimizzato della finestra principale vengono salvati in
+`settings.json`. Una posizione non più appartenente a uno schermo disponibile viene ignorata e la
+finestra torna al centro dello schermo.
+
+La versione visualizzata nel titolo e nel badge deriva dai metadati dell'assembly, definiti una sola
+volta in `Directory.Build.props`.
 
 ## Migrazione dello schema
 
@@ -193,7 +219,7 @@ della bozza. Durante la scrittura il salvataggio rende temporaneamente i campi i
 evitare comandi concorrenti sulla stessa card.
 
 Ogni colonna usa un proprio `ScrollViewer` verticale; lo scorrimento orizzontale della board resta
-indipendente e l'azione **+ Aggiungi card** rimane sempre visibile in fondo alla colonna.
+indipendente e l'azione compatta **+ card** rimane sempre visibile accanto al nome del giorno.
 
 ## Drag&drop e tastiera
 

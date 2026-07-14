@@ -1,10 +1,10 @@
-WeeklyPlanner M2.2.2 — Pan orizzontale e allineamento autore
+WeeklyPlanner M2.3 — Impostazioni e rifinitura della sessione
 
-- firma "di <utente>" in corsivo
-- margine sinistro della firma allineato ai contenuti della card
-- pan orizzontale della board con il tasto centrale del mouse
-- asse verticale invariato durante il pan
-- scrollbar orizzontale mantenuta come alternativa
-- drag&drop delle card e scroll verticali invariati
-- test unitari del calcolo dell’offset
-- schema database invariato alla versione 3
+- impostazioni accessibili dall'header;
+- tema e polling applicati immediatamente;
+- nome e database protetti durante l'editing;
+- cambio database applicato al riavvio;
+- apertura cartelle locali;
+- geometria finestra persistita;
+- versione centralizzata;
+- schema SQLite v3 invariato.

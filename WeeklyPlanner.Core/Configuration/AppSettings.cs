@@ -10,6 +10,12 @@ public sealed class AppSettings
     public const int DefaultPollingIntervalSeconds = 7;
     public const int MinimumPollingIntervalSeconds = 3;
     public const int MaximumPollingIntervalSeconds = 60;
+    public const double DefaultWindowWidth = 1100;
+    public const double DefaultWindowHeight = 700;
+    public const double MinimumWindowWidth = 720;
+    public const double MinimumWindowHeight = 480;
+    public const double MaximumWindowWidth = 3840;
+    public const double MaximumWindowHeight = 2160;
 
     public string DatabasePath { get; set; } = string.Empty;
 
@@ -24,8 +30,33 @@ public sealed class AppSettings
 
     public int PollingIntervalSeconds { get; set; } = DefaultPollingIntervalSeconds;
 
+    public AppThemePreference ThemePreference { get; set; } = AppThemePreference.System;
+
+    public double WindowWidth { get; set; } = DefaultWindowWidth;
+
+    public double WindowHeight { get; set; } = DefaultWindowHeight;
+
+    public int? WindowX { get; set; }
+
+    public int? WindowY { get; set; }
+
+    public bool WindowMaximized { get; set; }
+
     public bool IsComplete() =>
         IsSupportedLocalDatabasePath(DatabasePath) && !string.IsNullOrWhiteSpace(UserName);
+
+    public AppSettings Clone() => new()
+    {
+        DatabasePath = DatabasePath,
+        UserName = UserName,
+        PollingIntervalSeconds = PollingIntervalSeconds,
+        ThemePreference = ThemePreference,
+        WindowWidth = WindowWidth,
+        WindowHeight = WindowHeight,
+        WindowX = WindowX,
+        WindowY = WindowY,
+        WindowMaximized = WindowMaximized,
+    };
 
     public static bool IsSupportedLocalDatabasePath(string? databasePath)
     {
@@ -105,7 +136,42 @@ public sealed class AppSettings
             PollingIntervalSeconds,
             MinimumPollingIntervalSeconds,
             MaximumPollingIntervalSeconds);
+
+        if (!Enum.IsDefined(typeof(AppThemePreference), ThemePreference))
+        {
+            ThemePreference = AppThemePreference.System;
+        }
+
+        WindowWidth = NormalizeDimension(
+            WindowWidth,
+            DefaultWindowWidth,
+            MinimumWindowWidth,
+            MaximumWindowWidth);
+        WindowHeight = NormalizeDimension(
+            WindowHeight,
+            DefaultWindowHeight,
+            MinimumWindowHeight,
+            MaximumWindowHeight);
+
+        if (WindowX is < -100_000 or > 100_000)
+        {
+            WindowX = null;
+        }
+
+        if (WindowY is < -100_000 or > 100_000)
+        {
+            WindowY = null;
+        }
     }
+
+    private static double NormalizeDimension(
+        double value,
+        double defaultValue,
+        double minimum,
+        double maximum) =>
+        double.IsFinite(value)
+            ? Math.Clamp(value, minimum, maximum)
+            : defaultValue;
 
     private static bool EndsWithDirectorySeparator(string path) =>
         path.EndsWith(Path.DirectorySeparatorChar) ||

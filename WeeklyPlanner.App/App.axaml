@@ -3,9 +3,8 @@
              x:Class="WeeklyPlanner.App.App"
              RequestedThemeVariant="Default">
     <!--
-        RequestedThemeVariant="Default" segue il tema (chiaro/scuro) del sistema operativo,
-        coerentemente con il comportamento nativo di Libadwaita sull'originale GTK4 (vedi §7.1
-        del documento di progetto).
+        RequestedThemeVariant="Default" segue il sistema operativo. App.axaml.cs può sostituirlo
+        a runtime con Light o Dark in base alla preferenza salvata nelle impostazioni locali.
     -->
 
     <Application.Styles>

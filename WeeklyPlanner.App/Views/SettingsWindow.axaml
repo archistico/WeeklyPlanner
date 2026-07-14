@@ -1,0 +1,78 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:WeeklyPlanner.App.ViewModels"
+        x:Class="WeeklyPlanner.App.Views.SettingsWindow"
+        Title="WeeklyPlanner - Impostazioni"
+        Width="620" Height="560"
+        MinWidth="540" MinHeight="500"
+        WindowStartupLocation="CenterOwner">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <Border Padding="24">
+      <StackPanel Spacing="14">
+        <TextBlock Text="Impostazioni" FontSize="20" FontWeight="SemiBold" />
+
+        <Border Background="#F6D32D" Padding="10" CornerRadius="8"
+                IsVisible="{Binding IsIdentityAndDatabaseBlocked}">
+          <TextBlock Text="Nome e database sono temporaneamente bloccati perché una card è in modifica o è in corso un'operazione. Tema e polling restano modificabili."
+                     Foreground="#241F31" TextWrapping="Wrap" />
+        </Border>
+
+        <StackPanel Spacing="4">
+          <TextBlock Text="Il tuo nome" FontWeight="Medium" />
+          <TextBox Text="{Binding UserName}"
+                   IsEnabled="{Binding CanEditIdentityAndDatabase}"
+                   Watermark="Es. Emilie" />
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+          <TextBlock Text="Database SQLite locale" FontWeight="Medium" />
+          <TextBox Text="{Binding DatabasePath}"
+                   IsEnabled="{Binding CanEditIdentityAndDatabase}" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Classes="compact" Content="Apri cartella database"
+                    Command="{Binding OpenDatabaseFolderCommand}" />
+            <Button Classes="compact" Content="Apri dati applicativi"
+                    Command="{Binding OpenApplicationDataFolderCommand}" />
+          </StackPanel>
+          <TextBlock Text="Il cambio del database viene applicato al successivo avvio."
+                     Foreground="{DynamicResource TextSecondaryBrush}"
+                     FontSize="11" />
+        </StackPanel>
+
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+          <StackPanel Grid.Column="0" Spacing="4">
+            <TextBlock Text="Polling (secondi)" FontWeight="Medium" />
+            <NumericUpDown Value="{Binding PollingIntervalSeconds}"
+                           Minimum="3" Maximum="60" />
+          </StackPanel>
+          <StackPanel Grid.Column="1" Spacing="4">
+            <TextBlock Text="Tema" FontWeight="Medium" />
+            <ComboBox ItemsSource="{Binding ThemeOptions}"
+                      SelectedItem="{Binding SelectedThemeOption}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate DataType="vm:ThemePreferenceOption">
+                  <TextBlock Text="{Binding DisplayName}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+        </Grid>
+
+        <TextBlock Text="{Binding InformationMessage}"
+                   IsVisible="{Binding HasInformationMessage}"
+                   Foreground="{DynamicResource SuccessBrush}"
+                   TextWrapping="Wrap" />
+        <TextBlock Text="{Binding ValidationMessage}"
+                   IsVisible="{Binding HasValidationMessage}"
+                   Foreground="{DynamicResource DangerBrush}"
+                   TextWrapping="Wrap" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+          <Button Content="Annulla" Click="OnCancelClick" />
+          <Button Classes="primary" Content="Salva"
+                  Command="{Binding SaveCommand}" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </ScrollViewer>
+</Window>

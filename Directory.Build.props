@@ -7,5 +7,13 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <Version>0.7.0</Version>
+    <InformationalVersion>0.7.0-m2.3</InformationalVersion>
+    <WeeklyPlannerMilestone>M2.3</WeeklyPlannerMilestone>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="WeeklyPlannerMilestone" Value="$(WeeklyPlannerMilestone)" />
+  </ItemGroup>
 </Project>

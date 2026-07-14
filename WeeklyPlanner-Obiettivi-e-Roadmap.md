@@ -303,7 +303,9 @@ Lo stato operativo dettagliato è mantenuto in [`docs/MILESTONES.md`](docs/MILES
 - **M2.2.1:** azione di aggiunta compatta nell’intestazione delle colonne, titolo card più leggibile,
   footer con autore a sinistra, floppy verde di salvataggio e cestino allineato a destra;
 - **M2.2.3:** firma autore corsiva e allineata ai campi; pan orizzontale della board con trascinamento
-  tramite tasto centrale del mouse, senza interferire con drag&drop e scroll verticali.
+  tramite tasto centrale del mouse, senza interferire con drag&drop e scroll verticali;
+- **M2.3:** impostazioni modificabili dall'app, tema e polling applicati a runtime, cambio database
+  differito al riavvio, geometria finestra persistita e versione centralizzata nei metadati assembly.
 
 ### M3 — Osservabilità e composizione
 

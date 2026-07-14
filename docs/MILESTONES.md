@@ -1,5 +1,20 @@
 # WeeklyPlanner — Milestone operative
 
+## M2.3 — Impostazioni e rifinitura della sessione
+
+- finestra Impostazioni accessibile dall'header;
+- modifica di nome utente, polling, tema e percorso database;
+- tema Sistema/Chiaro/Scuro applicato immediatamente;
+- intervallo di polling aggiornato senza riavvio;
+- nome e database protetti durante editing e operazioni in corso;
+- cambio database differito al successivo avvio;
+- apertura delle cartelle database e dati applicativi;
+- persistenza di dimensione, posizione e stato massimizzato della finestra;
+- cursore `SizeAll` durante il pan con tasto centrale;
+- versione e milestone centralizzate in `Directory.Build.props` e lette dall'assembly;
+- test di settings, blocchi della sessione, tema, polling, cartelle e geometria;
+- schema SQLite invariato alla versione 3.
+
 ## M2.2.3 — Pan orizzontale e allineamento autore
 
 - testo `di <utente>` in corsivo;
@@ -75,10 +90,11 @@ Ogni milestone deve:
 | M1.3.1 — Editing protetto | **Validata** | build/test e runtime verificati; bozza separata, polling non distruttivo, lease, indicatore utente e optimistic concurrency |
 | M1.4 — Stato operativo e lifecycle | **Validata** | stati connessione, classificazione errori, retry letture, recupero non distruttivo e chiusura coordinata |
 | M2.1.1 — Rifinitura eliminazione | **Validata** | build, test e prova manuale riusciti; icona cestino compatta nel footer della card |
-| M2.1 — CRUD e feedback editor | **Implementata** | eliminazione inline, validazione titolo, feedback di salvataggio e scroll per colonna |
+| M2.1 — CRUD e feedback editor | **Validata tramite M2.1.1** | eliminazione inline, validazione titolo, feedback di salvataggio e scroll per colonna |
 | M2.2 — Tastiera e drop feedback | **Validata** | build e test passati; linea di inserimento, no-op rifiutati, `Alt` + frecce, focus e metadati accessibili |
-| M2.2.1 — Rifinitura visuale | **Implementata** | aggiunta nell’header colonna, titolo più grande, floppy verde e cestino a destra |
-| M2.2.3 — Pan orizzontale | **Implementata, verifica richiesta** | autore corsivo e allineato; pan fra i giorni con il tasto centrale |
+| M2.2.1 — Rifinitura visuale | **Validata tramite M2.2.3** | aggiunta nell’header colonna, titolo più grande, floppy verde e cestino a destra |
+| M2.2.3 — Pan orizzontale | **Validata** | build, test e prova manuale riusciti; autore corsivo e pan con tasto centrale |
+| M2.3 — Impostazioni | **Implementata, verifica richiesta** | configurazione runtime, tema, geometria finestra e versione centralizzata |
 | M3 — Osservabilità e composizione | Pianificata | dependency injection, logging locale, correlazione errori e test ViewModel con dipendenze controllabili |
 | M4 — Packaging MVP locale | Pianificata | publish Windows, backup documentato, smoke test e pacchetto distribuibile |
 
@@ -344,3 +360,15 @@ Poi verificare manualmente:
 5. verificare che il pan modifichi soltanto lo scorrimento orizzontale;
 6. verificare che drag&drop con il tasto sinistro e scroll verticali continuino a funzionare;
 7. verificare che la scrollbar orizzontale resti utilizzabile.
+
+## Criteri di chiusura M2.3
+
+1. eseguire `dotnet build` e `dotnet test` senza warning o errori;
+2. verificare il badge `M2.3` e il titolo ricavati dall'assembly;
+3. cambiare tema e polling e verificarne l'applicazione immediata;
+4. aprire le cartelle database e dati applicativi;
+5. modificare il nome utente a sessione libera e verificare il nuovo nome nell'header;
+6. aprire una card in editing e verificare che nome e database siano bloccati;
+7. cambiare database e verificare il messaggio di riavvio, senza scollegare la board corrente;
+8. ridimensionare, spostare o massimizzare la finestra e verificare il ripristino al riavvio;
+9. verificare il cursore di pan durante il trascinamento con tasto centrale.

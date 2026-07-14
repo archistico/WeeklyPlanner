@@ -11,6 +11,11 @@ public sealed class AppSettingsService
 
     private readonly string _settingsFilePath;
 
+    public string SettingsFilePath => _settingsFilePath;
+
+    public string SettingsDirectoryPath =>
+        Path.GetDirectoryName(_settingsFilePath) ?? Environment.CurrentDirectory;
+
     public AppSettingsService()
         : this(Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),

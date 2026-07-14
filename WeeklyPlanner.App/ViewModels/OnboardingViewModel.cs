@@ -6,6 +6,7 @@ namespace WeeklyPlanner.App.ViewModels;
 public sealed partial class OnboardingViewModel : ViewModelBase
 {
     private readonly AppSettingsService _settingsService;
+    private readonly AppSettings _existingSettings;
 
     private string _databasePath;
     private string _userName;
@@ -49,6 +50,8 @@ public sealed partial class OnboardingViewModel : ViewModelBase
     public OnboardingViewModel(AppSettingsService settingsService, AppSettings existingSettings)
     {
         _settingsService = settingsService;
+        _existingSettings = existingSettings.Clone();
+        _existingSettings.Normalize();
         _databasePath = string.IsNullOrWhiteSpace(existingSettings.DatabasePath)
             ? AppSettings.GetDefaultDatabasePath()
             : existingSettings.DatabasePath;
@@ -77,12 +80,10 @@ public sealed partial class OnboardingViewModel : ViewModelBase
             return;
         }
 
-        var settings = new AppSettings
-        {
-            DatabasePath = DatabasePath,
-            UserName = UserName,
-            PollingIntervalSeconds = PollingIntervalSeconds,
-        };
+        var settings = _existingSettings.Clone();
+        settings.DatabasePath = DatabasePath;
+        settings.UserName = UserName;
+        settings.PollingIntervalSeconds = PollingIntervalSeconds;
         settings.Normalize();
 
         try

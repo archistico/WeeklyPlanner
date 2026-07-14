@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using WeeklyPlanner.App.Interaction;
 using WeeklyPlanner.App.ViewModels;
+using WeeklyPlanner.Core.Configuration;
 
 namespace WeeklyPlanner.App.Views;
 
@@ -14,6 +15,7 @@ public partial class MainWindow : Window
 {
     private static readonly DataFormat<string> CardDragFormat =
         DataFormat.CreateStringApplicationFormat("weeklyplanner-card");
+    private static readonly Cursor BoardPanCursor = new(StandardCursorType.SizeAll);
     private const double DragThreshold = 5;
 
     private CardViewModel? _pendingDragCard;
@@ -26,6 +28,9 @@ public partial class MainWindow : Window
     private bool _boardPanInProgress;
     private Point _boardPanStartPoint;
     private Vector _boardPanStartOffset;
+    private AppSettingsService? _settingsService;
+    private AppSettings? _applicationSettings;
+    private bool _windowPlacementRestored;
 
     public MainWindow()
     {
@@ -50,6 +55,112 @@ public partial class MainWindow : Window
             OnBoardPanPointerReleased,
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
+
+        Opened += OnWindowOpened;
+        PositionChanged += (_, _) => CaptureNormalWindowPlacement();
+        Resized += (_, _) => CaptureNormalWindowPlacement();
+    }
+
+    public void ConfigureSettings(
+        AppSettingsService settingsService,
+        AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settingsService);
+        ArgumentNullException.ThrowIfNull(settings);
+
+        _settingsService = settingsService;
+        _applicationSettings = settings.Clone();
+        _applicationSettings.Normalize();
+
+        Width = _applicationSettings.WindowWidth;
+        Height = _applicationSettings.WindowHeight;
+    }
+
+    private void OnWindowOpened(object? sender, EventArgs e)
+    {
+        if (_applicationSettings is null)
+        {
+            return;
+        }
+
+        var requestedPosition = _applicationSettings.WindowX is int x &&
+                                _applicationSettings.WindowY is int y
+            ? new PixelPoint(x, y)
+            : (PixelPoint?)null;
+        var storedScreen = requestedPosition is PixelPoint point
+            ? Screens.ScreenFromPoint(point)
+            : null;
+        var targetScreen = storedScreen ?? Screens.Primary;
+
+        if (targetScreen is not null)
+        {
+            var fittedSize = WindowPlacementCalculator.FitSizeToWorkingArea(
+                _applicationSettings.WindowWidth,
+                _applicationSettings.WindowHeight,
+                targetScreen.WorkingArea,
+                targetScreen.Scaling,
+                MinWidth,
+                MinHeight);
+            Width = fittedSize.Width;
+            Height = fittedSize.Height;
+        }
+
+        if (storedScreen is not null && requestedPosition is PixelPoint storedPosition)
+        {
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Position = WindowPlacementCalculator.ClampPosition(
+                storedPosition,
+                new Size(Width, Height),
+                storedScreen.WorkingArea,
+                storedScreen.Scaling);
+        }
+        else
+        {
+            WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        }
+
+        if (_applicationSettings.WindowMaximized)
+        {
+            WindowState = WindowState.Maximized;
+        }
+
+        _windowPlacementRestored = true;
+        CaptureNormalWindowPlacement();
+    }
+
+    private void CaptureNormalWindowPlacement()
+    {
+        if (!_windowPlacementRestored ||
+            _applicationSettings is null ||
+            WindowState != WindowState.Normal)
+        {
+            return;
+        }
+
+        _applicationSettings.WindowWidth = Math.Max(MinWidth, ClientSize.Width);
+        _applicationSettings.WindowHeight = Math.Max(MinHeight, ClientSize.Height);
+        _applicationSettings.WindowX = Position.X;
+        _applicationSettings.WindowY = Position.Y;
+    }
+
+    private void PersistWindowPlacement()
+    {
+        if (_settingsService is null || _applicationSettings is null)
+        {
+            return;
+        }
+
+        CaptureNormalWindowPlacement();
+        _applicationSettings.WindowMaximized = WindowState == WindowState.Maximized;
+
+        try
+        {
+            _settingsService.Save(_applicationSettings);
+        }
+        catch
+        {
+            // Il salvataggio della geometria non deve impedire la chiusura dell'applicazione.
+        }
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)
@@ -61,6 +172,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        PersistWindowPlacement();
         e.Cancel = true;
         if (_shutdownInProgress)
         {
@@ -87,6 +199,42 @@ public partial class MainWindow : Window
             _shutdownCompleted = true;
             Close();
         }
+    }
+
+    private async void OnOpenSettingsClick(object? sender, RoutedEventArgs e)
+    {
+        if (_settingsService is null ||
+            _applicationSettings is null ||
+            DataContext is not BoardViewModel boardViewModel)
+        {
+            return;
+        }
+
+        var viewModel = new SettingsViewModel(
+            _settingsService,
+            _applicationSettings,
+            boardViewModel.CanChangeIdentityAndDatabaseSettings);
+        var window = new SettingsWindow
+        {
+            DataContext = viewModel,
+        };
+
+        viewModel.Completed += (_, result) => window.Close(result);
+        var result = await window.ShowDialog<SettingsSaveResult?>(this);
+        if (result is null)
+        {
+            return;
+        }
+
+        _applicationSettings = result.Settings.Clone();
+        if (Application.Current is App app)
+        {
+            app.ApplyThemePreference(_applicationSettings.ThemePreference);
+        }
+
+        boardViewModel.ApplyRuntimeSettings(
+            _applicationSettings,
+            result.RequiresRestart);
     }
 
     private async void OnCardFieldGotFocus(object? sender, GotFocusEventArgs e)
@@ -207,6 +355,7 @@ public partial class MainWindow : Window
         _boardPanInProgress = true;
         _boardPanStartPoint = e.GetPosition(scrollViewer);
         _boardPanStartOffset = scrollViewer.Offset;
+        scrollViewer.Cursor = BoardPanCursor;
         e.Pointer.Capture(scrollViewer);
         e.Handled = true;
     }
@@ -245,6 +394,7 @@ public partial class MainWindow : Window
     private void EndBoardPan(IPointer pointer)
     {
         _boardPanInProgress = false;
+        BoardScrollViewer.Cursor = Cursor.Default;
         pointer.Capture(null);
     }
 

@@ -198,6 +198,72 @@ public sealed class AppSettingsServiceTests : IDisposable
         }
     }
 
+
+    [Fact]
+    public void Save_and_load_roundtrip_preserves_theme_and_window_placement()
+    {
+        var service = CreateService();
+        var settings = new AppSettings
+        {
+            DatabasePath = Path.Combine(_tempDirectory, "data", "weeklyplanner.db"),
+            UserName = "Emilie",
+            ThemePreference = AppThemePreference.Dark,
+            WindowWidth = 1280,
+            WindowHeight = 820,
+            WindowX = 120,
+            WindowY = 80,
+            WindowMaximized = true,
+        };
+
+        service.Save(settings);
+        var reloaded = service.Load();
+
+        Assert.Equal(AppThemePreference.Dark, reloaded.ThemePreference);
+        Assert.Equal(1280d, reloaded.WindowWidth);
+        Assert.Equal(820d, reloaded.WindowHeight);
+        Assert.Equal(120, reloaded.WindowX);
+        Assert.Equal(80, reloaded.WindowY);
+        Assert.True(reloaded.WindowMaximized);
+    }
+
+    [Fact]
+    public void Normalize_repairs_invalid_theme_and_window_dimensions()
+    {
+        var settings = new AppSettings
+        {
+            ThemePreference = (AppThemePreference)999,
+            WindowWidth = double.NaN,
+            WindowHeight = 100,
+            WindowX = int.MaxValue,
+            WindowY = int.MinValue,
+        };
+
+        settings.Normalize();
+
+        Assert.Equal(AppThemePreference.System, settings.ThemePreference);
+        Assert.Equal(AppSettings.DefaultWindowWidth, settings.WindowWidth);
+        Assert.Equal(AppSettings.MinimumWindowHeight, settings.WindowHeight);
+        Assert.Null(settings.WindowX);
+        Assert.Null(settings.WindowY);
+    }
+
+    [Fact]
+    public void Clone_creates_an_independent_settings_instance()
+    {
+        var settings = new AppSettings
+        {
+            DatabasePath = Path.Combine(_tempDirectory, "data", "weeklyplanner.db"),
+            UserName = "Emilie",
+            PollingIntervalSeconds = 7,
+        };
+
+        var clone = settings.Clone();
+        clone.UserName = "Altra persona";
+
+        Assert.Equal("Emilie", settings.UserName);
+        Assert.Equal("Altra persona", clone.UserName);
+    }
+
     private AppSettingsService CreateService() => new(GetSettingsPath());
 
     private string GetSettingsPath() => Path.Combine(_tempDirectory, "settings.json");

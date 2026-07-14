@@ -143,11 +143,54 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
 
     public string CurrentUserName => _settings.UserName;
 
+    public string CurrentDatabasePath => _settings.DatabasePath;
+
+    public int PollingIntervalSeconds => _settings.PollingIntervalSeconds;
+
+    public string ApplicationMilestone => ApplicationVersionInfo.Milestone;
+
+    public string WindowTitle => ApplicationVersionInfo.WindowTitle;
+
+    public bool HasActiveEdits => Columns
+        .SelectMany(column => column.Cards)
+        .Any(card => card.IsEditing);
+
+    public bool CanChangeIdentityAndDatabaseSettings =>
+        !_isDisposed && !IsBusy && !HasActiveEdits;
+
+    public void ApplyRuntimeSettings(AppSettings settings, bool databaseChangeRequiresRestart)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        var normalized = settings.Clone();
+        normalized.Normalize();
+
+        if (HasActiveEdits && !string.Equals(
+                normalized.UserName,
+                _settings.UserName,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Non è possibile cambiare utente mentre una card è in modifica.");
+        }
+
+        _settings.UserName = normalized.UserName;
+        _settings.PollingIntervalSeconds = normalized.PollingIntervalSeconds;
+        _pollingTimer.Interval = TimeSpan.FromSeconds(_settings.PollingIntervalSeconds);
+
+        OnPropertyChanged(nameof(CurrentUserName));
+        OnPropertyChanged(nameof(PollingIntervalSeconds));
+
+        StatusMessage = databaseChangeRequiresRestart
+            ? "Impostazioni salvate. Il nuovo database verrà usato al prossimo avvio."
+            : null;
+    }
+
     public BoardViewModel(AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
 
-        _settings = settings;
+        _settings = settings.Clone();
         _settings.Normalize();
 
         var connectionFactory = new SqliteConnectionFactory(_settings.DatabasePath);
