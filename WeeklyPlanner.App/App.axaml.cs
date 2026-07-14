@@ -65,7 +65,6 @@ public partial class App : Application
         };
 
         mainWindow.Opened += async (_, _) => await viewModel.StartAsync();
-        mainWindow.Closed += async (_, _) => await viewModel.DisposeAsync();
         return mainWindow;
     }
 }

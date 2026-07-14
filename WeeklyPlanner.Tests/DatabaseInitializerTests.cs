@@ -82,6 +82,21 @@ public sealed class DatabaseInitializerTests : IDisposable
     }
 
     [Fact]
+    public void EnsureInitialized_does_not_recreate_a_database_missing_during_recovery()
+    {
+        var connectionFactory = new SqliteConnectionFactory(_tempDbPath);
+        var initializer = new DatabaseInitializer(connectionFactory);
+        initializer.EnsureInitialized();
+        File.Delete(_tempDbPath);
+
+        var exception = Assert.Throws<FileNotFoundException>(
+            () => initializer.EnsureInitialized(allowCreate: false));
+
+        Assert.Equal(_tempDbPath, exception.FileName);
+        Assert.False(File.Exists(_tempDbPath));
+    }
+
+    [Fact]
     public void EnsureInitialized_rejects_a_newer_schema()
     {
         var connectionFactory = new SqliteConnectionFactory(_tempDbPath);

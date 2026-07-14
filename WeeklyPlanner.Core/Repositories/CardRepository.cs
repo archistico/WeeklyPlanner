@@ -4,6 +4,7 @@ using Microsoft.Data.Sqlite;
 using Polly;
 using WeeklyPlanner.Core.Data;
 using WeeklyPlanner.Core.Models;
+using WeeklyPlanner.Core.Resilience;
 
 namespace WeeklyPlanner.Core.Repositories;
 
@@ -14,15 +15,18 @@ public sealed class CardRepository : ICardRepository
 
     private readonly SqliteConnectionFactory _connectionFactory;
     private readonly ResiliencePipeline _writePipeline;
+    private readonly ResiliencePipeline _readPipeline;
     private readonly TimeProvider _timeProvider;
 
     public CardRepository(
         SqliteConnectionFactory connectionFactory,
         ResiliencePipeline writePipeline,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ResiliencePipeline? readPipeline = null)
     {
         _connectionFactory = connectionFactory;
         _writePipeline = writePipeline;
+        _readPipeline = readPipeline ?? RetryPolicyFactory.CreateSqliteReadPipeline();
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -30,10 +34,13 @@ public sealed class CardRepository : ICardRepository
     {
         var sql = $"{CardSelect} ORDER BY ColumnId, SortOrder, Id;";
 
-        using var connection = _connectionFactory.Create();
-        var command = new CommandDefinition(sql, cancellationToken: cancellationToken);
-        var cards = await connection.QueryAsync<Card>(command);
-        return cards.AsList();
+        return await _readPipeline.ExecuteAsync(async token =>
+        {
+            await using var connection = _connectionFactory.Create();
+            var command = new CommandDefinition(sql, cancellationToken: token);
+            var cards = await connection.QueryAsync<Card>(command);
+            return (IReadOnlyList<Card>)cards.AsList();
+        }, cancellationToken);
     }
 
     public async Task<Card> CreateAsync(Card card, CancellationToken cancellationToken = default)

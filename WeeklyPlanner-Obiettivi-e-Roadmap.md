@@ -1,6 +1,6 @@
 # WeeklyPlanner — Obiettivi e roadmap
 
-Versione documento: **0.5.0**  
+Versione documento: **0.6.0**
 Ultimo aggiornamento: **14 luglio 2026**
 
 ## 1. Visione
@@ -271,8 +271,11 @@ Lo stato operativo dettagliato è mantenuto in [`docs/MILESTONES.md`](docs/MILES
   normalizzazione dei percorsi e avvio runtime validato;
 - **M1.2:** creazione, eliminazione e riordino atomici; rinumerazione completa delle colonne;
   drop prima/dopo una card; rollback transazionale e verifica esplicita delle righe modificate;
-- **M1.3:** schema v3, bozza protetta dal polling, lease con heartbeat e indicatore utente,
-  optimistic concurrency e gestione esplicita dei conflitti.
+- **M1.3 / M1.3.1:** schema v3, bozza protetta dal polling, lease con heartbeat e indicatore utente,
+  optimistic concurrency, pacchetto verificabile e runtime validato;
+- **M1.4:** stato operativo visibile, classificazione errori SQLite, retry coerente sulle letture,
+  recupero non distruttivo, protezione dalla ricreazione silenziosa del file e chiusura coordinata
+  con rilascio dei lock.
 
 ### M2 — CRUD e UX MVP
 
@@ -285,14 +288,16 @@ Lo stato operativo dettagliato è mantenuto in [`docs/MILESTONES.md`](docs/MILES
 - accessibilità da tastiera;
 - indicatore visuale della posizione di drop.
 
-### M3 — Resilienza
+### M3 — Osservabilità e composizione
 
 - dependency injection e composizione centralizzata;
-- logging locale rolling;
-- retry coerente e classificazione errori;
-- stato online/offline;
-- recupero automatico;
-- test ViewModel e lifecycle.
+- logging locale rolling con retention;
+- correlazione degli errori mostrati in UI con i log tecnici;
+- test ViewModel con timer e dipendenze controllabili;
+- diagnostica e pagina informazioni runtime.
+
+Retry, classificazione degli errori, stato online/offline e recupero automatico sono anticipati in
+M1.4 perché necessari a proteggere il lifecycle dell'editing.
 
 ### M4 — Packaging
 

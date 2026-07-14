@@ -4,6 +4,7 @@ using Microsoft.Data.Sqlite;
 using Polly;
 using WeeklyPlanner.Core.Data;
 using WeeklyPlanner.Core.Models;
+using WeeklyPlanner.Core.Resilience;
 
 namespace WeeklyPlanner.Core.Repositories;
 
@@ -15,15 +16,18 @@ public sealed class CardEditLockRepository : ICardEditLockRepository
 
     private readonly SqliteConnectionFactory _connectionFactory;
     private readonly ResiliencePipeline _writePipeline;
+    private readonly ResiliencePipeline _readPipeline;
     private readonly TimeProvider _timeProvider;
 
     public CardEditLockRepository(
         SqliteConnectionFactory connectionFactory,
         ResiliencePipeline writePipeline,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ResiliencePipeline? readPipeline = null)
     {
         _connectionFactory = connectionFactory;
         _writePipeline = writePipeline;
+        _readPipeline = readPipeline ?? RetryPolicyFactory.CreateSqliteReadPipeline();
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -169,13 +173,16 @@ public sealed class CardEditLockRepository : ICardEditLockRepository
     {
         var sql = $"{LockSelect} WHERE ExpiresAtUtc > @NowUtc ORDER BY CardId;";
 
-        using var connection = _connectionFactory.Create();
-        var command = new CommandDefinition(
-            sql,
-            new { NowUtc = FormatUtc(_timeProvider.GetUtcNow()) },
-            cancellationToken: cancellationToken);
-        var locks = await connection.QueryAsync<CardEditLock>(command);
-        return locks.AsList();
+        return await _readPipeline.ExecuteAsync(async token =>
+        {
+            await using var connection = _connectionFactory.Create();
+            var command = new CommandDefinition(
+                sql,
+                new { NowUtc = FormatUtc(_timeProvider.GetUtcNow()) },
+                cancellationToken: token);
+            var locks = await connection.QueryAsync<CardEditLock>(command);
+            return (IReadOnlyList<CardEditLock>)locks.AsList();
+        }, cancellationToken);
     }
 
     private static async Task EnsureCardExistsAsync(

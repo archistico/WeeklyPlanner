@@ -132,6 +132,24 @@ public sealed class CardEditLockRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task ReleaseSessionAsync_removes_all_and_only_locks_owned_by_session()
+    {
+        var firstCard = await CreateCardAsync();
+        var secondCard = await CreateCardAsync();
+        var otherSessionCard = await CreateCardAsync();
+
+        await AcquireAsync(firstCard.Id, "session-a", "Emilie");
+        await AcquireAsync(secondCard.Id, "session-a", "Emilie");
+        await AcquireAsync(otherSessionCard.Id, "session-b", "Alice");
+
+        await _lockRepository.ReleaseSessionAsync("session-a");
+
+        var remainingLock = Assert.Single(await _lockRepository.GetActiveAsync());
+        Assert.Equal("session-b", remainingLock.SessionId);
+        Assert.Equal(otherSessionCard.Id, remainingLock.CardId);
+    }
+
+    [Fact]
     public async Task Acquire_and_release_advance_revision_but_heartbeat_does_not()
     {
         var card = await CreateCardAsync();

@@ -199,9 +199,8 @@ public sealed partial class CardViewModel : ViewModelBase
             return;
         }
 
-        // Il controllo del focus acquisisce il lease in modo asincrono: il binding può aver
-        // già ricevuto i primi caratteri. La baseline dirty deve restare il valore persistito,
-        // mentre Title/Notes conservano l'eventuale input già digitato.
+        // I campi restano read-only finché il lease non è acquisito. La baseline dirty deve
+        // quindi coincidere sempre con il valore persistito all'ingresso in modifica.
         _originalTitle = Model.Title;
         _originalNotes = Model.Notes;
         _editExpectedVersion = Model.Version;

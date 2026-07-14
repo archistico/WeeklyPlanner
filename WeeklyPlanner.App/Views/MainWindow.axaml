@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:WeeklyPlanner.App.ViewModels"
         x:Class="WeeklyPlanner.App.Views.MainWindow"
-        Title="WeeklyPlanner — M1.3.1"
+        Title="WeeklyPlanner — M1.4"
         Width="1100" Height="700"
         MinWidth="720" MinHeight="480">
 
@@ -12,21 +12,53 @@
         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
           <TextBlock Text="WeeklyPlanner" FontWeight="SemiBold" FontSize="16" />
           <Border Background="#3584E4" CornerRadius="4" Padding="5,1" VerticalAlignment="Center">
-            <TextBlock Text="M1.3.1" Foreground="White" FontSize="10" FontWeight="SemiBold" />
+            <TextBlock Text="M1.4" Foreground="White" FontSize="10" FontWeight="SemiBold" />
           </Border>
         </StackPanel>
-        <TextBlock Grid.Column="2"
-                   Text="{Binding CurrentUserName, StringFormat='Connesso come {0}'}"
-                   Foreground="{DynamicResource TextSecondaryBrush}"
-                   VerticalAlignment="Center" />
+
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Border Width="9" Height="9" CornerRadius="5" Background="#2EC27E"
+                  IsVisible="{Binding IsOnline}" />
+          <Border Width="9" Height="9" CornerRadius="5" Background="#E5A50A"
+                  IsVisible="{Binding IsConnectionPending}" />
+          <Border Width="9" Height="9" CornerRadius="5" Background="#C01C28"
+                  IsVisible="{Binding IsOffline}" />
+
+          <TextBlock Text="{Binding ConnectionStatusText}"
+                     FontWeight="SemiBold"
+                     VerticalAlignment="Center" />
+          <TextBlock Text="{Binding LastSuccessfulSyncText}"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
+                     IsVisible="{Binding HasLastSuccessfulSync}"
+                     VerticalAlignment="Center" />
+          <TextBlock Text="{Binding ActivityText}"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
+                     IsVisible="{Binding HasActivityText}"
+                     VerticalAlignment="Center" />
+          <Button Content="Riprova ora"
+                  Padding="8,3"
+                  IsVisible="{Binding CanRetry}"
+                  IsEnabled="{Binding CanRetryNow}"
+                  Command="{Binding RetryNowCommand}" />
+          <TextBlock Text="{Binding CurrentUserName, StringFormat='Utente: {0}'}"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
+                     VerticalAlignment="Center" />
+        </StackPanel>
       </Grid>
     </Border>
 
     <Border DockPanel.Dock="Top"
             Background="#F6D32D"
             Padding="12,6"
-            IsVisible="{Binding HasStatusMessage}">
-      <TextBlock Text="{Binding StatusMessage}" Foreground="#241F31" />
+            IsVisible="{Binding HasWarningStatusMessage}">
+      <TextBlock Text="{Binding StatusMessage}" Foreground="#241F31" TextWrapping="Wrap" />
+    </Border>
+
+    <Border DockPanel.Dock="Top"
+            Background="#C01C28"
+            Padding="12,6"
+            IsVisible="{Binding HasErrorStatusMessage}">
+      <TextBlock Text="{Binding StatusMessage}" Foreground="White" TextWrapping="Wrap" />
     </Border>
 
     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
@@ -47,6 +79,7 @@
                         Margin="12,6,12,0"
                         HorizontalAlignment="Stretch"
                         Content="+ Aggiungi card"
+                        IsEnabled="{Binding $parent[Window].DataContext.CanModifyBoard}"
                         Command="{Binding $parent[Window].DataContext.AddCardCommand}"
                         CommandParameter="{Binding}" />
 

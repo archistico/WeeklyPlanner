@@ -22,8 +22,17 @@ public sealed class DatabaseInitializer
         _connectionFactory = connectionFactory;
     }
 
-    public void EnsureInitialized()
+    public void EnsureInitialized() => EnsureInitialized(allowCreate: true);
+
+    public void EnsureInitialized(bool allowCreate)
     {
+        if (!allowCreate && !File.Exists(_connectionFactory.DatabasePath))
+        {
+            throw new FileNotFoundException(
+                $"Il database locale non è più disponibile nel percorso '{_connectionFactory.DatabasePath}'.",
+                _connectionFactory.DatabasePath);
+        }
+
         using var connection = _connectionFactory.Create();
 
         ConfigurePersistentJournalMode(connection);

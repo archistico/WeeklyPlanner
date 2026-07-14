@@ -1,13 +1,16 @@
 # WeeklyPlanner — Milestone operative
 
-## M1.3.1 — Pacchetto e ingresso in editing verificabili
+## M1.4 — Stato operativo e lifecycle affidabile
 
-- archivio distribuito con i file del progetto direttamente alla radice;
-- badge visibile `M1.3.1` nella finestra per escludere l'avvio di copie precedenti;
-- editor in sola lettura finché il lease non è stato acquisito;
-- test sullo stato read-only prima e dopo `BeginEdit`;
-- resta valida la protezione della bozza dal polling introdotta in M1.3.
-
+- stati espliciti `Connecting`, `Online`, `Recovering`, `Offline`, `Error`, `ShuttingDown`;
+- indicatore colorato, ultimo aggiornamento, attività corrente e comando **Riprova ora**;
+- classificazione centralizzata degli errori SQLite tramite codici numerici;
+- retry breve e coerente per letture e scritture in caso di `BUSY`/`LOCKED`;
+- board e bozze preservate durante interruzione e recupero;
+- un database già caricato non viene ricreato silenziosamente se il file scompare;
+- scritture e drag&drop disabilitati quando il database non è online;
+- chiusura della finestra differita fino al cleanup best-effort dei lock della sessione;
+- schema invariato alla versione 3.
 
 Ultimo aggiornamento: 14 luglio 2026.
 
@@ -30,9 +33,10 @@ Ogni milestone deve:
 | ADR-0002 — Persistenza locale | **Accettata** | SQLite su disco locale, nessun server e nessuna sincronizzazione fra PC |
 | M1.1.1 — SQLite locale affidabile | **Validata** | schema v2, revisione monotona, polling delle cancellazioni, percorsi legacy normalizzati, build/test e avvio runtime riusciti |
 | M1.2 — Riordino atomico | **Validata** | compilazione e test passati; create/delete/move transazionali, normalizzazione completa dei `SortOrder`, rollback e drop prima/dopo una card |
-| M1.3 — Editing protetto | **Implementata, verifica richiesta** | bozza separata, polling non distruttivo, lease con heartbeat, indicatore utente, `Cards.Version`, conflitti e test multi-istanza |
+| M1.3.1 — Editing protetto | **Validata** | build/test e runtime verificati; bozza separata, polling non distruttivo, lease, indicatore utente e optimistic concurrency |
+| M1.4 — Stato operativo e lifecycle | **Implementata, verifica richiesta** | stati connessione, classificazione errori, retry letture, recupero non distruttivo e chiusura coordinata |
 | M2 — CRUD e UX minima | Pianificata | eliminazione visibile e confermata, scroll verticale, editor controllato e stato di salvataggio |
-| M3 — Resilienza e osservabilità | Pianificata | logging locale, classificazione errori, retry coerente e test ViewModel |
+| M3 — Osservabilità e composizione | Pianificata | dependency injection, logging locale, correlazione errori e test ViewModel con dipendenze controllabili |
 | M4 — Packaging MVP locale | Pianificata | publish Windows, backup documentato, smoke test e pacchetto distribuibile |
 
 ## M1.1.1 — SQLite locale affidabile
@@ -168,3 +172,50 @@ Poi verificare manualmente:
 7. uscire dalla card e verificare il salvataggio nell'altra istanza;
 8. ripetere usando `Esc` e verificare l'annullamento;
 9. chiudere forzatamente l'istanza che detiene il lock e verificare lo sblocco entro circa 30 secondi.
+
+
+## M1.4 — Stato operativo e lifecycle affidabile
+
+### Stato operativo
+
+- la UI espone connessione, recupero, offline, errore e chiusura;
+- l'ultimo polling riuscito è visibile nell'intestazione;
+- le operazioni lunghe espongono un testo attività;
+- **Riprova ora** forza un tentativo senza attendere il polling successivo;
+- le scritture non partono quando il database non è online.
+
+### Resilienza
+
+- `DatabaseFailureClassifier` usa `SqliteErrorCode` e non il testo localizzato;
+- `BUSY` e `LOCKED` hanno backoff dedicato per letture e scritture;
+- percorso/I/O, permessi, spazio, corruzione e schema producono messaggi distinti;
+- una lettura fallita non svuota le collection;
+- il recupero riutilizza i ViewModel esistenti e conserva le bozze;
+- dopo il primo caricamento riuscito, la scomparsa del file viene trattata come indisponibilità e non genera un database vuoto sostitutivo;
+- il polling ritenta automaticamente solo gli errori recuperabili; gli errori strutturali attendono **Riprova ora**.
+
+### Lifecycle
+
+- `Window.Closing` annulla temporaneamente la prima richiesta di chiusura;
+- polling e heartbeat vengono fermati prima del cleanup;
+- le operazioni correnti ricevono cancellazione e il gate viene atteso;
+- tutti i lock della sessione vengono rilasciati prima della chiusura effettiva;
+- in caso di errore del cleanup, i lease restano comunque a scadenza.
+
+### Test
+
+- classificazione di contention, indisponibilità, corruzione, permessi, schema e fallback unknown;
+- protezione contro la ricreazione silenziosa del database durante il recupero;
+- rilascio di tutti e soli i lock appartenenti a una sessione;
+- restano validi tutti i test di migrazione, repository, polling, riordino ed editing.
+
+### Smoke test manuale richiesto
+
+1. avviare l'app e verificare il badge `M1.4` e lo stato verde **Database online**;
+2. aprire una card e lasciare una bozza non salvata;
+3. rendere temporaneamente indisponibile il file o la cartella del database;
+4. verificare che la board e la bozza restino visibili e che compaia lo stato offline/errore;
+5. ripristinare il database e usare **Riprova ora**;
+6. verificare il ritorno online senza perdita della bozza;
+7. aprire due istanze, modificare una card nella prima e chiuderla normalmente;
+8. verificare nella seconda che il lock venga rimosso subito, senza attendere 30 secondi.

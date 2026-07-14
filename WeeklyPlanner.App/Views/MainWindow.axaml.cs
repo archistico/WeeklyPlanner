@@ -18,6 +18,8 @@ public partial class MainWindow : Window
     private CardViewModel? _pendingDragCard;
     private Point _dragStartPoint;
     private bool _dragInProgress;
+    private bool _shutdownInProgress;
+    private bool _shutdownCompleted;
 
     public MainWindow()
     {
@@ -25,6 +27,44 @@ public partial class MainWindow : Window
 
         DragDrop.AddDragOverHandler(this, OnDragOver);
         DragDrop.AddDropHandler(this, OnDrop);
+    }
+
+
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        base.OnClosing(e);
+
+        if (_shutdownCompleted || e.Cancel || DataContext is not IAsyncDisposable disposable)
+        {
+            return;
+        }
+
+        e.Cancel = true;
+        if (_shutdownInProgress)
+        {
+            return;
+        }
+
+        _shutdownInProgress = true;
+        IsEnabled = false;
+        _ = CompleteShutdownAsync(disposable);
+    }
+
+    private async Task CompleteShutdownAsync(IAsyncDisposable disposable)
+    {
+        try
+        {
+            await disposable.DisposeAsync();
+        }
+        catch
+        {
+            // Il cleanup è best effort: i lease residui scadranno automaticamente.
+        }
+        finally
+        {
+            _shutdownCompleted = true;
+            Close();
+        }
     }
 
     private async void OnCardFieldGotFocus(object? sender, GotFocusEventArgs e)
@@ -151,9 +191,10 @@ public partial class MainWindow : Window
         e.Pointer.Capture(null);
     }
 
-    private static void OnDragOver(object? sender, DragEventArgs e)
+    private void OnDragOver(object? sender, DragEventArgs e)
     {
-        e.DragEffects = e.DataTransfer.Contains(CardDragFormat)
+        e.DragEffects = DataContext is BoardViewModel { CanModifyBoard: true } &&
+                        e.DataTransfer.Contains(CardDragFormat)
             ? DragDropEffects.Move
             : DragDropEffects.None;
         e.Handled = true;
@@ -168,7 +209,7 @@ public partial class MainWindow : Window
                 CultureInfo.InvariantCulture,
                 out var cardId) ||
             e.Source is not Control targetControl ||
-            DataContext is not BoardViewModel boardViewModel)
+            DataContext is not BoardViewModel { CanModifyBoard: true } boardViewModel)
         {
             return;
         }
