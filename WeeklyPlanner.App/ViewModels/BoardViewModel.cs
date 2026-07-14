@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.Input;
+using WeeklyPlanner.App.Diagnostics;
 using WeeklyPlanner.App.Services;
 using WeeklyPlanner.Core.Configuration;
 using WeeklyPlanner.Core.Data;
@@ -29,6 +30,8 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly IApplicationSession _applicationSession;
     private readonly IClock _clock;
+    private readonly IAppLogger _logger;
+    private readonly IErrorReferenceGenerator _errorReferences;
 
     private int _consecutiveFailures;
     private bool _automaticRetryAllowed = true;
@@ -49,8 +52,17 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         get => _connectionState;
         private set
         {
+            var previous = _connectionState;
             if (SetProperty(ref _connectionState, value))
             {
+                _logger.Information(
+                    "connection.state_changed",
+                    "Lo stato della connessione è cambiato.",
+                    new Dictionary<string, object?>
+                    {
+                        ["previousState"] = previous,
+                        ["currentState"] = value,
+                    });
                 RaiseOperationalStateChanged();
             }
         }
@@ -159,6 +171,14 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
     public bool CanChangeIdentityAndDatabaseSettings =>
         !_isDisposed && !IsBusy && !HasActiveEdits;
 
+    public BoardRuntimeDiagnostics GetRuntimeDiagnostics() => new(
+        ConnectionStatusText,
+        _lastSuccessfulSyncAt,
+        HasActiveEdits,
+        Columns.Count,
+        Columns.Sum(column => column.Cards.Count),
+        CurrentDatabasePath);
+
     public void ApplyRuntimeSettings(AppSettings settings, bool databaseChangeRequiresRestart)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -185,6 +205,15 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         StatusMessage = databaseChangeRequiresRestart
             ? "Impostazioni salvate. Il nuovo database verrà usato al prossimo avvio."
             : null;
+
+        _logger.Information(
+            "settings.runtime_applied",
+            "Le impostazioni applicabili a runtime sono state aggiornate.",
+            new Dictionary<string, object?>
+            {
+                ["pollingIntervalSeconds"] = _settings.PollingIntervalSeconds,
+                ["databaseRestartRequired"] = databaseChangeRequiresRestart,
+            });
     }
 
     public BoardViewModel(
@@ -197,7 +226,9 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         IRecurringTaskScheduler pollingScheduler,
         IRecurringTaskScheduler lockHeartbeatScheduler,
         IApplicationSession applicationSession,
-        IClock clock)
+        IClock clock,
+        IAppLogger? logger = null,
+        IErrorReferenceGenerator? errorReferences = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(databaseInitializer);
@@ -221,6 +252,8 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         _lockHeartbeatScheduler = lockHeartbeatScheduler;
         _applicationSession = applicationSession;
         _clock = clock;
+        _logger = logger ?? NullAppLogger.Instance;
+        _errorReferences = errorReferences ?? new ErrorReferenceGenerator();
 
         _pollingScheduler.Interval = TimeSpan.FromSeconds(_settings.PollingIntervalSeconds);
         _lockHeartbeatScheduler.Interval = EditLockHeartbeatInterval;
@@ -234,6 +267,15 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         }
 
         _isStarted = true;
+        _logger.Information(
+            "board.start",
+            "Avvio della board.",
+            new Dictionary<string, object?>
+            {
+                ["databasePath"] = _settings.DatabasePath,
+                ["pollingIntervalSeconds"] = _settings.PollingIntervalSeconds,
+                ["sessionId"] = ShortSessionId(),
+            });
         StatusMessage = null;
         ConnectionState = BoardConnectionState.Connecting;
         await RefreshBoardSafelyAsync(
@@ -245,6 +287,14 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         {
             _pollingScheduler.Start(PollBoardAsync, _lifetimeCancellation.Token);
             _lockHeartbeatScheduler.Start(HeartbeatEditingLocksAsync, _lifetimeCancellation.Token);
+            _logger.Information(
+                "board.schedulers_started",
+                "Polling e heartbeat sono stati avviati.",
+                new Dictionary<string, object?>
+                {
+                    ["pollingIntervalSeconds"] = _settings.PollingIntervalSeconds,
+                    ["heartbeatIntervalSeconds"] = EditLockHeartbeatInterval.TotalSeconds,
+                });
         }
     }
 
@@ -293,10 +343,26 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                     card.RefreshFromModel(card.Model);
                     MarkConnectionHealthy();
                     StatusMessage = $"{result.CurrentLock.UserName} sta già modificando questa card.";
+                    _logger.Warning(
+                        "card.lock_denied",
+                        "Il lock della card è già posseduto da un'altra sessione.",
+                        properties: new Dictionary<string, object?>
+                        {
+                            ["cardId"] = card.Model.Id,
+                            ["lockOwner"] = result.CurrentLock.UserName,
+                        });
                     return false;
                 }
 
                 card.BeginEdit(result.CurrentLock, _applicationSession.SessionId);
+                _logger.Information(
+                    "card.lock_acquired",
+                    "Lock di modifica acquisito.",
+                    new Dictionary<string, object?>
+                    {
+                        ["cardId"] = card.Model.Id,
+                        ["sessionId"] = ShortSessionId(),
+                    });
                 MarkConnectionHealthy();
                 StatusMessage = null;
                 return true;
@@ -395,6 +461,13 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                         _applicationSession.SessionId,
                         cancellationToken);
                     await MergeCardsAsync(cancellationToken);
+                    _logger.Information(
+                        "card.edit_closed",
+                        "Modifica chiusa senza variazioni.",
+                        new Dictionary<string, object?>
+                        {
+                            ["cardId"] = card.Model.Id,
+                        });
                     MarkConnectionHealthy();
                     StatusMessage = null;
                     return;
@@ -413,6 +486,14 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                     _applicationSession.SessionId,
                     cancellationToken);
                 await MergeCardsAsync(cancellationToken);
+                _logger.Information(
+                    "card.saved",
+                    "Card salvata.",
+                    new Dictionary<string, object?>
+                    {
+                        ["cardId"] = persistedCard.Id,
+                        ["version"] = persistedCard.Version,
+                    });
 
                 MarkConnectionHealthy();
                 StatusMessage = null;
@@ -443,6 +524,13 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
             const string message =
                 "Conflitto rilevato: la bozza è conservata e non è stata sovrascritta.";
             card.MarkSaveError(message);
+            _logger.Warning(
+                "card.concurrency_conflict",
+                "Conflitto di concorrenza durante il salvataggio.",
+                properties: new Dictionary<string, object?>
+                {
+                    ["cardId"] = card.Model.Id,
+                });
             MarkConnectionHealthy();
             StatusMessage = message;
         }
@@ -452,6 +540,14 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
             activeLocks.TryGetValue(card.Model.Id, out var currentLock);
             card.MarkLockLost(currentLock, _applicationSession.SessionId);
             card.MarkSaveError(ex.Message);
+            _logger.Warning(
+                "card.lock_lost",
+                "Il lock della card non è più valido.",
+                ex,
+                new Dictionary<string, object?>
+                {
+                    ["cardId"] = card.Model.Id,
+                });
             MarkConnectionHealthy();
             StatusMessage = ex.Message;
         }
@@ -496,6 +592,13 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                     _applicationSession.SessionId,
                     cancellationToken);
                 await MergeCardsAsync(cancellationToken);
+                _logger.Information(
+                    "card.edit_cancelled",
+                    "Modifica annullata e lock rilasciato.",
+                    new Dictionary<string, object?>
+                    {
+                        ["cardId"] = card.Model.Id,
+                    });
                 MarkConnectionHealthy();
                 StatusMessage = null;
             }
@@ -553,6 +656,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
             return;
         }
 
+        _logger.Information("connection.retry_requested", "Nuovo tentativo di connessione richiesto manualmente.");
         StatusMessage = null;
         ConnectionState = BoardConnectionState.Connecting;
         await RefreshBoardSafelyAsync(
@@ -604,6 +708,14 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
             else if (await _changeDetector.HasChangedSinceLastCheckAsync(cancellationToken))
             {
                 await MergeCardsAsync(cancellationToken);
+                _logger.Information(
+                    "board.external_changes_merged",
+                    "Le modifiche esterne sono state integrate nella board.",
+                    new Dictionary<string, object?>
+                    {
+                        ["columnCount"] = Columns.Count,
+                        ["cardCount"] = Columns.Sum(column => column.Cards.Count),
+                    });
             }
             else
             {
@@ -694,6 +806,13 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                     }
                 }
 
+                _logger.Warning(
+                    "card.lock_heartbeat_lost",
+                    "Uno o più lock non sono stati rinnovati.",
+                    properties: new Dictionary<string, object?>
+                    {
+                        ["editingCardCount"] = editingCards.Count,
+                    });
                 MarkConnectionHealthy();
                 StatusMessage = "Uno o più lock di modifica sono scaduti. Le bozze sono state conservate.";
             }
@@ -717,6 +836,14 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         await Task.Run(
             () => _databaseInitializer.EnsureInitialized(allowCreate: !_hasLoadedSuccessfully),
             cancellationToken);
+        _logger.Information(
+            "database.initialized",
+            "Database inizializzato e schema verificato.",
+            new Dictionary<string, object?>
+            {
+                ["schemaVersion"] = DatabaseInitializer.ExpectedSchemaVersion,
+                ["allowCreate"] = !_hasLoadedSuccessfully,
+            });
 
         if (Columns.Count == 0)
         {
@@ -915,6 +1042,14 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
             var createdCard = await _cardRepository.CreateAsync(newCard, cancellationToken);
             await MergeCardsAsync(cancellationToken);
             MarkCardPersistenceSuccess(createdCard.Id, "Card inserita");
+            _logger.Information(
+                "card.created",
+                "Card creata.",
+                new Dictionary<string, object?>
+                {
+                    ["cardId"] = createdCard.Id,
+                    ["columnId"] = createdCard.ColumnId,
+                });
         },
         "Creazione card...");
 
@@ -961,8 +1096,18 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                     card.EditingUserName);
             }
 
-            await _cardRepository.DeleteAsync(card.Model.Id, _settings.UserName, cancellationToken);
+            var deletedCardId = card.Model.Id;
+            var deletedColumnId = card.ColumnId;
+            await _cardRepository.DeleteAsync(deletedCardId, _settings.UserName, cancellationToken);
             await MergeCardsAsync(cancellationToken);
+            _logger.Information(
+                "card.deleted",
+                "Card eliminata.",
+                new Dictionary<string, object?>
+                {
+                    ["cardId"] = deletedCardId,
+                    ["columnId"] = deletedColumnId,
+                });
         },
         "Eliminazione card...");
 
@@ -1000,11 +1145,22 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                     cancellationToken);
 
                 await MergeCardsAsync(cancellationToken);
+                var reorderedWithinColumn = sourceColumnId == targetColumn.Id;
                 MarkCardPersistenceSuccess(
                     cardId,
-                    sourceColumnId == targetColumn.Id
+                    reorderedWithinColumn
                         ? "Ordine aggiornato"
                         : "Card spostata");
+                _logger.Information(
+                    reorderedWithinColumn ? "card.reordered" : "card.moved",
+                    reorderedWithinColumn ? "Ordine della card aggiornato." : "Card spostata tra colonne.",
+                    new Dictionary<string, object?>
+                    {
+                        ["cardId"] = cardId,
+                        ["sourceColumnId"] = sourceColumnId,
+                        ["targetColumnId"] = targetColumn.Id,
+                        ["targetIndex"] = targetIndex,
+                    });
             },
             "Spostamento card...");
 
@@ -1065,6 +1221,10 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
     {
         if (exception is CardEditLockException or CardConcurrencyException or KeyNotFoundException or CardValidationException)
         {
+            _logger.Warning(
+                "operation.rejected",
+                "Operazione rifiutata da una regola applicativa.",
+                exception);
             MarkConnectionHealthy();
             StatusMessage = exception.Message;
             return;
@@ -1104,7 +1264,23 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
             ? $" Percorso: '{_settings.DatabasePath}'."
             : string.Empty;
 
-        StatusMessage = failure.UserMessage + pathText + retryText;
+        var errorReference = _errorReferences.Create();
+        _logger.Error(
+            "database.failure",
+            "Operazione SQLite non riuscita.",
+            exception,
+            errorReference,
+            new Dictionary<string, object?>
+            {
+                ["failureKind"] = failure.Kind,
+                ["connectionState"] = ConnectionState,
+                ["consecutiveFailures"] = _consecutiveFailures,
+                ["automaticRetry"] = failure.CanRetryAutomatically,
+                ["databasePath"] = _settings.DatabasePath,
+            });
+
+        StatusMessage = failure.UserMessage + pathText + retryText +
+                        $" Riferimento: {errorReference}.";
     }
 
     private void MarkConnectionHealthy()
@@ -1158,6 +1334,14 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         }
 
         _isDisposed = true;
+        _logger.Information(
+            "board.shutdown_started",
+            "Avvio della chiusura coordinata della board.",
+            new Dictionary<string, object?>
+            {
+                ["activeEdits"] = HasActiveEdits,
+                ["sessionId"] = ShortSessionId(),
+            });
         ConnectionState = BoardConnectionState.ShuttingDown;
         SetActivity("Rilascio dei lock e chiusura...");
         // Impedire nuovi tick, annullare le callback attive e attenderne la conclusione prima
@@ -1179,6 +1363,13 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                     await _editLockRepository.ReleaseSessionAsync(
                         _applicationSession.SessionId,
                         CancellationToken.None);
+                    _logger.Information(
+                        "card.session_locks_released",
+                        "Tutti i lock della sessione sono stati rilasciati.",
+                        new Dictionary<string, object?>
+                        {
+                            ["sessionId"] = ShortSessionId(),
+                        });
                 }
                 catch
                 {
@@ -1193,8 +1384,13 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
             await _lockHeartbeatScheduler.DisposeAsync();
             _operationGate.Dispose();
             _lifetimeCancellation.Dispose();
+            _logger.Information("board.shutdown_completed", "Chiusura della board completata.");
         }
     }
+
+    private string ShortSessionId() => _applicationSession.SessionId.Length <= 8
+        ? _applicationSession.SessionId
+        : _applicationSession.SessionId[..8];
 
     private sealed record BoardSnapshot(
         IReadOnlyList<Column> Columns,

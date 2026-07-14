@@ -46,6 +46,15 @@
                      VerticalAlignment="Center" />
           <Button Classes="icon"
                   Background="Transparent"
+                  ToolTip.Tip="Informazioni e diagnostica"
+                  AutomationProperties.Name="Apri informazioni e diagnostica"
+                  Click="OnOpenDiagnosticsClick">
+            <Path Width="14" Height="14" Stretch="Uniform"
+                  Fill="{DynamicResource TextSecondaryBrush}"
+                  Data="M7,0 A7,7 0 1 0 7,14 A7,7 0 1 0 7,0 Z M6.25,3.1 L7.75,3.1 L7.75,4.6 L6.25,4.6 Z M6.25,6 L7.75,6 L7.75,11 L6.25,11 Z" />
+          </Button>
+          <Button Classes="icon"
+                  Background="Transparent"
                   ToolTip.Tip="Impostazioni"
                   AutomationProperties.Name="Apri impostazioni"
                   Click="OnOpenSettingsClick">

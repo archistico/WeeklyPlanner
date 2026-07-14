@@ -1,7 +1,7 @@
 # WeeklyPlanner
 
 
-> **M3.2.1** — Feedback completo di persistenza. La floppy verde conferma creazione, salvataggio, spostamento e riordino della card; polling e heartbeat restano deterministici e non sovrapposti.
+> **M3.3.3** — Logging locale e diagnostica. Gli eventi tecnici sono correlati con riferimenti errore, senza registrare titolo o note delle card; una finestra dedicata raccoglie stato applicativo, database e percorsi utili all’assistenza.
 
 Planner settimanale desktop in **C# / .NET 10 / Avalonia**, sviluppato per milestone piccole,
 test automatici e documentazione aggiornata insieme al codice.
@@ -47,10 +47,19 @@ La milestone **M3.1 — Composizione applicativa e dependency injection** è sta
 La milestone **M3.2 — Scheduler deterministici e lifecycle verificabile** è stata validata su Windows:
 polling e heartbeat sono serializzati, arrestabili e testabili senza timer reali.
 
-La milestone corrente **M3.2.1 — Feedback completo di persistenza** estende la floppy verde a tutte
-le operazioni riuscite sulla card: inserimento, salvataggio, spostamento fra colonne e riordino nella
-stessa colonna. Il tooltip indica l'ultima operazione registrata e il footer autore è allineato alla
-stessa rientranza dei campi titolo e note.
+La milestone **M3.2.1 — Feedback completo di persistenza** è stata validata su Windows: build,
+test e prova manuale sono riusciti. La floppy verde conferma inserimento, salvataggio, spostamento e
+riordino della card.
+
+La milestone corrente **M3.3.3 — Logging e diagnostica** introduce log tecnici locali asincroni,
+con le correzioni di compatibilità C#, xUnit e versionamento applicate senza modificare il comportamento funzionale,
+riferimenti errore correlabili e una finestra Diagnostica accessibile dall’intestazione. I log usano
+identificativi e metadati operativi, senza registrare titolo o note delle card.
+
+
+La revisione **M3.3.3 — Test versione non fragile** elimina dal test di `ApplicationVersionInfo`
+l’aspettativa hardcoded della milestone: il valore atteso viene letto direttamente dagli stessi metadati
+centralizzati dell’assembly usati dall’applicazione.
 
 Per la fase corrente è stata adottata una persistenza **SQLite locale senza server**. Il database
 deve risiedere su un disco locale della macchina; la sincronizzazione fra computer e l'apertura del
@@ -59,8 +68,8 @@ file tramite share di rete non fanno parte del perimetro attuale. La decisione �
 
 ## Struttura
 
-- `WeeklyPlanner.Core`: modelli, repository, resilienza, configurazione, orologio e migrazioni SQLite;
-- `WeeklyPlanner.App`: applicazione Avalonia con MVVM, composition root, onboarding, board e scheduler;
+- `WeeklyPlanner.Core`: modelli, repository, resilienza, diagnostica database, configurazione, orologio e migrazioni SQLite;
+- `WeeklyPlanner.App`: applicazione Avalonia con MVVM, composition root, board, scheduler, logging e diagnostica;
 - `WeeklyPlanner.Tests`: test unitari e di integrazione su file SQLite temporanei;
 - `docs`: decisioni architetturali e milestone operative;
 - `scripts`: verifica e pubblicazione da PowerShell.
@@ -78,12 +87,49 @@ Le astrazioni principali introdotte in M3.1 sono:
 - `IApplicationSession`;
 - `IClock`;
 - `IRecurringTaskScheduler`;
-- `IViewModelFactory`.
+- `IViewModelFactory`;
+- `IAppLogger`;
+- `IErrorReferenceGenerator`;
+- `IDatabaseDiagnosticsReader`;
+- `IApplicationDiagnosticsProvider`.
 
 Il timer Avalonia è confinato in `AvaloniaRecurringTaskScheduler`. I test usano uno scheduler manuale
 che può richiamare polling e heartbeat senza aspettare il tempo reale o inizializzare il dispatcher.
 La milestone non cambia il comportamento della board né lo schema SQLite, che resta alla versione 3.
 La decisione è descritta in [`docs/ADR-0005-composition-root.md`](docs/ADR-0005-composition-root.md).
+
+
+## Logging e diagnostica
+
+WeeklyPlanner scrive log tecnici in:
+
+```text
+%LOCALAPPDATA%\WeeklyPlanner\Logs
+```
+
+Il formato è **JSON Lines**, una registrazione per riga. La scrittura avviene tramite una coda
+asincrona; i file ruotano per giorno e quando raggiungono 5 MB, con retention predefinita di 14
+giorni. Un errore del filesystem dei log non blocca la board e viene esposto nella diagnostica.
+
+Per principio di minimizzazione, gli eventi registrano identificativi, revisioni, stato della
+connessione e tipo di operazione. Le proprietà con nomi sensibili come `Title`, `Notes`, `Content` o
+`Text` vengono redatte e il codice applicativo non passa il contenuto delle card al logger.
+
+Gli errori operativi mostrati nella UI includono un riferimento breve, per esempio `WP-7F3A21`. Lo
+stesso riferimento compare nel record di log insieme a eccezione, stack trace e contesto tecnico.
+Sono inoltre osservate le eccezioni non gestite del dispatcher UI, del processo e delle Task non
+osservate.
+
+Il pulsante **Diagnostica** nell’intestazione apre una finestra con:
+
+- versione applicazione, milestone, runtime .NET, Avalonia e sistema operativo;
+- utente, computer, sessione, stato board e ultimo aggiornamento;
+- percorso, dimensione e versione schema del database;
+- percorso delle impostazioni e dei log, stato del logger e ultimo file scritto;
+- comandi per copiare la diagnostica e aprire le cartelle log e database.
+
+La diagnostica espone conteggi aggregati, non titolo o note delle card. La decisione è descritta in
+[`docs/ADR-0007-osservabilita-diagnostica.md`](docs/ADR-0007-osservabilita-diagnostica.md).
 
 ## Prerequisiti
 
@@ -298,13 +344,15 @@ framework-dependent.
 - stato operativo visibile e recupero manuale/automatico;
 - chiusura coordinata con rilascio dei lock della sessione;
 - titolo obbligatorio con limite di 160 caratteri e validazione nel repository;
-- feedback Salvataggio/Salvata/Errore per card;
+- feedback di persistenza per creazione, salvataggio, spostamento e riordino;
+- logging locale con rotazione, retention e riferimenti errore;
+- finestra diagnostica senza contenuto delle card;
 - scroll verticale indipendente per colonna.
 
 ## Limiti noti prima dell'MVP
 
 - non sono ancora presenti test UI headless end-to-end; la logica di spostamento è coperta da test puri;
-- logging rolling non ancora implementato; la classificazione degli errori è già centralizzata;
+- backup e restore guidati non sono ancora implementati;
 - non esiste sincronizzazione fra computer.
 
 La sequenza aggiornata è in [`docs/MILESTONES.md`](docs/MILESTONES.md). La visione funzionale e la

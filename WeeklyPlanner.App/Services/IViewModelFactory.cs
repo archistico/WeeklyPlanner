@@ -1,3 +1,4 @@
+using WeeklyPlanner.App.Diagnostics;
 using WeeklyPlanner.App.ViewModels;
 using WeeklyPlanner.Core.Configuration;
 
@@ -12,4 +13,8 @@ public interface IViewModelFactory
     SettingsViewModel CreateSettingsViewModel(
         AppSettings settings,
         bool canEditIdentityAndDatabase);
+
+    DiagnosticsViewModel CreateDiagnosticsViewModel(
+        AppSettings settings,
+        BoardRuntimeDiagnostics boardRuntime);
 }

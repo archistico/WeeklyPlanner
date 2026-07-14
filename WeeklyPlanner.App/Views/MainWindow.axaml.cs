@@ -206,6 +206,26 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void OnOpenDiagnosticsClick(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModelFactory is null ||
+            _applicationSettings is null ||
+            DataContext is not BoardViewModel boardViewModel)
+        {
+            return;
+        }
+
+        var viewModel = _viewModelFactory.CreateDiagnosticsViewModel(
+            _applicationSettings,
+            boardViewModel.GetRuntimeDiagnostics());
+        var window = new DiagnosticsWindow
+        {
+            DataContext = viewModel,
+        };
+
+        await window.ShowDialog(this);
+    }
+
     private async void OnOpenSettingsClick(object? sender, RoutedEventArgs e)
     {
         if (_settingsService is null ||

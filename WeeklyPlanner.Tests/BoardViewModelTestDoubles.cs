@@ -1,3 +1,4 @@
+using WeeklyPlanner.App.Diagnostics;
 using WeeklyPlanner.App.Services;
 using WeeklyPlanner.App.ViewModels;
 using WeeklyPlanner.Core.Configuration;
@@ -11,7 +12,10 @@ namespace WeeklyPlanner.Tests;
 
 internal static class BoardViewModelTestDoubles
 {
-    public static TestBoardContext Create(AppSettings? settings = null)
+    public static TestBoardContext Create(
+        AppSettings? settings = null,
+        IAppLogger? logger = null,
+        IErrorReferenceGenerator? errorReferences = null)
     {
         var initializer = new StubDatabaseInitializer();
         var cards = new StubCardRepository();
@@ -39,7 +43,9 @@ internal static class BoardViewModelTestDoubles
             polling,
             heartbeat,
             session,
-            clock);
+            clock,
+            logger,
+            errorReferences);
 
         return new TestBoardContext(
             viewModel,

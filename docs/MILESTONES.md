@@ -125,7 +125,7 @@ Ogni milestone deve:
 | M3.1 — Composizione e DI | **Validata** | composition root, constructor injection, sessione/orologio/scheduler astratti e test senza SQLite |
 | M3.2 — Timer deterministici | **Validata** | callback seriali, stop asincrono, tempo simulato e test completi del lifecycle |
 | M3.2.1 — Feedback persistenza | **Implementata, verifica richiesta** | floppy per tutte le modifiche della card e footer riallineato |
-| M3.3 — Logging e diagnostica | Pianificata | logging locale, correlazione errori e informazioni runtime |
+| M3.3 — Logging e diagnostica | Implementata | logging locale, correlazione errori e informazioni runtime |
 | M4 — Packaging MVP locale | Pianificata | publish Windows, backup documentato, smoke test e pacchetto distribuibile |
 
 ## M1.1.1 — SQLite locale affidabile
@@ -411,3 +411,78 @@ Poi verificare manualmente:
 - padding esplicito e condiviso fra titolo, note e testo autore;
 - 119 test dichiarati;
 - nessuna modifica allo schema SQLite.
+
+
+## M3.3 — Logging, gestione globale degli errori e diagnostica
+
+### Logging
+
+- coda asincrona bounded e writer singolo;
+- formato JSON Lines;
+- file giornalieri con sequenza e rotazione a 5 MB;
+- retention best effort di 14 giorni;
+- fallback non bloccante quando la cartella log non è scrivibile;
+- nessun titolo o nota delle card nei record;
+- proprietà con chiavi sensibili redatte automaticamente.
+
+### Correlazione degli errori
+
+- generazione di riferimenti brevi `WP-XXXXXX`;
+- stesso riferimento nel messaggio UI e nel log tecnico;
+- stack trace disponibile soltanto nel log;
+- gestione globale delle eccezioni UI, AppDomain e Task non osservate.
+
+### Diagnostica
+
+- finestra raggiungibile dall'intestazione;
+- versione applicazione, milestone, .NET, Avalonia, OS e architettura;
+- utente, computer, sessione e stato della board;
+- percorso, dimensione, schema e stato del database;
+- percorso impostazioni e log, stato logger e ultimo file scritto;
+- copia negli appunti e apertura delle cartelle;
+- conteggi aggregati senza contenuto delle card.
+
+### Test
+
+- serializzazione JSON e redazione delle proprietà sensibili;
+- rolling per dimensione;
+- retention;
+- errore filesystem non propagato;
+- formato del riferimento errore;
+- diagnostica database disponibile, assente e non valida;
+- provider e ViewModel diagnostico;
+- logging delle operazioni con soli identificativi;
+- correlazione fra errore UI e log;
+- composition root con logger sostituibile.
+
+### Criteri di chiusura
+
+1. eseguire `dotnet build` e `dotnet test`;
+2. verificare il badge `M3.3.3`;
+3. compiere operazioni sulla board e controllare il file JSONL;
+4. verificare che titolo e note non compaiano nel log;
+5. aprire Diagnostica, copiare il testo e aprire le cartelle;
+6. simulare un errore database e verificare lo stesso riferimento in UI e log;
+7. rendere non scrivibile la destinazione log e verificare che la board continui a funzionare.
+
+
+## M3.3.1 — Correzione build logging
+
+- Corretto l’overload non valido di `LastIndexOf` in `FileAppLogger.ParseSequence`.
+- Nessuna variazione funzionale o di schema.
+
+## M3.3.2 — Compatibilità analyzer xUnit
+
+- Corrette due asserzioni secondo la regola `xUnit2031`, usando `Assert.Single(collection, predicate)`.
+- Verificata l’assenza di altri `Assert.Single(...Where(...))` nella suite.
+- Nessuna variazione funzionale o di schema.
+- Criterio di accettazione: `dotnet build` e `dotnet test` completati senza warning o errori.
+
+
+## M3.3.3 — Test versione non fragile
+
+- il test della milestone legge il valore atteso da `AssemblyMetadataAttribute`;
+- nessuna stringa di milestone precedente è più duplicata nella suite;
+- `ApplicationVersionInfo.Milestone` e `WindowTitle` restano verificati rispetto ai metadati centralizzati;
+- nessuna modifica funzionale o allo schema SQLite;
+- criterio di accettazione: tutti i 143 test completati senza errori.

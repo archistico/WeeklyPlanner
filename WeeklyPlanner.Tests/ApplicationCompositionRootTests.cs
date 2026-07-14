@@ -1,4 +1,5 @@
 using WeeklyPlanner.App.Composition;
+using WeeklyPlanner.App.Diagnostics;
 using WeeklyPlanner.App.Services;
 using WeeklyPlanner.Core.Configuration;
 using WeeklyPlanner.Core.Time;
@@ -17,11 +18,12 @@ public sealed class ApplicationCompositionRootTests : IDisposable
     {
         var settingsService = new AppSettingsService(
             Path.Combine(_tempDirectory, "settings.json"));
-        var root = new ApplicationCompositionRoot(
+        await using var root = new ApplicationCompositionRoot(
             settingsService,
             new ApplicationSession("session-test", "PC-TEST"),
             SystemClock.Instance,
-            new StubFolderLauncher());
+            new StubFolderLauncher(),
+            NullAppLogger.Instance);
         var settings = CreateSettings();
 
         var onboarding = root.CreateOnboardingViewModel(settings);
@@ -29,10 +31,14 @@ public sealed class ApplicationCompositionRootTests : IDisposable
         var preferences = root.CreateSettingsViewModel(
             settings,
             canEditIdentityAndDatabase: true);
+        var diagnostics = root.CreateDiagnosticsViewModel(
+            settings,
+            board.GetRuntimeDiagnostics());
 
         Assert.NotNull(onboarding);
         Assert.NotNull(board);
         Assert.NotNull(preferences);
+        Assert.NotNull(diagnostics);
         Assert.Same(settingsService, root.SettingsService);
 
         await board.DisposeAsync();
@@ -43,11 +49,12 @@ public sealed class ApplicationCompositionRootTests : IDisposable
     {
         var settings = CreateSettings();
         var databasePath = settings.DatabasePath;
-        var root = new ApplicationCompositionRoot(
+        await using var root = new ApplicationCompositionRoot(
             new AppSettingsService(Path.Combine(_tempDirectory, "settings.json")),
             new ApplicationSession("session-test", "PC-TEST"),
             SystemClock.Instance,
-            new StubFolderLauncher());
+            new StubFolderLauncher(),
+            NullAppLogger.Instance);
 
         var board = root.CreateBoardViewModel(settings);
 

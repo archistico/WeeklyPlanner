@@ -1,9 +1,5 @@
-WeeklyPlanner M3.2.1 — Feedback completo di persistenza
+WeeklyPlanner M3.3.3 — Test versione non fragile
 
-- La floppy verde conferma inserimento, salvataggio, spostamento e riordino.
-- Il tooltip indica l’ultima operazione persistita sulla card.
-- I feedback obsoleti vengono rimossi quando arriva una modifica esterna.
-- Autore corsivo allineato al padding esplicito di titolo e note.
-- 119 test dichiarati.
-- Scheduler deterministici della M3.2 invariati.
-- Schema SQLite invariato alla versione 3.
+- Il test di ApplicationVersionInfo legge il valore atteso direttamente dall’AssemblyMetadata centralizzato.
+- Rimossa l’aspettativa hardcoded M3.2.1 che rendeva la suite fragile a ogni nuova milestone.
+- Nessuna modifica funzionale, UI o schema SQLite.

@@ -1,0 +1,127 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="WeeklyPlanner.App.Views.DiagnosticsWindow"
+        Title="Informazioni e diagnostica"
+        Width="760"
+        Height="680"
+        MinWidth="620"
+        MinHeight="480"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*,Auto">
+    <Border Grid.Row="0" Classes="headerBar">
+      <StackPanel>
+        <TextBlock Text="Informazioni e diagnostica"
+                   FontSize="18"
+                   FontWeight="SemiBold" />
+        <TextBlock Text="Dati tecnici utili per verificare configurazione, database e log."
+                   Foreground="{DynamicResource TextSecondaryBrush}" />
+      </StackPanel>
+    </Border>
+
+    <ScrollViewer Grid.Row="1" Padding="18" VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="12">
+        <TextBlock Text="Raccolta delle informazioni..."
+                   IsVisible="{Binding IsLoading}"
+                   Foreground="{DynamicResource TextSecondaryBrush}" />
+
+        <Border Background="{DynamicResource DangerSurfaceBrush}"
+                BorderBrush="{DynamicResource DangerBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="10"
+                IsVisible="{Binding HasError}">
+          <TextBlock Text="{Binding ErrorMessage}"
+                     Foreground="{DynamicResource DangerBrush}"
+                     TextWrapping="Wrap" />
+        </Border>
+
+        <StackPanel IsVisible="{Binding HasSnapshot}" Spacing="14">
+          <TextBlock Text="Applicazione" FontSize="15" FontWeight="SemiBold" />
+          <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="6">
+            <TextBlock Grid.Row="0" Text="Versione" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Snapshot.ProductVersion}" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="1" Text="Milestone" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Snapshot.Milestone}" />
+            <TextBlock Grid.Row="2" Text="Runtime .NET" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Snapshot.DotNetRuntime}" />
+            <TextBlock Grid.Row="3" Text="Avalonia" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Snapshot.AvaloniaVersion}" />
+            <TextBlock Grid.Row="4" Text="Sistema operativo" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Snapshot.OperatingSystem}" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="5" Text="Architettura processo" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding Snapshot.ProcessArchitecture}" />
+          </Grid>
+
+          <Separator />
+          <TextBlock Text="Sessione" FontSize="15" FontWeight="SemiBold" />
+          <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="6">
+            <TextBlock Grid.Row="0" Text="Utente" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Snapshot.UserName}" />
+            <TextBlock Grid.Row="1" Text="Computer" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Snapshot.MachineName}" />
+            <TextBlock Grid.Row="2" Text="Sessione" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Snapshot.SessionId}" />
+            <TextBlock Grid.Row="3" Text="Stato board" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Snapshot.ConnectionState}" />
+            <TextBlock Grid.Row="4" Text="Ultimo aggiornamento" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Snapshot.LastSuccessfulSync}" />
+            <TextBlock Grid.Row="5" Text="Contenuto" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding Snapshot.ContentSummary}" />
+          </Grid>
+
+          <Separator />
+          <TextBlock Text="Database" FontSize="15" FontWeight="SemiBold" />
+          <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="6">
+            <TextBlock Grid.Row="0" Text="Percorso" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Snapshot.DatabasePath}" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="1" Text="Stato" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Snapshot.DatabaseStatus}" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="2" Text="Dimensione" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Snapshot.DatabaseSize}" />
+            <TextBlock Grid.Row="3" Text="Schema corrente" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Snapshot.SchemaVersion}" />
+            <TextBlock Grid.Row="4" Text="Schema atteso" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Snapshot.ExpectedSchemaVersion}" />
+          </Grid>
+
+          <Separator />
+          <TextBlock Text="File applicativi" FontSize="15" FontWeight="SemiBold" />
+          <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="6">
+            <TextBlock Grid.Row="0" Text="Impostazioni" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Snapshot.SettingsFilePath}" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="1" Text="Cartella log" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Snapshot.LogDirectoryPath}" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="2" Text="Stato log" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Snapshot.LogStatus}" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="3" Text="Ultimo log" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Snapshot.LastLogFilePath}" TextWrapping="Wrap" />
+          </Grid>
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+
+    <Border Grid.Row="2"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="0,1,0,0"
+            Padding="18,12">
+      <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" ColumnSpacing="8">
+        <Button Grid.Column="0"
+                Content="Apri cartella log"
+                Command="{Binding OpenLogFolderCommand}"
+                IsEnabled="{Binding HasSnapshot}" />
+        <Button Grid.Column="1"
+                Content="Apri cartella database"
+                Command="{Binding OpenDatabaseFolderCommand}" />
+        <Button Grid.Column="2"
+                Content="Copia diagnostica"
+                Click="OnCopyDiagnosticsClick"
+                IsEnabled="{Binding HasSnapshot}" />
+        <TextBlock x:Name="CopyStatusText"
+                   Grid.Column="3"
+                   VerticalAlignment="Center"
+                   Foreground="{DynamicResource TextSecondaryBrush}" />
+        <Button Grid.Column="4" Content="Chiudi" Click="OnCloseClick" />
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

@@ -1,6 +1,6 @@
 # WeeklyPlanner — Obiettivi e roadmap
 
-Versione documento: **0.7.0**
+Versione documento: **0.8.0**
 Ultimo aggiornamento: **14 luglio 2026**
 
 ## 1. Visione
@@ -324,8 +324,8 @@ Lo stato operativo dettagliato è mantenuto in [`docs/MILESTONES.md`](docs/MILES
   Avalonia confinati in adapter e test ViewModel senza SQLite o dispatcher reale;
 - **M3.2:** scheduler completamente deterministici, cancellazione e prevenzione delle sovrapposizioni
   verificate senza tempo reale;
-- **M3.3:** logging locale rolling con retention e correlazione degli errori mostrati in UI;
-- **M3.4:** diagnostica runtime e test UI headless dei flussi critici.
+- **M3.3:** logging locale rolling, correlazione degli errori, gestione globale delle eccezioni e diagnostica runtime;
+- **M3.4:** test UI headless dei flussi critici.
 
 Retry, classificazione degli errori, stato online/offline e recupero automatico sono anticipati in
 M1.4 perché necessari a proteggere il lifecycle dell'editing.
@@ -383,3 +383,64 @@ L'MVP è concluso soltanto quando:
 ### Revisione M3.2.1
 
 Il feedback di persistenza della card è stato esteso a creazione, salvataggio, spostamento tra colonne e riordino nella stessa colonna. La stessa icona floppy verde usa un tooltip specifico per l’ultima operazione riuscita. Il footer autore è stato allineato ai contenuti dei campi titolo e note.
+
+
+## 9. Revisione M3.3 — Logging e diagnostica
+
+### Obiettivi completati
+
+- logger locale asincrono senza dipendenze esterne;
+- formato JSON Lines, rotazione giornaliera e per dimensione;
+- dimensione massima predefinita di 5 MB e retention di 14 giorni;
+- funzionamento best effort: un errore del log non interrompe l’applicazione;
+- redazione difensiva delle proprietà che potrebbero contenere testo delle card;
+- eventi applicativi per avvio, chiusura, connessione, polling, lock e operazioni sulle card;
+- riferimenti `WP-XXXXXX` condivisi fra messaggio UI e record tecnico;
+- osservazione delle eccezioni non gestite del dispatcher, del processo e delle Task;
+- lettura diagnostica del database in modalità read-only, senza creare file mancanti;
+- finestra Diagnostica con versioni, sessione, stato board, schema e percorsi applicativi;
+- copia della diagnostica e apertura rapida delle cartelle log/database;
+- 134 test dichiarati;
+- schema SQLite invariato alla versione 3.
+
+### Vincoli di privacy e sicurezza
+
+I log non devono contenere titolo, note o testo libero delle card. Il logger accetta esclusivamente
+metadati tecnici e applica comunque una redazione per chiavi sensibili. La diagnostica espone conteggi
+aggregati e informazioni operative necessarie all’assistenza, ma non il contenuto della board.
+
+### Criteri di accettazione
+
+1. build e test senza warning o errori;
+2. apertura dell’app e presenza del badge `M3.3.3`;
+3. creazione/modifica/spostamento di una card e comparsa degli eventi nel log;
+4. assenza del testo della card nel file log;
+5. apertura della finestra Diagnostica e lettura dello schema v3;
+6. copia della diagnostica negli appunti;
+7. apertura delle cartelle log e database;
+8. errore database con riferimento `WP-XXXXXX` uguale in UI e log;
+9. indisponibilità della cartella log senza crash o blocco della board.
+
+
+## 10. Revisione M3.3.1 — Correzione build C#
+
+- Corretto `FileAppLogger.ParseSequence`: `string.LastIndexOf(char, StringComparison)` non è un overload valido; viene ora usato `LastIndexOf(char)`.
+- Nessuna modifica al formato dei log, alla diagnostica o allo schema SQLite.
+- Versione applicativa aggiornata a `0.10.1-m3.3.1`.
+- Aggiunto un test di regressione che prosegue la rotazione da `007` a `008`.
+
+## 11. Revisione M3.3.2 — Compatibilità analyzer xUnit
+
+- Sostituiti i due pattern `Assert.Single(collection.Where(predicate))` con l’overload `Assert.Single(collection, predicate)` richiesto da `xUnit2031`.
+- Verificata l’assenza dello stesso pattern nel resto della suite.
+- Nessuna modifica al logging, alla diagnostica, alla UI o allo schema SQLite.
+- Versione applicativa aggiornata a `0.10.2-m3.3.2`.
+
+
+## 12. Revisione M3.3.3 — Test versione non fragile
+
+- Rimosse dal test `ApplicationVersionInfoTests` le stringhe hardcoded della milestone precedente.
+- Il valore atteso viene letto direttamente da `AssemblyMetadataAttribute`, mantenendo il test indipendente dagli avanzamenti di versione.
+- Il test continua a verificare che `ApplicationVersionInfo.Milestone` e il titolo finestra derivino dai metadati centralizzati.
+- Versione applicativa aggiornata a `0.10.3-m3.3.3`.
+- Nessuna modifica a logging, diagnostica, UI o schema SQLite.
