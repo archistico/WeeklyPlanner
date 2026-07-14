@@ -1,6 +1,6 @@
 # WeeklyPlanner — Obiettivi e roadmap
 
-Versione documento: **0.7.0**
+Versione documento: **0.8.0**
 Ultimo aggiornamento: **14 luglio 2026**
 
 ## 1. Visione
@@ -316,14 +316,26 @@ Lo stato operativo dettagliato è mantenuto in [`docs/MILESTONES.md`](docs/MILES
 - polling e heartbeat dipendono da `IRecurringTaskScheduler`;
 - l'orario dell'ultimo sync dipende da `IClock`;
 - i test possono avviare e stimolare il ViewModel senza database SQLite e senza dispatcher Avalonia;
-- lo schema resta alla versione 3 e non sono previste differenze funzionali visibili.
+- milestone validata su Windows con build e test riusciti.
+
+### M3.2 — Scheduler deterministici e lifecycle verificabile
+
+- `AsyncRecurringTaskCoordinator` separa i tick dall'esecuzione della callback asincrona;
+- una callback già in corso impedisce l'avvio di un'esecuzione sovrapposta;
+- i tick accumulati non generano una coda arretrata;
+- le eccezioni inattese vengono osservate e conservate per il futuro logging tecnico;
+- `IRecurringTaskScheduler.StopAsync()` annulla e attende la callback attiva;
+- lo shutdown arresta polling e heartbeat prima di rilasciare i lock della sessione;
+- lo scheduler manuale dei test avanza intervalli simulati senza `Task.Delay` o dispatcher Avalonia;
+- sono verificati recovery, errori consecutivi, lock scaduti e dispose durante un polling attivo;
+- lo schema resta alla versione 3 e il comportamento visibile della board non cambia.
 
 ### M3 — Composizione, lifecycle deterministico e osservabilità
 
 - **M3.1:** composition root unico, constructor injection, sessione e orologio astratti, scheduler
   Avalonia confinati in adapter e test ViewModel senza SQLite o dispatcher reale;
-- **M3.2:** scheduler completamente deterministici, cancellazione e prevenzione delle sovrapposizioni
-  verificate senza tempo reale;
+- **M3.2:** coordinatore seriale delle callback, scheduler deterministici, stop asincrono e lifecycle
+  verificato senza tempo reale;
 - **M3.3:** logging locale rolling con retention e correlazione degli errori mostrati in UI;
 - **M3.4:** diagnostica runtime e test UI headless dei flussi critici.
 

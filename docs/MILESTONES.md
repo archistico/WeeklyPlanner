@@ -1,5 +1,19 @@
 # WeeklyPlanner — Milestone operative
 
+## M3.2 — Scheduler deterministici e lifecycle verificabile
+
+- nuovo `AsyncRecurringTaskCoordinator` per serializzare le callback periodiche;
+- nessuna sovrapposizione fra due tick dello stesso scheduler;
+- tick ricevuti durante un'esecuzione attiva scartati senza creare backlog;
+- rimozione dell'handler `async void` dal timer Avalonia;
+- `IRecurringTaskScheduler` convertito a lifecycle asincrono con `StopAsync` e `IAsyncDisposable`;
+- shutdown coordinato che annulla e attende polling e heartbeat prima del cleanup dei lock;
+- scheduler manuale con avanzamento deterministico degli intervalli nei test;
+- test di polling lento, cambio intervallo, errori consecutivi, recovery, errore strutturale,
+  perdita del lease e dispose durante una callback attiva;
+- 114 test dichiarati;
+- comportamento UI e schema SQLite v3 invariati.
+
 ## M3.1 — Composizione applicativa e dependency injection
 
 - composition root unico in `ApplicationCompositionRoot`;
@@ -10,7 +24,7 @@
 - session ID e nome macchina forniti da una singola `ApplicationSession`;
 - nessuna apertura o creazione del database durante la costruzione dei ViewModel;
 - test con initializer, repository, clock e scheduler controllabili;
-- 103 test dichiarati;
+- 103 test dichiarati e validati su Windows;
 - comportamento UI e schema SQLite v3 invariati.
 
 ## M2.3 — Impostazioni e rifinitura della sessione
@@ -108,8 +122,8 @@ Ogni milestone deve:
 | M2.2.1 — Rifinitura visuale | **Validata tramite M2.2.3** | aggiunta nell’header colonna, titolo più grande, floppy verde e cestino a destra |
 | M2.2.3 — Pan orizzontale | **Validata** | build, test e prova manuale riusciti; autore corsivo e pan con tasto centrale |
 | M2.3 — Impostazioni | **Validata** | build, test e prova manuale riusciti; configurazione runtime, tema, geometria finestra e versione centralizzata |
-| M3.1 — Composizione e DI | **Implementata, verifica richiesta** | composition root, constructor injection, sessione/orologio/scheduler astratti e test senza SQLite |
-| M3.2 — Timer deterministici | Pianificata | controllo completo delle esecuzioni periodiche, cancellazione e lifecycle nei test |
+| M3.1 — Composizione e DI | **Validata** | composition root, constructor injection, sessione/orologio/scheduler astratti e test senza SQLite |
+| M3.2 — Timer deterministici | **Implementata, verifica richiesta** | callback seriali, stop asincrono, tempo simulato e test completi del lifecycle |
 | M3.3 — Logging e diagnostica | Pianificata | logging locale, correlazione errori e informazioni runtime |
 | M4 — Packaging MVP locale | Pianificata | publish Windows, backup documentato, smoke test e pacchetto distribuibile |
 

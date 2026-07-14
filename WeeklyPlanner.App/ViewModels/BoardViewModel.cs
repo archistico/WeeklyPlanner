@@ -1143,9 +1143,12 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         _isDisposed = true;
         ConnectionState = BoardConnectionState.ShuttingDown;
         SetActivity("Rilascio dei lock e chiusura...");
-        _pollingScheduler.Stop();
-        _lockHeartbeatScheduler.Stop();
+        // Impedire nuovi tick, annullare le callback attive e attenderne la conclusione prima
+        // di entrare nel cleanup finale. Nessun polling o heartbeat può sopravvivere alla finestra.
         _lifetimeCancellation.Cancel();
+        await Task.WhenAll(
+            _pollingScheduler.StopAsync(),
+            _lockHeartbeatScheduler.StopAsync());
 
         // Attendere la conclusione dell'operazione eventualmente in corso prima di rilasciare
         // tutti i lease della sessione. La finestra resta aperta finché il cleanup termina.
@@ -1169,8 +1172,8 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         finally
         {
             _operationGate.Release();
-            _pollingScheduler.Dispose();
-            _lockHeartbeatScheduler.Dispose();
+            await _pollingScheduler.DisposeAsync();
+            await _lockHeartbeatScheduler.DisposeAsync();
             _operationGate.Dispose();
             _lifetimeCancellation.Dispose();
         }

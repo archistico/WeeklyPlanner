@@ -68,14 +68,27 @@ internal static class BoardViewModelTestDoubles
 
     internal sealed class StubDatabaseInitializer : IDatabaseInitializer
     {
+        private readonly Queue<Exception> _failures = new();
+
         public int EnsureInitializedCallCount { get; private set; }
 
         public bool? LastAllowCreate { get; private set; }
+
+        public void EnqueueFailure(Exception exception)
+        {
+            ArgumentNullException.ThrowIfNull(exception);
+            _failures.Enqueue(exception);
+        }
 
         public void EnsureInitialized(bool allowCreate = true)
         {
             EnsureInitializedCallCount++;
             LastAllowCreate = allowCreate;
+
+            if (_failures.Count > 0)
+            {
+                throw _failures.Dequeue();
+            }
         }
     }
 
@@ -83,8 +96,17 @@ internal static class BoardViewModelTestDoubles
     {
         public List<Card> Items { get; } = [];
 
-        public Task<IReadOnlyList<Card>> GetAllAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<Card>>(Items.Select(Clone).ToList());
+        public Func<CancellationToken, Task<IReadOnlyList<Card>>>? GetAllHandler { get; set; }
+
+        public int GetAllCallCount { get; private set; }
+
+        public Task<IReadOnlyList<Card>> GetAllAsync(CancellationToken cancellationToken = default)
+        {
+            GetAllCallCount++;
+            return GetAllHandler is null
+                ? Task.FromResult<IReadOnlyList<Card>>(Items.Select(Clone).ToList())
+                : GetAllHandler(cancellationToken);
+        }
 
         public Task<Card> CreateAsync(Card card, CancellationToken cancellationToken = default)
         {
@@ -131,7 +153,7 @@ internal static class BoardViewModelTestDoubles
             return Task.CompletedTask;
         }
 
-        private static Card Clone(Card card) => new()
+        internal static Card Clone(Card card) => new()
         {
             Id = card.Id,
             ColumnId = card.ColumnId,
@@ -149,7 +171,13 @@ internal static class BoardViewModelTestDoubles
     {
         public List<CardEditLock> ActiveLocks { get; } = [];
 
+        public Func<long, string, TimeSpan, CancellationToken, Task<bool>>? RenewHandler { get; set; }
+
         public string? ReleasedSessionId { get; private set; }
+
+        public int RenewCallCount { get; private set; }
+
+        public int ReleaseSessionCallCount { get; private set; }
 
         public Task<CardEditLockAcquisitionResult> TryAcquireAsync(
             long cardId,
@@ -179,9 +207,14 @@ internal static class BoardViewModelTestDoubles
             long cardId,
             string sessionId,
             TimeSpan leaseDuration,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(ActiveLocks.Any(item =>
-                item.CardId == cardId && item.SessionId == sessionId));
+            CancellationToken cancellationToken = default)
+        {
+            RenewCallCount++;
+            return RenewHandler is null
+                ? Task.FromResult(ActiveLocks.Any(item =>
+                    item.CardId == cardId && item.SessionId == sessionId))
+                : RenewHandler(cardId, sessionId, leaseDuration, cancellationToken);
+        }
 
         public Task ReleaseAsync(
             long cardId,
@@ -197,6 +230,7 @@ internal static class BoardViewModelTestDoubles
             CancellationToken cancellationToken = default)
         {
             ReleasedSessionId = sessionId;
+            ReleaseSessionCallCount++;
             ActiveLocks.RemoveAll(item => item.SessionId == sessionId);
             return Task.CompletedTask;
         }
@@ -213,33 +247,80 @@ internal static class BoardViewModelTestDoubles
             new Column { Id = 0, Name = "Backlog", SortOrder = 0 },
         ];
 
+        public Func<CancellationToken, Task<IReadOnlyList<Column>>>? GetAllHandler { get; set; }
+
+        public int GetAllCallCount { get; private set; }
+
         public Task<IReadOnlyList<Column>> GetAllAsync(
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(Items);
+            CancellationToken cancellationToken = default)
+        {
+            GetAllCallCount++;
+            return GetAllHandler is null
+                ? Task.FromResult(Items)
+                : GetAllHandler(cancellationToken);
+        }
     }
 
     internal sealed class StubBoardChangeDetector : IBoardChangeDetector
     {
+        private readonly Queue<Func<CancellationToken, Task<bool>>> _responses = new();
+
         public bool HasChanged { get; set; }
 
+        public Func<CancellationToken, Task<bool>>? Handler { get; set; }
+
         public int CallCount { get; private set; }
+
+        public void EnqueueResult(bool hasChanged) =>
+            _responses.Enqueue(_ => Task.FromResult(hasChanged));
+
+        public void EnqueueFailure(Exception exception)
+        {
+            ArgumentNullException.ThrowIfNull(exception);
+            _responses.Enqueue(_ => Task.FromException<bool>(exception));
+        }
 
         public Task<bool> HasChangedSinceLastCheckAsync(
             CancellationToken cancellationToken = default)
         {
             CallCount++;
-            return Task.FromResult(HasChanged);
+
+            if (_responses.Count > 0)
+            {
+                return _responses.Dequeue()(cancellationToken);
+            }
+
+            return Handler is null
+                ? Task.FromResult(HasChanged)
+                : Handler(cancellationToken);
         }
     }
 
     internal sealed class ManualRecurringTaskScheduler : IRecurringTaskScheduler
     {
-        private Func<CancellationToken, Task>? _callback;
-        private CancellationToken _cancellationToken;
+        private readonly AsyncRecurringTaskCoordinator _coordinator = new();
+        private TimeSpan _interval = TimeSpan.FromSeconds(1);
+        private TimeSpan _elapsed;
 
-        public TimeSpan Interval { get; set; } = TimeSpan.FromSeconds(1);
+        public TimeSpan Interval
+        {
+            get => _interval;
+            set
+            {
+                ThrowIfDisposed();
+                if (value <= TimeSpan.Zero)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(value));
+                }
 
-        public bool IsRunning { get; private set; }
+                _interval = value;
+                _elapsed = TimeSpan.Zero;
+            }
+        }
+
+        public bool IsRunning => !IsDisposed && _coordinator.IsRunning;
+
+        public bool IsExecuting => !IsDisposed && _coordinator.IsExecuting;
 
         public bool IsDisposed { get; private set; }
 
@@ -251,28 +332,64 @@ internal static class BoardViewModelTestDoubles
             Func<CancellationToken, Task> callback,
             CancellationToken cancellationToken)
         {
+            ThrowIfDisposed();
             ArgumentNullException.ThrowIfNull(callback);
-            _callback = callback;
-            _cancellationToken = cancellationToken;
-            IsRunning = true;
+
+            _elapsed = TimeSpan.Zero;
+            _coordinator.Start(callback, cancellationToken);
             StartCount++;
         }
 
-        public void Stop()
+        public Task<bool> TriggerAsync()
         {
-            IsRunning = false;
-            StopCount++;
+            ThrowIfDisposed();
+            return _coordinator.TryExecuteAsync();
         }
 
-        public Task TriggerAsync() => _callback is null
-            ? Task.CompletedTask
-            : _callback(_cancellationToken);
-
-        public void Dispose()
+        public async Task AdvanceByAsync(TimeSpan elapsed)
         {
-            IsRunning = false;
+            ThrowIfDisposed();
+            if (elapsed < TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(elapsed));
+            }
+
+            _elapsed += elapsed;
+            while (IsRunning && _elapsed >= Interval)
+            {
+                _elapsed -= Interval;
+                await TriggerAsync();
+            }
+        }
+
+        public async Task StopAsync()
+        {
+            if (IsDisposed)
+            {
+                return;
+            }
+
+            StopCount++;
+            await _coordinator.StopAsync();
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (IsDisposed)
+            {
+                return;
+            }
+
+            await _coordinator.DisposeAsync();
             IsDisposed = true;
-            _callback = null;
+        }
+
+        private void ThrowIfDisposed()
+        {
+            if (IsDisposed)
+            {
+                throw new ObjectDisposedException(nameof(ManualRecurringTaskScheduler));
+            }
         }
     }
 

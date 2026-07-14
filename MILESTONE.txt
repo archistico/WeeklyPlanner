@@ -1,10 +1,11 @@
-WeeklyPlanner M3.1 — Composizione applicativa e dependency injection
+WeeklyPlanner M3.2 — Scheduler deterministici e lifecycle verificabile
 
-- composition root unico per settings, ViewModel e servizi runtime;
-- BoardViewModel privo di costruzione diretta di SQLite, repository, sessione e timer;
-- constructor injection per repository, initializer, change detector, scheduler, sessione e orologio;
-- IAppSettingsService e IDatabaseInitializer sostituibili;
-- sessione applicativa condivisa e identificata esplicitamente;
-- scheduler ricorrenti astratti dal DispatcherTimer Avalonia;
-- test ViewModel senza accesso a SQLite o dispatcher UI;
-- nessuna modifica funzionale e schema SQLite v3 invariato.
+- callback periodiche serializzate da AsyncRecurringTaskCoordinator;
+- tick sovrapposti scartati senza creare code arretrate;
+- rimosso async void dallo scheduler Avalonia;
+- IRecurringTaskScheduler con StopAsync e dispose asincrono;
+- polling e heartbeat annullati e attesi durante la chiusura;
+- scheduler manuale con avanzamento del tempo simulato;
+- test deterministici per intervalli, overlap, recovery, errori e perdita lock;
+- 114 test dichiarati;
+- nessuna modifica visibile e schema SQLite v3 invariato.

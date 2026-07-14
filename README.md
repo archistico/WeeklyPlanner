@@ -1,7 +1,7 @@
 # WeeklyPlanner
 
 
-> **M3.1** — Composizione applicativa e dependency injection. Il grafo dell'applicazione è costruito in un unico composition root e il `BoardViewModel` riceve repository, sessione, orologio e scheduler tramite interfacce.
+> **M3.2** — Scheduler deterministici e lifecycle verificabile. Polling e heartbeat sono eseguiti in modo seriale, i tick sovrapposti vengono scartati e lo shutdown attende esplicitamente le callback periodiche in corso.
 
 Planner settimanale desktop in **C# / .NET 10 / Avalonia**, sviluppato per milestone piccole,
 test automatici e documentazione aggiornata insieme al codice.
@@ -43,10 +43,12 @@ compilazione, test e prova manuale sono riusciti.
 La milestone **M2.3 — Impostazioni e rifinitura della sessione** è stata validata su Windows: build,
 test e prova manuale sono riusciti.
 
-La milestone corrente **M3.1 — Composizione applicativa e dependency injection** centralizza la
-creazione di ViewModel, repository e servizi runtime. `BoardViewModel` non costruisce più direttamente
-SQLite, Polly, sessione o timer Avalonia e può essere verificato con dipendenze controllate senza
-aprire il database né avviare il dispatcher UI.
+La milestone **M3.1 — Composizione applicativa e dependency injection** è stata validata su Windows:
+compilazione e test sono riusciti.
+
+La milestone corrente **M3.2 — Scheduler deterministici e lifecycle verificabile** separa la sorgente
+dei tick dall'esecuzione asincrona. Polling e heartbeat non possono sovrapporsi, ogni callback attiva
+è tracciata e lo shutdown la annulla e la attende prima di rilasciare i lock della sessione.
 
 Per la fase corrente è stata adottata una persistenza **SQLite locale senza server**. Il database
 deve risiedere su un disco locale della macchina; la sincronizzazione fra computer e l'apertura del
@@ -76,10 +78,15 @@ Le astrazioni principali introdotte in M3.1 sono:
 - `IRecurringTaskScheduler`;
 - `IViewModelFactory`.
 
-Il timer Avalonia è confinato in `AvaloniaRecurringTaskScheduler`. I test usano uno scheduler manuale
-che può richiamare polling e heartbeat senza aspettare il tempo reale o inizializzare il dispatcher.
+Il timer Avalonia è confinato in `AvaloniaRecurringTaskScheduler`. L'esecuzione delle callback è
+gestita da `AsyncRecurringTaskCoordinator`, che garantisce una sola esecuzione attiva, osserva le
+eccezioni inattese e fornisce uno stop asincrono attendibile. I test usano uno scheduler manuale che
+può avanzare il tempo simulato e generare tick senza attese reali o dispatcher Avalonia.
+
 La milestone non cambia il comportamento della board né lo schema SQLite, che resta alla versione 3.
-La decisione è descritta in [`docs/ADR-0005-composition-root.md`](docs/ADR-0005-composition-root.md).
+Le decisioni sono descritte in
+[`docs/ADR-0005-composition-root.md`](docs/ADR-0005-composition-root.md) e
+[`docs/ADR-0006-scheduler-deterministici.md`](docs/ADR-0006-scheduler-deterministici.md).
 
 ## Prerequisiti
 

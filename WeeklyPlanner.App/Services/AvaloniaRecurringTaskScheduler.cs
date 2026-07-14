@@ -5,9 +5,7 @@ namespace WeeklyPlanner.App.Services;
 public sealed class AvaloniaRecurringTaskScheduler : IRecurringTaskScheduler
 {
     private readonly DispatcherTimer _timer;
-    private Func<CancellationToken, Task>? _callback;
-    private CancellationToken _cancellationToken;
-    private bool _isExecuting;
+    private readonly AsyncRecurringTaskCoordinator _coordinator = new();
     private bool _isDisposed;
 
     public TimeSpan Interval
@@ -15,10 +13,7 @@ public sealed class AvaloniaRecurringTaskScheduler : IRecurringTaskScheduler
         get => _timer.Interval;
         set
         {
-            if (_isDisposed)
-            {
-                throw new ObjectDisposedException(nameof(AvaloniaRecurringTaskScheduler));
-            }
+            ThrowIfDisposed();
             if (value <= TimeSpan.Zero)
             {
                 throw new ArgumentOutOfRangeException(nameof(value));
@@ -28,7 +23,9 @@ public sealed class AvaloniaRecurringTaskScheduler : IRecurringTaskScheduler
         }
     }
 
-    public bool IsRunning => _timer.IsEnabled;
+    public bool IsRunning => !_isDisposed && _coordinator.IsRunning;
+
+    public bool IsExecuting => !_isDisposed && _coordinator.IsExecuting;
 
     public AvaloniaRecurringTaskScheduler(TimeSpan interval)
     {
@@ -48,18 +45,14 @@ public sealed class AvaloniaRecurringTaskScheduler : IRecurringTaskScheduler
         Func<CancellationToken, Task> callback,
         CancellationToken cancellationToken)
     {
-        if (_isDisposed)
-        {
-            throw new ObjectDisposedException(nameof(AvaloniaRecurringTaskScheduler));
-        }
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(callback);
 
-        _callback = callback;
-        _cancellationToken = cancellationToken;
+        _coordinator.Start(callback, cancellationToken);
         _timer.Start();
     }
 
-    public void Stop()
+    public async Task StopAsync()
     {
         if (_isDisposed)
         {
@@ -67,44 +60,38 @@ public sealed class AvaloniaRecurringTaskScheduler : IRecurringTaskScheduler
         }
 
         _timer.Stop();
-        _callback = null;
-        _cancellationToken = default;
+        await _coordinator.StopAsync();
     }
 
-    private async void OnTimerTick(object? sender, EventArgs e)
-    {
-        if (_isDisposed ||
-            _isExecuting ||
-            _callback is null ||
-            _cancellationToken.IsCancellationRequested)
-        {
-            return;
-        }
-
-        _isExecuting = true;
-        try
-        {
-            await _callback(_cancellationToken);
-        }
-        catch (OperationCanceledException) when (_cancellationToken.IsCancellationRequested)
-        {
-            // Arresto normale dello scheduler.
-        }
-        finally
-        {
-            _isExecuting = false;
-        }
-    }
-
-    public void Dispose()
+    private void OnTimerTick(object? sender, EventArgs e)
     {
         if (_isDisposed)
         {
             return;
         }
 
-        Stop();
+        // Il coordinator osserva sempre il task e scarta il tick se una callback è già in corso.
+        _ = _coordinator.TryExecuteAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        _timer.Stop();
         _timer.Tick -= OnTimerTick;
+        await _coordinator.DisposeAsync();
         _isDisposed = true;
+    }
+
+    private void ThrowIfDisposed()
+    {
+        if (_isDisposed)
+        {
+            throw new ObjectDisposedException(nameof(AvaloniaRecurringTaskScheduler));
+        }
     }
 }
