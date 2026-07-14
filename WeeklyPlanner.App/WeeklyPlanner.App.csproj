@@ -6,8 +6,8 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
     <RootNamespace>WeeklyPlanner.App</RootNamespace>
-    <Version>0.5.0</Version>
-    <InformationalVersion>0.5.0-m2.1</InformationalVersion>
+    <Version>0.6.2</Version>
+    <InformationalVersion>0.6.2-m2.2.2</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

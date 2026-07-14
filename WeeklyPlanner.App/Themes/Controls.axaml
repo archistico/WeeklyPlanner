@@ -25,12 +25,22 @@
         <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
     </Style>
 
+    <Style Selector="Border.card:focus">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="BorderThickness" Value="2" />
+    </Style>
+
+    <Style Selector="Border.dropIndicator">
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="CornerRadius" Value="2" />
+    </Style>
+
     <!-- Intestazione di colonna: piatta, testo secondario, nessun rilievo -->
     <Style Selector="TextBlock.columnHeader">
         <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="FontSize" Value="13" />
-        <Setter Property="Margin" Value="12,12,12,6" />
+        <Setter Property="Margin" Value="0" />
     </Style>
 
     <Style Selector="Border.column">
@@ -60,6 +70,17 @@
         <Setter Property="Width" Value="24" />
         <Setter Property="Height" Value="24" />
         <Setter Property="Padding" Value="4" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Button.columnAdd">
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="Width" Value="38" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="Padding" Value="5,2" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>

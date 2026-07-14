@@ -20,6 +20,8 @@ public sealed partial class CardViewModel : ViewModelBase
     private string? _saveStatusText;
     private bool _hasSaveError;
     private bool _hasSaveSuccess;
+    private bool _isDropBeforeVisible;
+    private bool _isDropAfterVisible;
 
     public Card Model { get; }
 
@@ -204,6 +206,18 @@ public sealed partial class CardViewModel : ViewModelBase
 
     public bool HasSaveStatus => !string.IsNullOrWhiteSpace(SaveStatusText);
 
+    public bool IsDropBeforeVisible
+    {
+        get => _isDropBeforeVisible;
+        private set => SetProperty(ref _isDropBeforeVisible, value);
+    }
+
+    public bool IsDropAfterVisible
+    {
+        get => _isDropAfterVisible;
+        private set => SetProperty(ref _isDropAfterVisible, value);
+    }
+
     public bool IsDirty =>
         IsEditing &&
         (!string.Equals(Title, _originalTitle, StringComparison.Ordinal) ||
@@ -294,6 +308,19 @@ public sealed partial class CardViewModel : ViewModelBase
         _editExpectedVersion = model.Version;
     }
 
+
+    public void SetDropIndicator(bool afterCard)
+    {
+        IsDropBeforeVisible = !afterCard;
+        IsDropAfterVisible = afterCard;
+    }
+
+    public void ClearDropIndicator()
+    {
+        IsDropBeforeVisible = false;
+        IsDropAfterVisible = false;
+    }
+
     public void BeginEdit(CardEditLock editLock, string currentSessionId)
     {
         ArgumentNullException.ThrowIfNull(editLock);
@@ -314,6 +341,7 @@ public sealed partial class CardViewModel : ViewModelBase
         IsLockedByAnotherUser = false;
         EditingUserName = editLock.UserName;
         IsDeleteConfirmationVisible = false;
+        ClearDropIndicator();
         ClearSaveFeedback();
         IsEditing = true;
     }
@@ -387,6 +415,7 @@ public sealed partial class CardViewModel : ViewModelBase
         if (CanRequestDelete)
         {
             ClearSaveFeedback();
+            ClearDropIndicator();
             IsDeleteConfirmationVisible = true;
         }
     }
@@ -404,6 +433,7 @@ public sealed partial class CardViewModel : ViewModelBase
 
     public void MarkDeletedExternally()
     {
+        ClearDropIndicator();
         IsDeletedExternally = true;
         HasExternalChanges = true;
         IsDeleteConfirmationVisible = false;

@@ -1,5 +1,39 @@
 # WeeklyPlanner — Milestone operative
 
+## M2.2.3 — Pan orizzontale e allineamento autore
+
+- testo `di <utente>` in corsivo;
+- margine sinistro della firma allineato al contenuto di titolo e note;
+- pan orizzontale della board tenendo premuto il tasto centrale del mouse;
+- asse verticale invariato durante il pan;
+- scrollbar orizzontale mantenuta come modalità alternativa;
+- drag&drop delle card con il tasto sinistro e scroll verticali delle colonne invariati;
+- test unitari del calcolo dell’offset;
+- schema invariato alla versione 3.
+
+## M2.2.1 — Rifinitura visuale della board
+
+- rimozione del pulsante esteso `+ Aggiungi card` dal fondo delle colonne;
+- azione compatta `+` con icona card accanto al nome del giorno;
+- titolo delle card leggermente più grande;
+- autore mantenuto a sinistra nel footer;
+- cestino allineato all’estrema destra;
+- floppy verde a sinistra del cestino dopo un salvataggio riuscito;
+- feedback testuale mantenuto per salvataggio in corso ed errori;
+- schema invariato alla versione 3.
+
+## M2.2 — Drag&drop rifinito e accessibilità da tastiera
+
+- indicatore di inserimento prima/dopo la card o in fondo alla colonna;
+- rifiuto dei drop che non producono alcun cambiamento;
+- `Alt+↑/↓` per il riordino nella colonna;
+- `Alt+←/→` per lo spostamento nella colonna adiacente;
+- mantenimento della posizione verticale quando possibile;
+- ripristino del focus sulla card dopo il commit;
+- bordo di focus e metadati accessibili per card e pulsanti a icona;
+- test puri della pianificazione degli indici e degli spostamenti no-op;
+- schema invariato alla versione 3.
+
 ## M2.1.1 — Rifinitura pulsante eliminazione
 
 - piccolo pulsante con icona cestino nel footer della card;
@@ -40,9 +74,11 @@ Ogni milestone deve:
 | M1.2 — Riordino atomico | **Validata** | compilazione e test passati; create/delete/move transazionali, normalizzazione completa dei `SortOrder`, rollback e drop prima/dopo una card |
 | M1.3.1 — Editing protetto | **Validata** | build/test e runtime verificati; bozza separata, polling non distruttivo, lease, indicatore utente e optimistic concurrency |
 | M1.4 — Stato operativo e lifecycle | **Validata** | stati connessione, classificazione errori, retry letture, recupero non distruttivo e chiusura coordinata |
-| M2.1.1 — Rifinitura eliminazione | **Implementata, verifica richiesta** | icona cestino compatta nel footer della card |
+| M2.1.1 — Rifinitura eliminazione | **Validata** | build, test e prova manuale riusciti; icona cestino compatta nel footer della card |
 | M2.1 — CRUD e feedback editor | **Implementata** | eliminazione inline, validazione titolo, feedback di salvataggio e scroll per colonna |
-| M2.2 — Tastiera e drop feedback | Pianificata | navigazione da tastiera e indicatore visuale della posizione di inserimento |
+| M2.2 — Tastiera e drop feedback | **Validata** | build e test passati; linea di inserimento, no-op rifiutati, `Alt` + frecce, focus e metadati accessibili |
+| M2.2.1 — Rifinitura visuale | **Implementata** | aggiunta nell’header colonna, titolo più grande, floppy verde e cestino a destra |
+| M2.2.3 — Pan orizzontale | **Implementata, verifica richiesta** | autore corsivo e allineato; pan fra i giorni con il tasto centrale |
 | M3 — Osservabilità e composizione | Pianificata | dependency injection, logging locale, correlazione errori e test ViewModel con dipendenze controllabili |
 | M4 — Packaging MVP locale | Pianificata | publish Windows, backup documentato, smoke test e pacchetto distribuibile |
 
@@ -275,3 +311,36 @@ Poi verificare manualmente:
 7. osservare `Salvataggio…` e `Salvata`;
 8. aprire due istanze e verificare che una card bloccata non mostri il comando di eliminazione.
 
+
+## Criteri di chiusura M2.2
+
+1. eseguire `dotnet build` e `dotnet test`;
+2. avviare l'app e verificare il badge `M2.2`;
+3. trascinare una card sopra e sotto altre card verificando la linea di inserimento;
+4. trascinare nello spazio libero di una colonna e verificare l'indicatore in coda;
+5. provare un drop sulla posizione originale e verificare che non venga accettato;
+6. selezionare una card con `Tab` e usare `Alt+↑/↓`;
+7. usare `Alt+←/→` e verificare che il focus resti sulla card spostata;
+8. verificare che le scorciatoie non spostino la card mentre si scrive in titolo o note.
+
+## Criteri di chiusura M2.2.1
+
+1. eseguire `dotnet build` e `dotnet test`;
+2. avviare l'app e verificare il badge `M2.2.1`;
+3. verificare il pulsante compatto `+` con icona card accanto a ogni nome di colonna;
+4. verificare che il vecchio pulsante esteso non sia più presente in fondo alle colonne;
+5. verificare che il titolo delle card sia leggermente più grande;
+6. modificare e salvare una card, verificando la floppy verde alla sinistra del cestino;
+7. verificare autore a sinistra e cestino allineato all'estrema destra;
+8. verificare che `Salvataggio…` e gli errori continuino a essere mostrati come testo.
+
+
+## Criteri di chiusura M2.2.3
+
+1. eseguire `dotnet build` e `dotnet test`;
+2. avviare l'app e verificare il badge `M2.2.3`;
+3. verificare che `di <utente>` sia corsivo e allineato con titolo e note;
+4. tenere premuto il tasto centrale e trascinare verso sinistra e destra;
+5. verificare che il pan modifichi soltanto lo scorrimento orizzontale;
+6. verificare che drag&drop con il tasto sinistro e scroll verticali continuino a funzionare;
+7. verificare che la scrollbar orizzontale resti utilizzabile.

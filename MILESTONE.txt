@@ -1,8 +1,10 @@
-WeeklyPlanner M2.1.1 — Pulsante eliminazione compatto
+WeeklyPlanner M2.2.2 — Pan orizzontale e allineamento autore
 
-- sostituito il grande pulsante testuale Elimina con un'icona cestino 24x24
-- azione spostata nel footer della card, a sinistra di "di <utente>"
-- tooltip mantenuto per chiarezza e accessibilità
-- conferma inline non modale invariata
-- regole di visibilità, lock, editing e stato operativo invariate
+- firma "di <utente>" in corsivo
+- margine sinistro della firma allineato ai contenuti della card
+- pan orizzontale della board con il tasto centrale del mouse
+- asse verticale invariato durante il pan
+- scrollbar orizzontale mantenuta come alternativa
+- drag&drop delle card e scroll verticali invariati
+- test unitari del calcolo dell’offset
 - schema database invariato alla versione 3

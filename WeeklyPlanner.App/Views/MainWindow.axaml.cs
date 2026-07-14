@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using WeeklyPlanner.App.Interaction;
 using WeeklyPlanner.App.ViewModels;
 
 namespace WeeklyPlanner.App.Views;
@@ -20,15 +21,36 @@ public partial class MainWindow : Window
     private bool _dragInProgress;
     private bool _shutdownInProgress;
     private bool _shutdownCompleted;
+    private CardViewModel? _dropIndicatorCard;
+    private ColumnViewModel? _dropIndicatorColumn;
+    private bool _boardPanInProgress;
+    private Point _boardPanStartPoint;
+    private Vector _boardPanStartOffset;
 
     public MainWindow()
     {
         InitializeComponent();
 
         DragDrop.AddDragOverHandler(this, OnDragOver);
+        DragDrop.AddDragLeaveHandler(this, OnDragLeave);
         DragDrop.AddDropHandler(this, OnDrop);
-    }
 
+        BoardScrollViewer.AddHandler(
+            InputElement.PointerPressedEvent,
+            OnBoardPanPointerPressed,
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+        BoardScrollViewer.AddHandler(
+            InputElement.PointerMovedEvent,
+            OnBoardPanPointerMoved,
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+        BoardScrollViewer.AddHandler(
+            InputElement.PointerReleasedEvent,
+            OnBoardPanPointerReleased,
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+    }
 
     protected override void OnClosing(WindowClosingEventArgs e)
     {
@@ -125,6 +147,107 @@ public partial class MainWindow : Window
         FindAncestorBorderWithClass(control, "card")?.Focus();
     }
 
+    private async void OnCardKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyModifiers != KeyModifiers.Alt ||
+            sender is not Border cardBorder ||
+            !ReferenceEquals(e.Source, cardBorder) ||
+            cardBorder.DataContext is not CardViewModel card ||
+            DataContext is not BoardViewModel { CanModifyBoard: true } boardViewModel ||
+            !card.CanDrag ||
+            !TryGetMoveDirection(e.Key, out var direction))
+        {
+            return;
+        }
+
+        var sourceColumn = boardViewModel.Columns
+            .FirstOrDefault(column => column.Cards.Contains(card));
+        if (sourceColumn is null)
+        {
+            return;
+        }
+
+        var sourceColumnIndex = boardViewModel.Columns.IndexOf(sourceColumn);
+        var sourceCardIndex = sourceColumn.Cards.IndexOf(card);
+        var cardCounts = boardViewModel.Columns.Select(column => column.Cards.Count).ToArray();
+        if (!CardMovePlanner.TryCreate(
+                sourceColumnIndex,
+                sourceCardIndex,
+                cardCounts,
+                direction,
+                out var plan))
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await boardViewModel.MoveCardAsync(
+            card,
+            boardViewModel.Columns[plan.TargetColumnIndex],
+            plan.TargetIndex);
+
+        Dispatcher.UIThread.Post(
+            () => FindCardBorder(card)?.Focus(),
+            DispatcherPriority.Background);
+    }
+
+    private void OnBoardPanPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_boardPanInProgress || sender is not ScrollViewer scrollViewer)
+        {
+            return;
+        }
+
+        var pointerPoint = e.GetCurrentPoint(scrollViewer);
+        if (!pointerPoint.Properties.IsMiddleButtonPressed)
+        {
+            return;
+        }
+
+        _boardPanInProgress = true;
+        _boardPanStartPoint = e.GetPosition(scrollViewer);
+        _boardPanStartOffset = scrollViewer.Offset;
+        e.Pointer.Capture(scrollViewer);
+        e.Handled = true;
+    }
+
+    private void OnBoardPanPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (!_boardPanInProgress || sender is not ScrollViewer scrollViewer)
+        {
+            return;
+        }
+
+        if (!e.GetCurrentPoint(scrollViewer).Properties.IsMiddleButtonPressed)
+        {
+            EndBoardPan(e.Pointer);
+            return;
+        }
+
+        scrollViewer.Offset = BoardPanCalculator.CalculateOffset(
+            _boardPanStartOffset,
+            _boardPanStartPoint,
+            e.GetPosition(scrollViewer));
+        e.Handled = true;
+    }
+
+    private void OnBoardPanPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_boardPanInProgress)
+        {
+            return;
+        }
+
+        EndBoardPan(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void EndBoardPan(IPointer pointer)
+    {
+        _boardPanInProgress = false;
+        pointer.Capture(null);
+    }
+
     private void OnCardDragHandlePointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (_dragInProgress || sender is not Control handle)
@@ -138,7 +261,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var cardBorder = handle.FindAncestorOfType<Border>();
+        var cardBorder = FindAncestorBorderWithClass(handle, "card");
         if (cardBorder?.DataContext is not CardViewModel card || !card.CanDrag)
         {
             return;
@@ -182,6 +305,7 @@ public partial class MainWindow : Window
         finally
         {
             _dragInProgress = false;
+            ClearDropIndicators();
         }
     }
 
@@ -193,74 +317,195 @@ public partial class MainWindow : Window
 
     private void OnDragOver(object? sender, DragEventArgs e)
     {
-        e.DragEffects = DataContext is BoardViewModel { CanModifyBoard: true } &&
-                        e.DataTransfer.Contains(CardDragFormat)
-            ? DragDropEffects.Move
-            : DragDropEffects.None;
+        if (DataContext is not BoardViewModel { CanModifyBoard: true } boardViewModel ||
+            e.Source is not Control targetControl ||
+            !TryGetDraggedCard(e, boardViewModel, out var card) ||
+            !TryGetDropTarget(e, targetControl, out var dropTarget) ||
+            !WouldChangePosition(boardViewModel, card, dropTarget))
+        {
+            ClearDropIndicators();
+            e.DragEffects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        SetDropIndicator(dropTarget);
+        e.DragEffects = DragDropEffects.Move;
         e.Handled = true;
+    }
+
+    private void OnDragLeave(object? sender, DragEventArgs e)
+    {
+        ClearDropIndicators();
     }
 
     private async void OnDrop(object? sender, DragEventArgs e)
     {
+        try
+        {
+            if (DataContext is not BoardViewModel { CanModifyBoard: true } boardViewModel ||
+                e.Source is not Control targetControl ||
+                !TryGetDraggedCard(e, boardViewModel, out var card) ||
+                !TryGetDropTarget(e, targetControl, out var dropTarget) ||
+                !WouldChangePosition(boardViewModel, card, dropTarget))
+            {
+                e.DragEffects = DragDropEffects.None;
+                e.Handled = true;
+                return;
+            }
+
+            e.DragEffects = DragDropEffects.Move;
+            e.Handled = true;
+            await boardViewModel.MoveCardAsync(card, dropTarget.Column, dropTarget.TargetIndex);
+        }
+        finally
+        {
+            ClearDropIndicators();
+        }
+    }
+
+    private static bool TryGetDraggedCard(
+        DragEventArgs e,
+        BoardViewModel boardViewModel,
+        out CardViewModel card)
+    {
         var cardIdText = e.DataTransfer.TryGetValue(CardDragFormat);
-        if (!long.TryParse(
+        if (long.TryParse(
                 cardIdText,
                 NumberStyles.None,
                 CultureInfo.InvariantCulture,
-                out var cardId) ||
-            e.Source is not Control targetControl ||
-            DataContext is not BoardViewModel { CanModifyBoard: true } boardViewModel)
+                out var cardId))
         {
-            return;
+            var foundCard = boardViewModel.Columns
+                .SelectMany(column => column.Cards)
+                .FirstOrDefault(candidate => candidate.Model.Id == cardId);
+            if (foundCard is not null && foundCard.CanDrag)
+            {
+                card = foundCard;
+                return true;
+            }
         }
 
-        var card = boardViewModel.Columns
-            .SelectMany(column => column.Cards)
-            .FirstOrDefault(candidate => candidate.Model.Id == cardId);
-        if (card is null || !card.CanDrag)
-        {
-            return;
-        }
-
-        var columnBorder = targetControl.FindAncestorOfType<Border>(includeSelf: true);
-        while (columnBorder is not null && !columnBorder.Classes.Contains("column"))
-        {
-            columnBorder = columnBorder.FindAncestorOfType<Border>();
-        }
-
-        if (columnBorder?.DataContext is not ColumnViewModel targetColumn)
-        {
-            return;
-        }
-
-        var targetIndex = GetDropIndex(e, targetControl, targetColumn);
-
-        e.DragEffects = DragDropEffects.Move;
-        e.Handled = true;
-        await boardViewModel.MoveCardAsync(card, targetColumn, targetIndex);
+        card = null!;
+        return false;
     }
 
-    private static int GetDropIndex(
+    private static bool TryGetDropTarget(
         DragEventArgs e,
         Control targetControl,
-        ColumnViewModel targetColumn)
+        out DropTarget dropTarget)
     {
-        var cardBorder = FindAncestorBorderWithClass(targetControl, "card");
-        if (cardBorder?.DataContext is not CardViewModel targetCard)
+        var columnBorder = FindAncestorBorderWithClass(targetControl, "column");
+        if (columnBorder?.DataContext is not ColumnViewModel targetColumn)
         {
-            return targetColumn.Cards.Count;
+            dropTarget = default;
+            return false;
+        }
+
+        var cardBorder = FindAncestorBorderWithClass(targetControl, "card");
+        if (cardBorder?.DataContext is not CardViewModel targetCard ||
+            !targetColumn.Cards.Contains(targetCard))
+        {
+            dropTarget = new DropTarget(
+                targetColumn,
+                targetColumn.Cards.Count,
+                TargetCard: null,
+                AfterCard: false);
+            return true;
         }
 
         var targetCardIndex = targetColumn.Cards.IndexOf(targetCard);
-        if (targetCardIndex < 0)
+        var afterCard = e.GetPosition(cardBorder).Y >= cardBorder.Bounds.Height / 2;
+        dropTarget = new DropTarget(
+            targetColumn,
+            afterCard ? targetCardIndex + 1 : targetCardIndex,
+            targetCard,
+            afterCard);
+        return true;
+    }
+
+    private static bool WouldChangePosition(
+        BoardViewModel boardViewModel,
+        CardViewModel card,
+        DropTarget dropTarget)
+    {
+        var sourceColumn = boardViewModel.Columns.FirstOrDefault(column => column.Cards.Contains(card));
+        if (sourceColumn is null)
         {
-            return targetColumn.Cards.Count;
+            return false;
         }
 
-        var pointerPosition = e.GetPosition(cardBorder);
-        return pointerPosition.Y >= cardBorder.Bounds.Height / 2
-            ? targetCardIndex + 1
-            : targetCardIndex;
+        var sourceColumnIndex = boardViewModel.Columns.IndexOf(sourceColumn);
+        var targetColumnIndex = boardViewModel.Columns.IndexOf(dropTarget.Column);
+        return CardMovePlanner.WouldChangePosition(
+            sourceColumnIndex,
+            sourceColumn.Cards.IndexOf(card),
+            sourceColumn.Cards.Count,
+            targetColumnIndex,
+            dropTarget.TargetIndex);
+    }
+
+    private void SetDropIndicator(DropTarget dropTarget)
+    {
+        if (ReferenceEquals(_dropIndicatorCard, dropTarget.TargetCard) &&
+            ReferenceEquals(_dropIndicatorColumn, dropTarget.TargetCard is null ? dropTarget.Column : null))
+        {
+            if (dropTarget.TargetCard is not null)
+            {
+                dropTarget.TargetCard.SetDropIndicator(dropTarget.AfterCard);
+            }
+
+            return;
+        }
+
+        ClearDropIndicators();
+        if (dropTarget.TargetCard is not null)
+        {
+            _dropIndicatorCard = dropTarget.TargetCard;
+            _dropIndicatorCard.SetDropIndicator(dropTarget.AfterCard);
+        }
+        else
+        {
+            _dropIndicatorColumn = dropTarget.Column;
+            _dropIndicatorColumn.SetDropAtEnd(true);
+        }
+    }
+
+    private void ClearDropIndicators()
+    {
+        _dropIndicatorCard?.ClearDropIndicator();
+        _dropIndicatorColumn?.SetDropAtEnd(false);
+        _dropIndicatorCard = null;
+        _dropIndicatorColumn = null;
+    }
+
+    private Border? FindCardBorder(CardViewModel card) => this
+        .GetVisualDescendants()
+        .OfType<Border>()
+        .FirstOrDefault(border =>
+            border.Classes.Contains("card") &&
+            ReferenceEquals(border.DataContext, card));
+
+    private static bool TryGetMoveDirection(Key key, out CardMoveDirection direction)
+    {
+        switch (key)
+        {
+            case Key.Up:
+                direction = CardMoveDirection.Up;
+                return true;
+            case Key.Down:
+                direction = CardMoveDirection.Down;
+                return true;
+            case Key.Left:
+                direction = CardMoveDirection.PreviousColumn;
+                return true;
+            case Key.Right:
+                direction = CardMoveDirection.NextColumn;
+                return true;
+            default:
+                direction = default;
+                return false;
+        }
     }
 
     private static Border? FindAncestorBorderWithClass(Control control, string className)
@@ -273,4 +518,10 @@ public partial class MainWindow : Window
 
         return border;
     }
+
+    private readonly record struct DropTarget(
+        ColumnViewModel Column,
+        int TargetIndex,
+        CardViewModel? TargetCard,
+        bool AfterCard);
 }

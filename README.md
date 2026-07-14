@@ -1,7 +1,7 @@
 # WeeklyPlanner
 
 
-> **M2.1.1** — Rifinitura dell'eliminazione. Il comando è ora un piccolo pulsante con icona cestino nel footer della card, accanto all'autore; la conferma inline resta invariata.
+> **M2.2.3** — Pan orizzontale e allineamento autore. Il tasto centrale del mouse consente di trascinare la board fra i giorni; la firma dell’autore è corsiva e allineata ai contenuti della card.
 
 Planner settimanale desktop in **C# / .NET 10 / Avalonia**, sviluppato per milestone piccole,
 test automatici e documentazione aggiornata insieme al codice.
@@ -27,10 +27,19 @@ utente, pulsanti Salva/Annulla e protezione della bozza dal polling funzionano c
 La milestone **M1.4 — Stato operativo e lifecycle affidabile** è stata validata su Windows: build e
 test sono passati.
 
-La milestone corrente **M2.1.1 — Rifinitura dell'eliminazione** mantiene il CRUD della M2.1 e sposta
-il comando di eliminazione in un piccolo pulsante con icona cestino nel footer della card, accanto
-all'autore. Restano invariati la conferma inline, lo scroll verticale indipendente per colonna, la
-validazione del titolo e lo stato di salvataggio per ogni card.
+La milestone **M2.1.1 — Rifinitura dell'eliminazione** è stata validata su Windows: build, test e
+prova manuale sono riusciti.
+
+La milestone **M2.2 — Drag&drop rifinito e accessibilità da tastiera** è stata validata su Windows:
+compilazione e test sono passati.
+
+La milestone **M2.2.1 — Rifinitura visuale della board** sposta l’azione di aggiunta
+nell’intestazione della colonna, aumenta leggermente il titolo della card e riallinea il footer con
+l’autore a sinistra e le icone di salvataggio ed eliminazione a destra.
+
+La milestone corrente **M2.2.3 — Pan orizzontale e allineamento autore** rende corsiva la firma
+`di <utente>`, la allinea al testo dei campi e permette di spostarsi fra i giorni trascinando la
+board con il tasto centrale del mouse. La scrollbar orizzontale resta disponibile come alternativa.
 
 Per la fase corrente è stata adottata una persistenza **SQLite locale senza server**. Il database
 deve risiedere su un disco locale della macchina; la sincronizzazione fra computer e l'apertura del
@@ -186,6 +195,27 @@ evitare comandi concorrenti sulla stessa card.
 Ogni colonna usa un proprio `ScrollViewer` verticale; lo scorrimento orizzontale della board resta
 indipendente e l'azione **+ Aggiungi card** rimane sempre visibile in fondo alla colonna.
 
+## Drag&drop e tastiera
+
+Durante il drag compare una linea nel punto esatto in cui la card verrà inserita:
+
+- sopra o sotto la card sotto il puntatore;
+- in fondo alla colonna quando il puntatore è nello spazio libero;
+- nessun indicatore e nessuna scrittura per un rilascio che lascerebbe la card nella stessa posizione.
+
+La card è raggiungibile con `Tab` e mostra un bordo di focus. Con la card selezionata:
+
+- `Alt+↑` la sposta di una posizione verso l'alto;
+- `Alt+↓` la sposta di una posizione verso il basso;
+- `Alt+←` la sposta nella colonna precedente;
+- `Alt+→` la sposta nella colonna successiva.
+
+Negli spostamenti orizzontali viene mantenuta, quando possibile, la stessa posizione verticale; nelle
+colonne più corte l'indice viene adattato alla coda. Le scorciatoie non si attivano mentre il focus è
+all'interno di un campo di testo. Dopo il commit il focus torna sulla stessa card.
+
+Le card e il pulsante cestino espongono inoltre nomi e testo di aiuto tramite `AutomationProperties`.
+
 ## Pubblicazione
 
 ```powershell
@@ -200,7 +230,8 @@ framework-dependent.
 - colonne fisse `Backlog` e `Lunedì`–`Domenica`;
 - creazione, modifica ed eliminazione confermata di card;
 - spostamento e riordino nella stessa colonna o fra colonne tramite drag&drop;
-- inserimento prima o dopo la card sotto il puntatore;
+- inserimento prima o dopo la card sotto il puntatore con indicatore visuale;
+- spostamento da tastiera con `Alt` + frecce;
 - persistenza atomica e ricompattazione dei `SortOrder`;
 - configurazione locale resiliente;
 - polling basato su revisione monotona;
@@ -219,8 +250,7 @@ framework-dependent.
 
 ## Limiti noti prima dell'MVP
 
-- non è ancora presente un indicatore visuale della posizione di inserimento durante il drag;
-- l'accessibilità completa da tastiera della board sarà rifinita nella M2.2;
+- non sono ancora presenti test UI headless end-to-end; la logica di spostamento è coperta da test puri;
 - logging rolling non ancora implementato; la classificazione degli errori è già centralizzata;
 - non esiste sincronizzazione fra computer.
 

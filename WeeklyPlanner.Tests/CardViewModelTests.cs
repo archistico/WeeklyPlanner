@@ -176,6 +176,24 @@ public sealed class CardViewModelTests
     }
 
     [Fact]
+    public void Drop_indicator_is_exclusive_and_can_be_cleared()
+    {
+        var viewModel = CreateViewModel();
+
+        viewModel.SetDropIndicator(afterCard: false);
+        Assert.True(viewModel.IsDropBeforeVisible);
+        Assert.False(viewModel.IsDropAfterVisible);
+
+        viewModel.SetDropIndicator(afterCard: true);
+        Assert.False(viewModel.IsDropBeforeVisible);
+        Assert.True(viewModel.IsDropAfterVisible);
+
+        viewModel.ClearDropIndicator();
+        Assert.False(viewModel.IsDropBeforeVisible);
+        Assert.False(viewModel.IsDropAfterVisible);
+    }
+
+    [Fact]
     public void Delete_confirmation_is_available_only_when_card_is_not_being_edited_or_locked()
     {
         var viewModel = CreateViewModel();

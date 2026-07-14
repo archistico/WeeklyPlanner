@@ -1,6 +1,6 @@
 # WeeklyPlanner — Obiettivi e roadmap
 
-Versione documento: **0.6.1**
+Versione documento: **0.7.0**
 Ultimo aggiornamento: **14 luglio 2026**
 
 ## 1. Visione
@@ -163,6 +163,9 @@ concorrenza ottimistico sul contenuto.
 
 - interazioni principali raggiungibili senza finestre complesse;
 - drag avviato soltanto dopo una soglia di movimento;
+- posizione di drop mostrata prima del commit;
+- riordino e cambio colonna disponibili anche da tastiera;
+- focus preservato dopo gli spostamenti;
 - colonne con scroll verticale indipendente;
 - stato di salvataggio visibile senza interrompere il lavoro;
 - conferma per operazioni distruttive;
@@ -232,6 +235,19 @@ Il salvataggio usa inoltre `Cards.Version`: l'`UPDATE` richiede sia il lease del
 versione letta all'inizio. In caso di conflitto, scadenza o cancellazione la bozza viene conservata e
 l'utente riceve un messaggio esplicito.
 
+## 8.3 Drag&drop e accessibilità da tastiera
+
+Il drag mostra una linea di inserimento senza modificare anticipatamente la collection. La linea può
+comparire prima o dopo una card oppure in fondo alla colonna. Un target che, dopo la normalizzazione
+dell'indice, lascerebbe la card nella posizione originale viene rifiutato senza accedere al repository.
+
+Le card partecipano alla navigazione con `Tab`. Con il focus sul contenitore della card, `Alt+↑/↓`
+riordina nella colonna e `Alt+←/→` sposta nella colonna adiacente. Lo spostamento orizzontale conserva
+l'indice quando la destinazione è abbastanza lunga e lo limita alla coda negli altri casi. Le
+scorciatoie sono disabilitate nei campi di testo e il focus viene ripristinato dopo il merge.
+
+`AutomationProperties.Name` e `HelpText` descrivono card e azioni a icona alle tecnologie assistive.
+
 ## 9. Test
 
 ### Automatici
@@ -279,11 +295,15 @@ Lo stato operativo dettagliato è mantenuto in [`docs/MILESTONES.md`](docs/MILES
 
 ### M2 — CRUD e UX MVP
 
-- **M2.1.1:** pulsante di eliminazione compatto con icona cestino nel footer della card, accanto all’autore.
 - **M2.1:** comando e pulsante di eliminazione, conferma inline non invasiva, scroll verticale
   indipendente, titolo obbligatorio e limitato, indicatore saving/saved/error;
-- **M2.2:** accessibilità completa da tastiera, rifinitura dell'editor protetto e indicatore
-  visuale della posizione di drop.
+- **M2.1.1:** pulsante di eliminazione compatto con icona cestino nel footer della card, accanto all’autore;
+- **M2.2:** indicatore visuale della posizione di drop, rifiuto dei no-op, riordino e cambio colonna
+  con `Alt` + frecce, focus persistente e metadati di accessibilità;
+- **M2.2.1:** azione di aggiunta compatta nell’intestazione delle colonne, titolo card più leggibile,
+  footer con autore a sinistra, floppy verde di salvataggio e cestino allineato a destra;
+- **M2.2.3:** firma autore corsiva e allineata ai campi; pan orizzontale della board con trascinamento
+  tramite tasto centrale del mouse, senza interferire con drag&drop e scroll verticali.
 
 ### M3 — Osservabilità e composizione
 
