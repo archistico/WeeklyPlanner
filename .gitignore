@@ -1,0 +1,28 @@
+# .NET / IDE
+bin/
+obj/
+.vs/
+.idea/
+*.user
+*.suo
+
+# Test e build artifacts
+TestResults/
+artifacts/
+coverage/
+*.trx
+
+# Configurazione e dati locali
+settings.json
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Log
+logs/
+*.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

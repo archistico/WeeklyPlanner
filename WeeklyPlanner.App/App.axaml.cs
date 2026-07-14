@@ -1,0 +1,71 @@
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Markup.Xaml;
+using WeeklyPlanner.App.ViewModels;
+using WeeklyPlanner.App.Views;
+using WeeklyPlanner.Core.Configuration;
+
+namespace WeeklyPlanner.App;
+
+public partial class App : Application
+{
+    public override void Initialize()
+    {
+        AvaloniaXamlLoader.Load(this);
+    }
+
+    public override void OnFrameworkInitializationCompleted()
+    {
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            var settingsService = new AppSettingsService();
+            var settings = settingsService.Load();
+
+            if (!settings.IsComplete())
+            {
+                OpenOnboarding(desktop, settingsService, settings);
+            }
+            else
+            {
+                desktop.MainWindow = CreateMainWindow(settings);
+            }
+        }
+
+        base.OnFrameworkInitializationCompleted();
+    }
+
+    private static void OpenOnboarding(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        AppSettingsService settingsService,
+        AppSettings settings)
+    {
+        var viewModel = new OnboardingViewModel(settingsService, settings);
+        var window = new OnboardingWindow
+        {
+            DataContext = viewModel,
+        };
+
+        viewModel.Completed += (_, completedSettings) =>
+        {
+            var mainWindow = CreateMainWindow(completedSettings);
+            desktop.MainWindow = mainWindow;
+            mainWindow.Show();
+            window.Close();
+        };
+
+        desktop.MainWindow = window;
+    }
+
+    private static MainWindow CreateMainWindow(AppSettings settings)
+    {
+        var viewModel = new BoardViewModel(settings);
+        var mainWindow = new MainWindow
+        {
+            DataContext = viewModel,
+        };
+
+        mainWindow.Opened += async (_, _) => await viewModel.StartAsync();
+        mainWindow.Closed += async (_, _) => await viewModel.DisposeAsync();
+        return mainWindow;
+    }
+}

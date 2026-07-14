@@ -1,0 +1,60 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        Override leggero sopra FluentTheme per richiamare lo stile GTK4/Libadwaita dell'originale
+        (superfici piatte, angoli arrotondati generosi, un solo colore d'accento usato con
+        parsimonia) - vedi §7 del documento di progetto per il razionale completo.
+    -->
+
+    <Style Selector="Window">
+        <Setter Property="Background" Value="{DynamicResource WindowBackgroundBrush}" />
+        <Setter Property="FontFamily" Value="Inter" />
+    </Style>
+
+    <!-- Card della board: superficie piatta, bordo sottile, angoli morbidi (~12px, vedi §7.4) -->
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Padding" Value="12" />
+        <Setter Property="Margin" Value="0,0,0,6" />
+    </Style>
+
+    <Style Selector="Border.card:pointerover">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+
+    <!-- Intestazione di colonna: piatta, testo secondario, nessun rilievo -->
+    <Style Selector="TextBlock.columnHeader">
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Margin" Value="12,12,12,6" />
+    </Style>
+
+    <Style Selector="Border.column">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Padding" Value="0,0,0,12" />
+    </Style>
+
+    <!-- Bottoni: piatti, angoli morbidi (~6-8px, più stretti delle card, vedi §7.4) -->
+    <Style Selector="Button">
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="12,6" />
+    </Style>
+
+    <Style Selector="Button.primary">
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+    </Style>
+
+    <!-- Header piatto della finestra principale, con azione primaria "+" (pattern GNOME headerbar) -->
+    <Style Selector="Border.headerBar">
+        <Setter Property="Background" Value="{DynamicResource WindowBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="Padding" Value="18,12" />
+    </Style>
+</Styles>

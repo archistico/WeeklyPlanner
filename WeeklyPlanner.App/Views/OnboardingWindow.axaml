@@ -1,0 +1,46 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:WeeklyPlanner.App.ViewModels"
+        x:Class="WeeklyPlanner.App.Views.OnboardingWindow"
+        Title="WeeklyPlanner - Configurazione iniziale"
+        Width="480" Height="380"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen">
+
+    <!-- Il DataContext viene impostato a runtime da App.axaml.cs -->
+
+    <Border Padding="24">
+        <StackPanel Spacing="12">
+            <TextBlock Text="Benvenuto in WeeklyPlanner" FontSize="18" FontWeight="SemiBold" />
+            <TextBlock TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       Text="Indica dove salvare il database SQLite locale e il nome da registrare sulle modifiche. Puoi specificare un file .db oppure una cartella: in questo caso verrà usato weeklyplanner.db." />
+
+            <StackPanel Spacing="4">
+                <TextBlock Text="Percorso database locale" FontWeight="Medium" />
+                <TextBox Text="{Binding DatabasePath}"
+                         Watermark="%LOCALAPPDATA%\WeeklyPlanner\Data\weeklyplanner.db" />
+            </StackPanel>
+
+            <StackPanel Spacing="4">
+                <TextBlock Text="Il tuo nome" FontWeight="Medium" />
+                <TextBox Text="{Binding UserName}" Watermark="Es. Emilie" />
+            </StackPanel>
+
+            <StackPanel Spacing="4">
+                <TextBlock Text="Intervallo di polling (secondi)" FontWeight="Medium" />
+                <NumericUpDown Value="{Binding PollingIntervalSeconds}" Minimum="3" Maximum="60" />
+            </StackPanel>
+
+            <TextBlock Text="{Binding ValidationMessage}"
+                       Foreground="#E01B24"
+                       TextWrapping="Wrap"
+                       IsVisible="{Binding HasValidationMessage}" />
+
+            <Button Content="Inizia"
+                    Classes="primary"
+                    HorizontalAlignment="Right"
+                    Command="{Binding ConfirmCommand}" />
+        </StackPanel>
+    </Border>
+</Window>

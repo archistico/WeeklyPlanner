@@ -1,0 +1,16 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        Valori di riferimento dalla palette pubblica GNOME/Adwaita (vedi §7.2 del documento di
+        progetto - developer.gnome.org/hig/reference/palette). Da riverificare sulla pagina
+        ufficiale se si vuole precisione assoluta: qui sono presi come riferimento indicativo
+        per restare fedeli allo stile dell'app originale.
+    -->
+    <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FAFAFA" />
+    <SolidColorBrush x:Key="SurfaceBackgroundBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#DEDDDA" />
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#241F31" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#5E5C64" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#3584E4" />
+    <SolidColorBrush x:Key="AccentForegroundBrush" Color="#FFFFFF" />
+</ResourceDictionary>
