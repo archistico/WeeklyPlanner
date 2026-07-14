@@ -15,6 +15,11 @@ public sealed partial class CardViewModel : ViewModelBase
     private bool _isDeletedExternally;
     private bool _isLockedByAnotherUser;
     private string? _editingUserName;
+    private bool _isDeleteConfirmationVisible;
+    private bool _isSaving;
+    private string? _saveStatusText;
+    private bool _hasSaveError;
+    private bool _hasSaveSuccess;
 
     public Card Model { get; }
 
@@ -23,8 +28,10 @@ public sealed partial class CardViewModel : ViewModelBase
         get => _title;
         set
         {
-            if (SetProperty(ref _title, value))
+            var normalizedValue = value ?? string.Empty;
+            if (SetProperty(ref _title, normalizedValue))
             {
+                ClearSaveFeedbackAfterUserChange();
                 RaiseDerivedStateChanged();
             }
         }
@@ -37,6 +44,7 @@ public sealed partial class CardViewModel : ViewModelBase
         {
             if (SetProperty(ref _notes, value))
             {
+                ClearSaveFeedbackAfterUserChange();
                 RaiseDerivedStateChanged();
             }
         }
@@ -45,6 +53,34 @@ public sealed partial class CardViewModel : ViewModelBase
     public long ColumnId => Model.ColumnId;
 
     public string? Author => Model.CreatedBy;
+
+    public int TitleMaxLength => Card.MaxTitleLength;
+
+    public string TitleLengthText => $"{Title.Length}/{Card.MaxTitleLength}";
+
+    public bool IsTitleValid =>
+        !string.IsNullOrWhiteSpace(Title) &&
+        Title.Trim().Length <= Card.MaxTitleLength;
+
+    public bool HasTitleValidationError => IsEditing && !IsTitleValid;
+
+    public string TitleValidationMessage
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(Title))
+            {
+                return "Il titolo è obbligatorio.";
+            }
+
+            if (Title.Trim().Length > Card.MaxTitleLength)
+            {
+                return $"Il titolo non può superare {Card.MaxTitleLength} caratteri.";
+            }
+
+            return string.Empty;
+        }
+    }
 
     public bool IsEditing
     {
@@ -118,6 +154,56 @@ public sealed partial class CardViewModel : ViewModelBase
         }
     }
 
+    public bool IsDeleteConfirmationVisible
+    {
+        get => _isDeleteConfirmationVisible;
+        private set
+        {
+            if (SetProperty(ref _isDeleteConfirmationVisible, value))
+            {
+                RaiseDerivedStateChanged();
+            }
+        }
+    }
+
+    public bool IsSaving
+    {
+        get => _isSaving;
+        private set
+        {
+            if (SetProperty(ref _isSaving, value))
+            {
+                RaiseDerivedStateChanged();
+            }
+        }
+    }
+
+    public string? SaveStatusText
+    {
+        get => _saveStatusText;
+        private set
+        {
+            if (SetProperty(ref _saveStatusText, value))
+            {
+                OnPropertyChanged(nameof(HasSaveStatus));
+            }
+        }
+    }
+
+    public bool HasSaveError
+    {
+        get => _hasSaveError;
+        private set => SetProperty(ref _hasSaveError, value);
+    }
+
+    public bool HasSaveSuccess
+    {
+        get => _hasSaveSuccess;
+        private set => SetProperty(ref _hasSaveSuccess, value);
+    }
+
+    public bool HasSaveStatus => !string.IsNullOrWhiteSpace(SaveStatusText);
+
     public bool IsDirty =>
         IsEditing &&
         (!string.Equals(Title, _originalTitle, StringComparison.Ordinal) ||
@@ -125,16 +211,36 @@ public sealed partial class CardViewModel : ViewModelBase
 
     public bool IsEditorReadOnly =>
         !IsEditing ||
+        IsSaving ||
         IsLockedByAnotherUser ||
         IsDeletedExternally ||
         HasLostEditLock ||
         HasExternalChanges;
 
     public bool CanDrag =>
-        !IsEditing && !IsLockedByAnotherUser && !IsDeletedExternally;
+        !IsEditing &&
+        !IsLockedByAnotherUser &&
+        !IsDeletedExternally &&
+        !IsDeleteConfirmationVisible;
+
+    public bool CanCancelEdit => IsEditing && !IsSaving;
 
     public bool CanSave =>
-        IsEditing && IsDirty && !HasExternalChanges && !HasLostEditLock && !IsDeletedExternally;
+        IsEditing &&
+        IsDirty &&
+        IsTitleValid &&
+        !IsSaving &&
+        !HasExternalChanges &&
+        !HasLostEditLock &&
+        !IsDeletedExternally;
+
+    public bool CanRequestDelete =>
+        !IsEditing &&
+        !IsSaving &&
+        !IsLockedByAnotherUser &&
+        !IsDeletedExternally;
+
+    public bool ShowDeleteButton => CanRequestDelete && !IsDeleteConfirmationVisible;
 
     public bool HasLockStatus =>
         IsEditing || IsLockedByAnotherUser || HasExternalChanges || HasLostEditLock || IsDeletedExternally;
@@ -199,8 +305,6 @@ public sealed partial class CardViewModel : ViewModelBase
             return;
         }
 
-        // I campi restano read-only finché il lease non è acquisito. La baseline dirty deve
-        // quindi coincidere sempre con il valore persistito all'ingresso in modifica.
         _originalTitle = Model.Title;
         _originalNotes = Model.Notes;
         _editExpectedVersion = Model.Version;
@@ -209,6 +313,8 @@ public sealed partial class CardViewModel : ViewModelBase
         IsDeletedExternally = false;
         IsLockedByAnotherUser = false;
         EditingUserName = editLock.UserName;
+        IsDeleteConfirmationVisible = false;
+        ClearSaveFeedback();
         IsEditing = true;
     }
 
@@ -216,11 +322,16 @@ public sealed partial class CardViewModel : ViewModelBase
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(updatedBy);
 
+        if (!IsTitleValid)
+        {
+            throw new InvalidOperationException(TitleValidationMessage);
+        }
+
         return new Card
         {
             Id = Model.Id,
             ColumnId = Model.ColumnId,
-            Title = Title,
+            Title = Title.Trim(),
             Notes = Notes,
             SortOrder = Model.SortOrder,
             CreatedBy = Model.CreatedBy,
@@ -230,17 +341,37 @@ public sealed partial class CardViewModel : ViewModelBase
         };
     }
 
+    public void BeginSaving()
+    {
+        IsSaving = true;
+        HasSaveError = false;
+        HasSaveSuccess = false;
+        SaveStatusText = "Salvataggio…";
+    }
+
     public void CompleteSave(Card persistedCard)
     {
         ArgumentNullException.ThrowIfNull(persistedCard);
 
         CopyPersistedModel(persistedCard, updateEditorText: true);
         EndEditState();
+        MarkSaved();
     }
 
     public void CompleteWithoutChanges()
     {
         EndEditState();
+        ClearSaveFeedback();
+    }
+
+    public void MarkSaveError(string message)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+
+        IsSaving = false;
+        HasSaveSuccess = false;
+        HasSaveError = true;
+        SaveStatusText = message;
     }
 
     public void CancelEdit()
@@ -248,6 +379,21 @@ public sealed partial class CardViewModel : ViewModelBase
         Title = Model.Title;
         Notes = Model.Notes;
         EndEditState();
+        ClearSaveFeedback();
+    }
+
+    public void RequestDeleteConfirmation()
+    {
+        if (CanRequestDelete)
+        {
+            ClearSaveFeedback();
+            IsDeleteConfirmationVisible = true;
+        }
+    }
+
+    public void CancelDeleteConfirmation()
+    {
+        IsDeleteConfirmationVisible = false;
     }
 
     public void MarkLockLost(CardEditLock? currentLock, string currentSessionId)
@@ -260,6 +406,7 @@ public sealed partial class CardViewModel : ViewModelBase
     {
         IsDeletedExternally = true;
         HasExternalChanges = true;
+        IsDeleteConfirmationVisible = false;
     }
 
     /// <summary>
@@ -281,6 +428,17 @@ public sealed partial class CardViewModel : ViewModelBase
             }
 
             return;
+        }
+
+        var persistedStateChanged =
+            updatedModel.Version != Model.Version ||
+            updatedModel.ColumnId != Model.ColumnId ||
+            !string.Equals(updatedModel.Title, Model.Title, StringComparison.Ordinal) ||
+            !string.Equals(updatedModel.Notes, Model.Notes, StringComparison.Ordinal);
+
+        if (persistedStateChanged)
+        {
+            ClearSaveFeedback();
         }
 
         CopyPersistedModel(updatedModel, updateEditorText: true);
@@ -314,6 +472,10 @@ public sealed partial class CardViewModel : ViewModelBase
 
         IsLockedByAnotherUser = editLock is not null && !ownedByCurrentSession;
         EditingUserName = editLock?.UserName;
+        if (IsLockedByAnotherUser)
+        {
+            IsDeleteConfirmationVisible = false;
+        }
     }
 
     private void CopyPersistedModel(Card source, bool updateEditorText)
@@ -329,12 +491,15 @@ public sealed partial class CardViewModel : ViewModelBase
 
         if (updateEditorText)
         {
-            Title = source.Title;
-            Notes = source.Notes;
+            _title = source.Title;
+            _notes = source.Notes;
+            OnPropertyChanged(nameof(Title));
+            OnPropertyChanged(nameof(Notes));
         }
 
         OnPropertyChanged(nameof(ColumnId));
         OnPropertyChanged(nameof(Author));
+        RaiseDerivedStateChanged();
     }
 
     private void EndEditState()
@@ -342,6 +507,7 @@ public sealed partial class CardViewModel : ViewModelBase
         _originalTitle = Title;
         _originalNotes = Notes;
         _editExpectedVersion = Model.Version;
+        IsSaving = false;
         IsEditing = false;
         HasExternalChanges = false;
         HasLostEditLock = false;
@@ -351,12 +517,43 @@ public sealed partial class CardViewModel : ViewModelBase
         RaiseDerivedStateChanged();
     }
 
+    private void MarkSaved()
+    {
+        IsSaving = false;
+        HasSaveError = false;
+        HasSaveSuccess = true;
+        SaveStatusText = "Salvata";
+    }
+
+    private void ClearSaveFeedbackAfterUserChange()
+    {
+        if (IsEditing && !IsSaving && HasSaveStatus)
+        {
+            ClearSaveFeedback();
+        }
+    }
+
+    private void ClearSaveFeedback()
+    {
+        IsSaving = false;
+        HasSaveError = false;
+        HasSaveSuccess = false;
+        SaveStatusText = null;
+    }
+
     private void RaiseDerivedStateChanged()
     {
+        OnPropertyChanged(nameof(TitleLengthText));
+        OnPropertyChanged(nameof(IsTitleValid));
+        OnPropertyChanged(nameof(HasTitleValidationError));
+        OnPropertyChanged(nameof(TitleValidationMessage));
         OnPropertyChanged(nameof(IsDirty));
         OnPropertyChanged(nameof(IsEditorReadOnly));
         OnPropertyChanged(nameof(CanDrag));
         OnPropertyChanged(nameof(CanSave));
+        OnPropertyChanged(nameof(CanCancelEdit));
+        OnPropertyChanged(nameof(CanRequestDelete));
+        OnPropertyChanged(nameof(ShowDeleteButton));
         OnPropertyChanged(nameof(HasLockStatus));
         OnPropertyChanged(nameof(LockStatusText));
     }

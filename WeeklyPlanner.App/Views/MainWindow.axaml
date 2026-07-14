@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:WeeklyPlanner.App.ViewModels"
         x:Class="WeeklyPlanner.App.Views.MainWindow"
-        Title="WeeklyPlanner — M1.4"
+        Title="WeeklyPlanner — M2.1.1"
         Width="1100" Height="700"
         MinWidth="720" MinHeight="480">
 
@@ -12,7 +12,7 @@
         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
           <TextBlock Text="WeeklyPlanner" FontWeight="SemiBold" FontSize="16" />
           <Border Background="#3584E4" CornerRadius="4" Padding="5,1" VerticalAlignment="Center">
-            <TextBlock Text="M1.4" Foreground="White" FontSize="10" FontWeight="SemiBold" />
+            <TextBlock Text="M2.1.1" Foreground="White" FontSize="10" FontWeight="SemiBold" />
           </Border>
         </StackPanel>
 
@@ -61,104 +61,193 @@
       <TextBlock Text="{Binding StatusMessage}" Foreground="White" TextWrapping="Wrap" />
     </Border>
 
-    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-      <ItemsControl x:Name="ColumnsItemsControl" ItemsSource="{Binding Columns}">
+    <ScrollViewer x:Name="BoardScrollViewer"
+                  Padding="18"
+                  HorizontalScrollBarVisibility="Auto"
+                  VerticalScrollBarVisibility="Disabled"
+                  VerticalContentAlignment="Stretch">
+      <ItemsControl x:Name="ColumnsItemsControl"
+                    ItemsSource="{Binding Columns}"
+                    VerticalAlignment="Stretch">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
-            <StackPanel Orientation="Horizontal" Spacing="12" Margin="18" />
+            <StackPanel Orientation="Horizontal"
+                        Spacing="12"
+                        VerticalAlignment="Stretch" />
           </ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
 
         <ItemsControl.ItemTemplate>
           <DataTemplate DataType="vm:ColumnViewModel">
-            <Border Classes="column" Width="260" DragDrop.AllowDrop="True">
-              <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Classes="columnHeader" Text="{Binding Name}" />
+            <Border Classes="column"
+                    Width="280"
+                    VerticalAlignment="Stretch"
+                    ClipToBounds="True"
+                    DragDrop.AllowDrop="True">
+              <Grid RowDefinitions="Auto,*,Auto">
+                <TextBlock Grid.Row="0" Classes="columnHeader" Text="{Binding Name}" />
 
-                <Button DockPanel.Dock="Bottom"
+                <ScrollViewer Grid.Row="1"
+                              MinHeight="0"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                  <ItemsControl Name="CardsItemsControl"
+                                ItemsSource="{Binding Cards}"
+                                Margin="12,0,6,0"
+                                Tag="{Binding}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="vm:CardViewModel">
+                        <Border Classes="card"
+                                Focusable="True">
+                          <StackPanel Spacing="5">
+                            <Border Height="20"
+                                    Cursor="SizeAll"
+                                    Background="Transparent"
+                                    IsEnabled="{Binding CanDrag}"
+                                    PointerPressed="OnCardDragHandlePointerPressed"
+                                    PointerMoved="OnCardDragHandlePointerMoved"
+                                    PointerReleased="OnCardDragHandlePointerReleased">
+                              <TextBlock Text="⋮⋮⋮"
+                                         HorizontalAlignment="Center"
+                                         Foreground="{DynamicResource TextSecondaryBrush}"
+                                         FontSize="10" />
+                            </Border>
+
+                            <TextBlock Text="{Binding LockStatusText}"
+                                       IsVisible="{Binding HasLockStatus}"
+                                       Foreground="#C64600"
+                                       FontSize="11"
+                                       TextWrapping="Wrap" />
+
+                            <TextBlock Text="{Binding SaveStatusText}"
+                                       IsVisible="{Binding IsSaving}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       FontSize="11" />
+                            <TextBlock Text="{Binding SaveStatusText}"
+                                       IsVisible="{Binding HasSaveSuccess}"
+                                       Foreground="{DynamicResource SuccessBrush}"
+                                       FontSize="11" />
+                            <TextBlock Text="{Binding SaveStatusText}"
+                                       IsVisible="{Binding HasSaveError}"
+                                       Foreground="{DynamicResource DangerBrush}"
+                                       FontSize="11"
+                                       TextWrapping="Wrap" />
+
+                            <TextBox Text="{Binding Title}"
+                                     MaxLength="{Binding TitleMaxLength}"
+                                     Watermark="Titolo della card"
+                                     ToolTip.Tip="Clicca per acquisire il lock e modificare la card"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     FontWeight="Medium"
+                                     IsReadOnly="{Binding IsEditorReadOnly}"
+                                     GotFocus="OnCardFieldGotFocus"
+                                     LostFocus="OnCardFieldLostFocus"
+                                     KeyDown="OnCardFieldKeyDown" />
+
+                            <Grid ColumnDefinitions="*,Auto"
+                                  IsVisible="{Binding IsEditing}">
+                              <TextBlock Grid.Column="0"
+                                         Text="{Binding TitleValidationMessage}"
+                                         IsVisible="{Binding HasTitleValidationError}"
+                                         Foreground="{DynamicResource DangerBrush}"
+                                         FontSize="11"
+                                         TextWrapping="Wrap" />
+                              <TextBlock Grid.Column="1"
+                                         Text="{Binding TitleLengthText}"
+                                         Foreground="{DynamicResource TextSecondaryBrush}"
+                                         FontSize="10"
+                                         HorizontalAlignment="Right" />
+                            </Grid>
+
+                            <TextBox Text="{Binding Notes}"
+                                     Watermark="Note"
+                                     ToolTip.Tip="Clicca per acquisire il lock e modificare la card"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     Foreground="{DynamicResource TextSecondaryBrush}"
+                                     FontSize="12"
+                                     IsReadOnly="{Binding IsEditorReadOnly}"
+                                     GotFocus="OnCardFieldGotFocus"
+                                     LostFocus="OnCardFieldLostFocus"
+                                     KeyDown="OnCardFieldKeyDown" />
+
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Right"
+                                        Spacing="6"
+                                        IsVisible="{Binding IsEditing}">
+                              <Button Content="Annulla"
+                                      Padding="8,4"
+                                      IsEnabled="{Binding CanCancelEdit}"
+                                      Command="{Binding $parent[Window].DataContext.CancelEditCommand}"
+                                      CommandParameter="{Binding}" />
+                              <Button Classes="primary"
+                                      Content="Salva"
+                                      Padding="8,4"
+                                      IsEnabled="{Binding CanSave}"
+                                      Command="{Binding $parent[Window].DataContext.CommitEditCommand}"
+                                      CommandParameter="{Binding}" />
+                            </StackPanel>
+
+                            <Border Classes="deleteConfirmation"
+                                    IsVisible="{Binding IsDeleteConfirmationVisible}">
+                              <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                                <TextBlock Grid.Column="0"
+                                           Text="Eliminare questa card?"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="Wrap" />
+                                <Button Grid.Column="1"
+                                        Classes="compact"
+                                        Content="Annulla"
+                                        Command="{Binding $parent[Window].DataContext.CancelDeleteCardCommand}"
+                                        CommandParameter="{Binding}" />
+                                <Button Grid.Column="2"
+                                        Classes="compact danger"
+                                        Content="Elimina"
+                                        IsEnabled="{Binding $parent[Window].DataContext.CanModifyBoard}"
+                                        Command="{Binding $parent[Window].DataContext.DeleteCardCommand}"
+                                        CommandParameter="{Binding}" />
+                              </Grid>
+                            </Border>
+
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Left"
+                                        Spacing="4">
+                              <Button Classes="icon dangerGhost"
+                                      ToolTip.Tip="Elimina la card"
+                                      IsVisible="{Binding ShowDeleteButton}"
+                                      IsEnabled="{Binding $parent[Window].DataContext.CanModifyBoard}"
+                                      Command="{Binding $parent[Window].DataContext.RequestDeleteCardCommand}"
+                                      CommandParameter="{Binding}">
+                                <Path Width="12"
+                                      Height="14"
+                                      Stretch="Uniform"
+                                      Fill="{DynamicResource DangerBrush}"
+                                      Data="M3,2 L9,2 L10,4 L12,4 L12,5 L0,5 L0,4 L2,4 Z M2,6 L10,6 L9,14 L3,14 Z M4,7 L5,7 L5,12 L4,12 Z M7,7 L8,7 L8,12 L7,12 Z" />
+                              </Button>
+
+                              <TextBlock Text="{Binding Author, StringFormat='di {0}'}"
+                                         VerticalAlignment="Center"
+                                         FontSize="11"
+                                         Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </StackPanel>
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+
+                <Button Grid.Row="2"
                         Margin="12,6,12,0"
                         HorizontalAlignment="Stretch"
                         Content="+ Aggiungi card"
                         IsEnabled="{Binding $parent[Window].DataContext.CanModifyBoard}"
                         Command="{Binding $parent[Window].DataContext.AddCardCommand}"
                         CommandParameter="{Binding}" />
-
-                <ItemsControl Name="CardsItemsControl"
-                              ItemsSource="{Binding Cards}"
-                              Margin="12,0"
-                              Tag="{Binding}">
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="vm:CardViewModel">
-                      <Border Classes="card"
-                              Focusable="True">
-                        <StackPanel Spacing="4">
-                          <Border Height="14"
-                                  Cursor="SizeAll"
-                                  Background="Transparent"
-                                  IsEnabled="{Binding CanDrag}"
-                                  PointerPressed="OnCardDragHandlePointerPressed"
-                                  PointerMoved="OnCardDragHandlePointerMoved"
-                                  PointerReleased="OnCardDragHandlePointerReleased">
-                            <TextBlock Text="⋮⋮⋮"
-                                       HorizontalAlignment="Center"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                       FontSize="10" />
-                          </Border>
-
-                          <TextBlock Text="{Binding LockStatusText}"
-                                     IsVisible="{Binding HasLockStatus}"
-                                     Foreground="#C64600"
-                                     FontSize="11"
-                                     TextWrapping="Wrap" />
-
-                          <TextBox Text="{Binding Title}"
-                                   ToolTip.Tip="Clicca per acquisire il lock e modificare la card"
-                                   Background="Transparent"
-                                   BorderThickness="0"
-                                   FontWeight="Medium"
-                                   IsReadOnly="{Binding IsEditorReadOnly}"
-                                   GotFocus="OnCardFieldGotFocus"
-                                   LostFocus="OnCardFieldLostFocus"
-                                   KeyDown="OnCardFieldKeyDown" />
-
-                          <TextBox Text="{Binding Notes}"
-                                   ToolTip.Tip="Clicca per acquisire il lock e modificare la card"
-                                   Background="Transparent"
-                                   BorderThickness="0"
-                                   AcceptsReturn="True"
-                                   TextWrapping="Wrap"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   FontSize="12"
-                                   IsReadOnly="{Binding IsEditorReadOnly}"
-                                   GotFocus="OnCardFieldGotFocus"
-                                   LostFocus="OnCardFieldLostFocus"
-                                   KeyDown="OnCardFieldKeyDown" />
-
-                          <StackPanel Orientation="Horizontal"
-                                      HorizontalAlignment="Right"
-                                      Spacing="6"
-                                      IsVisible="{Binding IsEditing}">
-                            <Button Content="Annulla"
-                                    Padding="8,4"
-                                    Command="{Binding $parent[Window].DataContext.CancelEditCommand}"
-                                    CommandParameter="{Binding}" />
-                            <Button Classes="primary"
-                                    Content="Salva"
-                                    Padding="8,4"
-                                    IsEnabled="{Binding CanSave}"
-                                    Command="{Binding $parent[Window].DataContext.CommitEditCommand}"
-                                    CommandParameter="{Binding}" />
-                          </StackPanel>
-
-                          <TextBlock Text="{Binding Author, StringFormat='di {0}'}"
-                                     FontSize="11"
-                                     Foreground="{DynamicResource TextSecondaryBrush}" />
-                        </StackPanel>
-                      </Border>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-              </DockPanel>
+              </Grid>
             </Border>
           </DataTemplate>
         </ItemsControl.ItemTemplate>

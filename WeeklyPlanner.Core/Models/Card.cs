@@ -6,6 +6,8 @@ namespace WeeklyPlanner.Core.Models;
 /// </summary>
 public sealed class Card
 {
+    public const int MaxTitleLength = 160;
+
     public long Id { get; set; }
 
     public long ColumnId { get; set; }

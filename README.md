@@ -1,7 +1,7 @@
 # WeeklyPlanner
 
 
-> **M1.4** — stato operativo e lifecycle affidabile. La finestra mostra lo stato del database, l'attività in corso e il comando **Riprova ora**. Un'interruzione non svuota la board e non elimina le bozze; la chiusura attende il rilascio best-effort dei lock.
+> **M2.1.1** — Rifinitura dell'eliminazione. Il comando è ora un piccolo pulsante con icona cestino nel footer della card, accanto all'autore; la conferma inline resta invariata.
 
 Planner settimanale desktop in **C# / .NET 10 / Avalonia**, sviluppato per milestone piccole,
 test automatici e documentazione aggiornata insieme al codice.
@@ -24,9 +24,13 @@ passati.
 La milestone **M1.3.1 — Editing protetto verificabile** è stata validata su Windows: lock, indicatore
 utente, pulsanti Salva/Annulla e protezione della bozza dal polling funzionano correttamente.
 
-La milestone corrente **M1.4 — Stato operativo e lifecycle affidabile** rende visibili gli stati di
-connessione, classifica gli errori SQLite, applica retry coerenti anche alle letture e preserva la board
-durante il recupero da un'interruzione.
+La milestone **M1.4 — Stato operativo e lifecycle affidabile** è stata validata su Windows: build e
+test sono passati.
+
+La milestone corrente **M2.1.1 — Rifinitura dell'eliminazione** mantiene il CRUD della M2.1 e sposta
+il comando di eliminazione in un piccolo pulsante con icona cestino nel footer della card, accanto
+all'autore. Restano invariati la conferma inline, lo scroll verticale indipendente per colonna, la
+validazione del titolo e lo stato di salvataggio per ogni card.
 
 Per la fase corrente è stata adottata una persistenza **SQLite locale senza server**. Il database
 deve risiedere su un disco locale della macchina; la sincronizzazione fra computer e l'apertura del
@@ -164,6 +168,24 @@ heartbeat, attende le operazioni correnti e rilascia tutti i lock della sessione
 disponibile, il cleanup resta best effort e i lease scadono naturalmente. La decisione è descritta in
 [`docs/ADR-0004-stato-operativo-lifecycle.md`](docs/ADR-0004-stato-operativo-lifecycle.md).
 
+## CRUD e feedback dell'editor
+
+Ogni card espone un comando **Elimina** quando non è in modifica e non è bloccata. Il primo clic apre
+una conferma inline nella card; **Annulla** chiude la conferma e il secondo **Elimina** esegue la
+cancellazione atomica già fornita dal repository. Non vengono aperte finestre modali.
+
+Il titolo è obbligatorio e limitato a 160 caratteri. Durante l'editing vengono mostrati il contatore e
+un messaggio di validazione; **Salva** resta disabilitato finché il titolo non è valido. La stessa
+regola è applicata nel repository, che normalizza gli spazi esterni prima di creare o aggiornare una
+card.
+
+L'editor mostra gli stati **Salvataggio…**, **Salvata** oppure un errore che conferma la conservazione
+della bozza. Durante la scrittura il salvataggio rende temporaneamente i campi in sola lettura per
+evitare comandi concorrenti sulla stessa card.
+
+Ogni colonna usa un proprio `ScrollViewer` verticale; lo scorrimento orizzontale della board resta
+indipendente e l'azione **+ Aggiungi card** rimane sempre visibile in fondo alla colonna.
+
 ## Pubblicazione
 
 ```powershell
@@ -176,7 +198,7 @@ framework-dependent.
 ## Funzionalità presenti
 
 - colonne fisse `Backlog` e `Lunedì`–`Domenica`;
-- creazione e modifica di card;
+- creazione, modifica ed eliminazione confermata di card;
 - spostamento e riordino nella stessa colonna o fra colonne tramite drag&drop;
 - inserimento prima o dopo la card sotto il puntatore;
 - persistenza atomica e ricompattazione dei `SortOrder`;
@@ -190,12 +212,15 @@ framework-dependent.
 - foreign key SQLite abilitate;
 - retry limitato sui lock SQLite temporanei, sia in lettura sia in scrittura;
 - stato operativo visibile e recupero manuale/automatico;
-- chiusura coordinata con rilascio dei lock della sessione.
+- chiusura coordinata con rilascio dei lock della sessione;
+- titolo obbligatorio con limite di 160 caratteri e validazione nel repository;
+- feedback Salvataggio/Salvata/Errore per card;
+- scroll verticale indipendente per colonna.
 
 ## Limiti noti prima dell'MVP
 
-- mancano eliminazione dalla UI, conferma e scroll verticale per colonna;
 - non è ancora presente un indicatore visuale della posizione di inserimento durante il drag;
+- l'accessibilità completa da tastiera della board sarà rifinita nella M2.2;
 - logging rolling non ancora implementato; la classificazione degli errori è già centralizzata;
 - non esiste sincronizzazione fra computer.
 

@@ -1,6 +1,6 @@
 # WeeklyPlanner — Obiettivi e roadmap
 
-Versione documento: **0.6.0**
+Versione documento: **0.6.1**
 Ultimo aggiornamento: **14 luglio 2026**
 
 ## 1. Visione
@@ -279,14 +279,11 @@ Lo stato operativo dettagliato è mantenuto in [`docs/MILESTONES.md`](docs/MILES
 
 ### M2 — CRUD e UX MVP
 
-- comando e pulsante di eliminazione;
-- conferma non invasiva;
-- scroll verticale indipendente;
-- rifinitura dell'editor card protetto;
-- indicatore saving/saved/error;
-- validazione titolo;
-- accessibilità da tastiera;
-- indicatore visuale della posizione di drop.
+- **M2.1.1:** pulsante di eliminazione compatto con icona cestino nel footer della card, accanto all’autore.
+- **M2.1:** comando e pulsante di eliminazione, conferma inline non invasiva, scroll verticale
+  indipendente, titolo obbligatorio e limitato, indicatore saving/saved/error;
+- **M2.2:** accessibilità completa da tastiera, rifinitura dell'editor protetto e indicatore
+  visuale della posizione di drop.
 
 ### M3 — Osservabilità e composizione
 

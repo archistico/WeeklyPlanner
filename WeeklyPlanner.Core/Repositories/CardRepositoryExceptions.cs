@@ -32,3 +32,11 @@ public sealed class CardEditLockException : Exception
         LockOwnerName = lockOwnerName;
     }
 }
+
+public sealed class CardValidationException : Exception
+{
+    public CardValidationException(string message)
+        : base(message)
+    {
+    }
+}

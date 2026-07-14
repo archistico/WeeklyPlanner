@@ -34,6 +34,58 @@ public sealed class CardRepositoryTests : IDisposable
         _revisionRepository = new BoardRevisionRepository(_connectionFactory);
     }
 
+
+    [Fact]
+    public async Task CreateAsync_rejects_blank_title_without_advancing_revision()
+    {
+        var revisionBefore = await _revisionRepository.GetCurrentRevisionAsync();
+
+        var exception = await Assert.ThrowsAsync<CardValidationException>(() =>
+            _repository.CreateAsync(new Card
+            {
+                ColumnId = 0,
+                Title = "   ",
+                CreatedBy = "Test",
+                UpdatedBy = "Test",
+            }));
+
+        Assert.Contains("obbligatorio", exception.Message);
+        Assert.Equal(revisionBefore, await _revisionRepository.GetCurrentRevisionAsync());
+        Assert.Empty(await _repository.GetAllAsync());
+    }
+
+    [Fact]
+    public async Task CreateAsync_rejects_title_longer_than_domain_limit()
+    {
+        var title = new string('X', Card.MaxTitleLength + 1);
+
+        var exception = await Assert.ThrowsAsync<CardValidationException>(() =>
+            _repository.CreateAsync(new Card
+            {
+                ColumnId = 0,
+                Title = title,
+                CreatedBy = "Test",
+                UpdatedBy = "Test",
+            }));
+
+        Assert.Contains(Card.MaxTitleLength.ToString(), exception.Message);
+        Assert.Empty(await _repository.GetAllAsync());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_trims_title_before_persisting()
+    {
+        var card = await CreateCardAsync("Originale");
+        await AcquireEditLockAsync(card.Id);
+        card.Title = "  Titolo aggiornato  ";
+
+        var updated = await _repository.UpdateAsync(card, TestSessionId);
+
+        Assert.Equal("Titolo aggiornato", updated.Title);
+        Assert.Equal("Titolo aggiornato",
+            (await _repository.GetAllAsync()).Single(item => item.Id == card.Id).Title);
+    }
+
     [Fact]
     public async Task CreateAsync_appends_card_and_ignores_caller_sort_order()
     {

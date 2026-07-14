@@ -286,12 +286,29 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
 
         if (!IsOnline)
         {
-            StatusMessage = "Salvataggio non disponibile: il database non è online. La bozza resta conservata.";
+            const string message =
+                "Salvataggio non disponibile: il database non è online. La bozza resta conservata.";
+            card.MarkSaveError(message);
+            StatusMessage = message;
             return;
         }
 
+        if (card.IsDirty && !card.IsTitleValid)
+        {
+            card.MarkSaveError(card.TitleValidationMessage);
+            StatusMessage = card.TitleValidationMessage;
+            return;
+        }
+
+        var isSavingContent = card.IsDirty;
+        var contentPersisted = false;
+        if (isSavingContent)
+        {
+            card.BeginSaving();
+        }
+
         var cancellationToken = _lifetimeCancellation.Token;
-        SetActivity("Salvataggio card...");
+        SetActivity(isSavingContent ? "Salvataggio card..." : "Chiusura modifica...");
         try
         {
             await _operationGate.WaitAsync(cancellationToken);
@@ -299,23 +316,32 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
             {
                 if (card.IsDeletedExternally)
                 {
-                    StatusMessage = "La card è stata eliminata altrove. Annulla per chiudere la bozza.";
+                    const string message =
+                        "La card è stata eliminata altrove. Annulla per chiudere la bozza.";
+                    card.MarkSaveError(message);
+                    StatusMessage = message;
                     return;
                 }
 
                 if (card.HasLostEditLock)
                 {
-                    StatusMessage = "Il lock di modifica non è più valido. La bozza è conservata.";
+                    const string message =
+                        "Il lock di modifica non è più valido. La bozza è conservata.";
+                    card.MarkSaveError(message);
+                    StatusMessage = message;
                     return;
                 }
 
                 if (card.HasExternalChanges)
                 {
-                    StatusMessage = "La card è cambiata altrove. Annulla per ricaricare la versione corrente.";
+                    const string message =
+                        "La card è cambiata altrove. Annulla per ricaricare la versione corrente.";
+                    card.MarkSaveError(message);
+                    StatusMessage = message;
                     return;
                 }
 
-                if (!card.IsDirty)
+                if (!isSavingContent)
                 {
                     card.CompleteWithoutChanges();
                     await _editLockRepository.ReleaseAsync(
@@ -335,6 +361,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                     cancellationToken);
 
                 card.CompleteSave(persistedCard);
+                contentPersisted = true;
                 await _editLockRepository.ReleaseAsync(
                     card.Model.Id,
                     _sessionId,
@@ -367,19 +394,33 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                 UpdatedAtUtc = card.Model.UpdatedAtUtc,
                 Version = ex.ActualVersion,
             });
+            const string message =
+                "Conflitto rilevato: la bozza è conservata e non è stata sovrascritta.";
+            card.MarkSaveError(message);
             MarkConnectionHealthy();
-            StatusMessage = "Conflitto rilevato: la bozza è conservata e non è stata sovrascritta.";
+            StatusMessage = message;
         }
         catch (CardEditLockException ex)
         {
             var activeLocks = await TryGetActiveLocksAsync();
             activeLocks.TryGetValue(card.Model.Id, out var currentLock);
             card.MarkLockLost(currentLock, _sessionId);
+            card.MarkSaveError(ex.Message);
             MarkConnectionHealthy();
             StatusMessage = ex.Message;
         }
         catch (Exception ex)
         {
+            if (contentPersisted)
+            {
+                card.MarkSaveError(
+                    "Card salvata, ma non è stato possibile aggiornare completamente lo stato della board.");
+            }
+            else if (card.IsEditing)
+            {
+                card.MarkSaveError("Salvataggio non riuscito. La bozza è conservata.");
+            }
+
             SetOperationFailure(ex);
         }
         finally
@@ -829,12 +870,46 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         "Creazione card...");
 
     [RelayCommand]
+    private void RequestDeleteCard(CardViewModel? card)
+    {
+        if (_isDisposed || card is null || !card.CanRequestDelete)
+        {
+            return;
+        }
+
+        foreach (var otherCard in Columns
+                     .SelectMany(column => column.Cards)
+                     .Where(candidate => !ReferenceEquals(candidate, card)))
+        {
+            otherCard.CancelDeleteConfirmation();
+        }
+
+        card.RequestDeleteConfirmation();
+    }
+
+    [RelayCommand]
+    private void CancelDeleteCard(CardViewModel? card)
+    {
+        card?.CancelDeleteConfirmation();
+    }
+
+    [RelayCommand]
     private Task DeleteCardAsync(CardViewModel? card) => ExecuteWriteAsync(
         async cancellationToken =>
         {
-            if (card is null)
+            if (card is null || !card.IsDeleteConfirmationVisible)
             {
                 return;
+            }
+
+            if (!card.CanRequestDelete)
+            {
+                throw new CardEditLockException(
+                    card.Model.Id,
+                    card.IsEditing
+                        ? "Termina la modifica prima di eliminare la card."
+                        : $"La card è in modifica da {card.EditingUserName ?? "un altro utente"}.",
+                    card.EditingUserName);
             }
 
             await _cardRepository.DeleteAsync(card.Model.Id, _settings.UserName, cancellationToken);
@@ -923,7 +998,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
 
     private void SetOperationFailure(Exception exception)
     {
-        if (exception is CardEditLockException or CardConcurrencyException or KeyNotFoundException)
+        if (exception is CardEditLockException or CardConcurrencyException or KeyNotFoundException or CardValidationException)
         {
             MarkConnectionHealthy();
             StatusMessage = exception.Message;

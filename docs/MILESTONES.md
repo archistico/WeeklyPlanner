@@ -1,15 +1,20 @@
 # WeeklyPlanner — Milestone operative
 
-## M1.4 — Stato operativo e lifecycle affidabile
+## M2.1.1 — Rifinitura pulsante eliminazione
 
-- stati espliciti `Connecting`, `Online`, `Recovering`, `Offline`, `Error`, `ShuttingDown`;
-- indicatore colorato, ultimo aggiornamento, attività corrente e comando **Riprova ora**;
-- classificazione centralizzata degli errori SQLite tramite codici numerici;
-- retry breve e coerente per letture e scritture in caso di `BUSY`/`LOCKED`;
-- board e bozze preservate durante interruzione e recupero;
-- un database già caricato non viene ricreato silenziosamente se il file scompare;
-- scritture e drag&drop disabilitati quando il database non è online;
-- chiusura della finestra differita fino al cleanup best-effort dei lock della sessione;
+- piccolo pulsante con icona cestino nel footer della card;
+- allineamento a sinistra accanto all'autore;
+- conferma inline e protezioni della M2.1 invariate.
+
+## M2.1 — CRUD completo e feedback dell'editor
+
+- eliminazione visibile con conferma inline e non modale;
+- conferma disponibile soltanto su card non modificate e non bloccate;
+- titolo obbligatorio, limite di 160 caratteri e normalizzazione nel repository;
+- indicatori per salvataggio in corso, successo ed errore;
+- bozza conservata quando il salvataggio fallisce;
+- scroll verticale indipendente per ogni colonna;
+- azione di aggiunta sempre visibile;
 - schema invariato alla versione 3.
 
 Ultimo aggiornamento: 14 luglio 2026.
@@ -34,8 +39,10 @@ Ogni milestone deve:
 | M1.1.1 — SQLite locale affidabile | **Validata** | schema v2, revisione monotona, polling delle cancellazioni, percorsi legacy normalizzati, build/test e avvio runtime riusciti |
 | M1.2 — Riordino atomico | **Validata** | compilazione e test passati; create/delete/move transazionali, normalizzazione completa dei `SortOrder`, rollback e drop prima/dopo una card |
 | M1.3.1 — Editing protetto | **Validata** | build/test e runtime verificati; bozza separata, polling non distruttivo, lease, indicatore utente e optimistic concurrency |
-| M1.4 — Stato operativo e lifecycle | **Implementata, verifica richiesta** | stati connessione, classificazione errori, retry letture, recupero non distruttivo e chiusura coordinata |
-| M2 — CRUD e UX minima | Pianificata | eliminazione visibile e confermata, scroll verticale, editor controllato e stato di salvataggio |
+| M1.4 — Stato operativo e lifecycle | **Validata** | stati connessione, classificazione errori, retry letture, recupero non distruttivo e chiusura coordinata |
+| M2.1.1 — Rifinitura eliminazione | **Implementata, verifica richiesta** | icona cestino compatta nel footer della card |
+| M2.1 — CRUD e feedback editor | **Implementata** | eliminazione inline, validazione titolo, feedback di salvataggio e scroll per colonna |
+| M2.2 — Tastiera e drop feedback | Pianificata | navigazione da tastiera e indicatore visuale della posizione di inserimento |
 | M3 — Osservabilità e composizione | Pianificata | dependency injection, logging locale, correlazione errori e test ViewModel con dipendenze controllabili |
 | M4 — Packaging MVP locale | Pianificata | publish Windows, backup documentato, smoke test e pacchetto distribuibile |
 
@@ -219,3 +226,52 @@ Poi verificare manualmente:
 6. verificare il ritorno online senza perdita della bozza;
 7. aprire due istanze, modificare una card nella prima e chiuderla normalmente;
 8. verificare nella seconda che il lock venga rimosso subito, senza attendere 30 secondi.
+
+## M2.1 — CRUD completo e feedback dell'editor
+
+### Eliminazione
+
+- comando di eliminazione visibile sulle card non in editing e non bloccate; nella M2.1.1 è rappresentato da un’icona cestino compatta;
+- primo comando che apre una conferma inline nella stessa card;
+- **Annulla** ripristina immediatamente la card senza scritture;
+- conferma chiusa automaticamente quando la card viene bloccata da un'altra istanza;
+- eliminazione effettiva delegata alla transazione atomica già testata in `CardRepository`;
+- una sola conferma aperta alla volta nella board.
+
+### Validazione e salvataggio
+
+- titolo obbligatorio e limite di `Card.MaxTitleLength = 160`;
+- contatore caratteri e messaggio di validazione durante l'editing;
+- `CanSave` richiede titolo valido e nessun salvataggio già in corso;
+- trim del titolo in `CreateEditedModel` e nel repository;
+- stato per card: `Salvataggio…`, `Salvata`, errore;
+- campi temporaneamente read-only durante il commit;
+- errore di salvataggio senza perdita della bozza.
+
+### Layout
+
+- board orizzontale invariata;
+- `Grid` a tre righe per ogni colonna;
+- scroll verticale confinato all'elenco card;
+- header e pulsante **+ Aggiungi card** esclusi dallo scroll.
+
+### Test
+
+- titolo vuoto non salvabile nel ViewModel;
+- titolo normalizzato nel modello editato;
+- transizioni saving/error/saved;
+- conferma eliminazione disabilitata durante lock o editing;
+- repository che rifiuta titoli vuoti o oltre il limite senza avanzare la revisione;
+- repository che persiste il titolo normalizzato.
+
+### Smoke test manuale richiesto
+
+1. avviare l'app e verificare il badge `M2.1.1`;
+2. creare abbastanza card da superare l'altezza di una colonna;
+3. verificare che scorra soltanto la colonna e che **+ Aggiungi card** resti visibile;
+4. cancellare una card, prima annullando e poi confermando;
+5. svuotare il titolo e verificare messaggio, contatore e pulsante **Salva** disabilitato;
+6. salvare un titolo con spazi iniziali/finali e verificare che venga normalizzato;
+7. osservare `Salvataggio…` e `Salvata`;
+8. aprire due istanze e verificare che una card bloccata non mostri il comando di eliminazione.
+

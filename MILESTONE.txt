@@ -1,11 +1,8 @@
-WeeklyPlanner M1.4 — Stato operativo e lifecycle affidabile
+WeeklyPlanner M2.1.1 — Pulsante eliminazione compatto
 
-- stati Connecting / Online / Recovering / Offline / Error / ShuttingDown
-- indicatori visibili e comando Riprova ora
-- classificazione stabile degli errori SQLite
-- retry coerente anche sulle letture
-- recupero senza svuotare la board o perdere le bozze
-- nessuna ricreazione silenziosa del database già caricato
-- scritture bloccate quando il database non è online
-- chiusura finestra differita fino al rilascio best-effort dei lock
+- sostituito il grande pulsante testuale Elimina con un'icona cestino 24x24
+- azione spostata nel footer della card, a sinistra di "di <utente>"
+- tooltip mantenuto per chiarezza e accessibilità
+- conferma inline non modale invariata
+- regole di visibilità, lock, editing e stato operativo invariate
 - schema database invariato alla versione 3

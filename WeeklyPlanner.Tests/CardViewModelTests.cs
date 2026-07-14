@@ -113,6 +113,85 @@ public sealed class CardViewModelTests
         Assert.False(viewModel.CanDrag);
     }
 
+
+    [Fact]
+    public void Blank_title_is_invalid_and_cannot_be_saved()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.BeginEdit(CreateLock("session-a", "Emilie"), "session-a");
+
+        viewModel.Title = "   ";
+
+        Assert.False(viewModel.IsTitleValid);
+        Assert.True(viewModel.HasTitleValidationError);
+        Assert.False(viewModel.CanSave);
+        Assert.Contains("obbligatorio", viewModel.TitleValidationMessage);
+    }
+
+    [Fact]
+    public void CreateEditedModel_trims_a_valid_title()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.BeginEdit(CreateLock("session-a", "Emilie"), "session-a");
+        viewModel.Title = "  Titolo pulito  ";
+
+        var edited = viewModel.CreateEditedModel("Emilie");
+
+        Assert.Equal("Titolo pulito", edited.Title);
+    }
+
+    [Fact]
+    public void Save_feedback_exposes_saving_success_and_error_states()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.BeginEdit(CreateLock("session-a", "Emilie"), "session-a");
+        viewModel.Title = "Aggiornata";
+
+        viewModel.BeginSaving();
+        Assert.True(viewModel.IsSaving);
+        Assert.Equal("Salvataggio…", viewModel.SaveStatusText);
+        Assert.True(viewModel.IsEditorReadOnly);
+
+        viewModel.MarkSaveError("Errore di prova");
+        Assert.True(viewModel.HasSaveError);
+        Assert.False(viewModel.IsSaving);
+        Assert.Equal("Errore di prova", viewModel.SaveStatusText);
+    }
+
+    [Fact]
+    public void CompleteSave_keeps_saved_feedback_during_same_state_refresh()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.BeginEdit(CreateLock("session-a", "Emilie"), "session-a");
+        viewModel.Title = "Salvata";
+        var persisted = viewModel.CreateEditedModel("Emilie");
+        persisted.Version = 2;
+
+        viewModel.CompleteSave(persisted);
+        viewModel.RefreshFromModel(persisted);
+
+        Assert.True(viewModel.HasSaveSuccess);
+        Assert.Equal("Salvata", viewModel.SaveStatusText);
+        Assert.False(viewModel.IsEditing);
+    }
+
+    [Fact]
+    public void Delete_confirmation_is_available_only_when_card_is_not_being_edited_or_locked()
+    {
+        var viewModel = CreateViewModel();
+
+        viewModel.RequestDeleteConfirmation();
+        Assert.True(viewModel.IsDeleteConfirmationVisible);
+        Assert.False(viewModel.CanDrag);
+
+        viewModel.CancelDeleteConfirmation();
+        viewModel.ApplyLockState(CreateLock("session-b", "Alice"), "session-a");
+        viewModel.RequestDeleteConfirmation();
+
+        Assert.False(viewModel.IsDeleteConfirmationVisible);
+        Assert.False(viewModel.CanRequestDelete);
+    }
+
     private static CardViewModel CreateViewModel() => new(new Card
     {
         Id = 1,

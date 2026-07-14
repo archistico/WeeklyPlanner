@@ -13,4 +13,8 @@
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="#5E5C64" />
     <SolidColorBrush x:Key="AccentBrush" Color="#3584E4" />
     <SolidColorBrush x:Key="AccentForegroundBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="DangerBrush" Color="#C01C28" />
+    <SolidColorBrush x:Key="DangerForegroundBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="DangerSurfaceBrush" Color="#FCE8E8" />
+    <SolidColorBrush x:Key="SuccessBrush" Color="#1A7F4B" />
 </ResourceDictionary>

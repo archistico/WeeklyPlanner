@@ -46,6 +46,7 @@ public sealed class CardRepository : ICardRepository
     public async Task<Card> CreateAsync(Card card, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(card);
+        NormalizeAndValidateContent(card);
 
         return await _writePipeline.ExecuteAsync(async token =>
         {
@@ -94,6 +95,7 @@ public sealed class CardRepository : ICardRepository
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(card);
+        NormalizeAndValidateContent(card);
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
 
         return await _writePipeline.ExecuteAsync(async token =>
@@ -450,6 +452,24 @@ public sealed class CardRepository : ICardRepository
             await connection.ExecuteAsync(command);
             card.SortOrder = index;
         }
+    }
+
+
+    private static void NormalizeAndValidateContent(Card card)
+    {
+        var normalizedTitle = card.Title?.Trim() ?? string.Empty;
+        if (normalizedTitle.Length == 0)
+        {
+            throw new CardValidationException("Il titolo della card è obbligatorio.");
+        }
+
+        if (normalizedTitle.Length > Card.MaxTitleLength)
+        {
+            throw new CardValidationException(
+                $"Il titolo della card non può superare {Card.MaxTitleLength} caratteri.");
+        }
+
+        card.Title = normalizedTitle;
     }
 
     private string GetUtcTimestamp() =>
