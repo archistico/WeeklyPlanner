@@ -486,3 +486,13 @@ Poi verificare manualmente:
 - `ApplicationVersionInfo.Milestone` e `WindowTitle` restano verificati rispetto ai metadati centralizzati;
 - nessuna modifica funzionale o allo schema SQLite;
 - criterio di accettazione: tutti i 143 test completati senza errori.
+
+
+## M3.3.4 — Terminazione affidabile del processo
+
+- shutdown esplicito del lifetime desktop dopo il cleanup asincrono della board;
+- attesa globale limitata a 2 secondi;
+- rimozione del Flush sincrono separato dall'evento Exit;
+- worker del logger protetto da errori di scrittura inattesi;
+- test del disposer bounded;
+- schema SQLite invariato alla versione 3.

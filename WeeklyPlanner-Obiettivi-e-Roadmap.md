@@ -444,3 +444,16 @@ aggregati e informazioni operative necessarie all’assistenza, ma non il conten
 - Il test continua a verificare che `ApplicationVersionInfo.Milestone` e il titolo finestra derivino dai metadati centralizzati.
 - Versione applicativa aggiornata a `0.10.3-m3.3.3`.
 - Nessuna modifica a logging, diagnostica, UI o schema SQLite.
+
+
+## 13. Revisione M3.3.4 — Terminazione affidabile del processo
+
+La chiusura della finestra non si limita più a `Close()`: dopo il cleanup della board viene richiesto esplicitamente lo shutdown del lifetime Avalonia. Il cleanup del composition root è bounded a 2 secondi, così il logger o un handler diagnostico difettoso non possono lasciare il processo attivo. Il worker del logger assorbe inoltre gli errori di scrittura inattesi e continua a servire Flush/Dispose.
+
+Criteri di accettazione:
+
+1. chiudendo la finestra, `dotnet run` deve terminare e restituire il prompt;
+2. polling e heartbeat devono essere già arrestati;
+3. i lock della sessione devono essere rilasciati best effort;
+4. un logger bloccato o guasto non deve impedire l'uscita oltre 2 secondi;
+5. schema SQLite invariato alla versione 3.

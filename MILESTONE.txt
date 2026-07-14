@@ -1,5 +1,8 @@
-WeeklyPlanner M3.3.3 — Test versione non fragile
+WeeklyPlanner M3.3.4 — Terminazione affidabile del processo
 
-- Il test di ApplicationVersionInfo legge il valore atteso direttamente dall’AssemblyMetadata centralizzato.
-- Rimossa l’aspettativa hardcoded M3.2.1 che rendeva la suite fragile a ogni nuova milestone.
-- Nessuna modifica funzionale, UI o schema SQLite.
+- Dopo il cleanup della board viene richiesto esplicitamente lo shutdown del lifetime desktop.
+- Il cleanup globale del composition root ha un timeout di 2 secondi e non può bloccare indefinitamente l'uscita.
+- Il logger scarica la coda tramite Dispose, senza Flush sincrono separato durante l'evento Exit.
+- Il worker del logger resta operativo anche in presenza di errori di scrittura inattesi.
+- Aggiunti test per cleanup completato, bloccato e fallito.
+- Nessuna modifica allo schema SQLite.

@@ -1,7 +1,7 @@
 # WeeklyPlanner
 
 
-> **M3.3.3** — Logging locale e diagnostica. Gli eventi tecnici sono correlati con riferimenti errore, senza registrare titolo o note delle card; una finestra dedicata raccoglie stato applicativo, database e percorsi utili all’assistenza.
+> **M3.3.4** — Logging, diagnostica e terminazione affidabile del processo. Gli eventi tecnici sono correlati con riferimenti errore, senza registrare titolo o note delle card; una finestra dedicata raccoglie stato applicativo, database e percorsi utili all’assistenza.
 
 Planner settimanale desktop in **C# / .NET 10 / Avalonia**, sviluppato per milestone piccole,
 test automatici e documentazione aggiornata insieme al codice.
@@ -51,10 +51,10 @@ La milestone **M3.2.1 — Feedback completo di persistenza** è stata validata s
 test e prova manuale sono riusciti. La floppy verde conferma inserimento, salvataggio, spostamento e
 riordino della card.
 
-La milestone corrente **M3.3.3 — Logging e diagnostica** introduce log tecnici locali asincroni,
-con le correzioni di compatibilità C#, xUnit e versionamento applicate senza modificare il comportamento funzionale,
-riferimenti errore correlabili e una finestra Diagnostica accessibile dall’intestazione. I log usano
-identificativi e metadati operativi, senza registrare titolo o note delle card.
+La milestone corrente **M3.3.4 — Logging, diagnostica e terminazione affidabile** mantiene i log
+tecnici locali asincroni, i riferimenti errore correlabili e la finestra Diagnostica, aggiungendo uno
+shutdown esplicito del lifetime desktop e un limite temporale al cleanup globale. La chiusura della
+finestra deve quindi terminare anche il processo avviato tramite `dotnet run`.
 
 
 La revisione **M3.3.3 — Test versione non fragile** elimina dal test di `ApplicationVersionInfo`
@@ -362,4 +362,9 @@ roadmap di prodotto sono in
 ## Feedback di persistenza della card
 
 La floppy verde nel footer conferma tutte le operazioni persistite sulla card, non soltanto il salvataggio di titolo e note. Il tooltip distingue `Card inserita`, `Card salvata`, `Card spostata` e `Ordine aggiornato`. Il testo autore è allineato alla stessa rientranza dei campi della card.
+
+
+### Correzione M3.3.4 — chiusura del processo
+
+La chiusura della finestra richiede ora esplicitamente lo shutdown del lifetime desktop dopo il cleanup della board. Il rilascio globale del logger e dei servizi ha un limite di 2 secondi: un errore diagnostico non può lasciare `dotnet run` attivo dopo la chiusura della UI.
 

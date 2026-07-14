@@ -4,6 +4,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
 using WeeklyPlanner.App.Composition;
 using WeeklyPlanner.App.Diagnostics;
+using WeeklyPlanner.App.Services;
 using WeeklyPlanner.App.Views;
 using WeeklyPlanner.Core.Configuration;
 
@@ -11,6 +12,8 @@ namespace WeeklyPlanner.App;
 
 public partial class App : Application
 {
+    private static readonly TimeSpan ApplicationShutdownTimeout = TimeSpan.FromSeconds(2);
+
     private ApplicationCompositionRoot? _compositionRoot;
 
     public override void Initialize()
@@ -63,30 +66,33 @@ public partial class App : Application
 
     private void OnDesktopExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
     {
-        if (_compositionRoot is null)
+        var compositionRoot = _compositionRoot;
+        _compositionRoot = null;
+        if (compositionRoot is null)
         {
             return;
         }
 
         try
         {
-            _compositionRoot.Logger.Information(
+            compositionRoot.Logger.Information(
                 "application.stop",
                 "Chiusura di WeeklyPlanner.",
                 new Dictionary<string, object?>
                 {
                     ["exitCode"] = e.ApplicationExitCode,
                 });
-            _compositionRoot.Logger.FlushAsync().GetAwaiter().GetResult();
-            _compositionRoot.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+            // L'evento Exit è sincrono: il cleanup viene atteso, ma con un limite esplicito.
+            // Il Dispose del logger completa la coda e scarica i record residui senza richiedere
+            // un Flush separato, che in caso di worker guasto potrebbe attendere indefinitamente.
+            BoundedAsyncDisposer.TryDispose(
+                compositionRoot,
+                ApplicationShutdownTimeout);
         }
         catch
         {
-            // La chiusura del processo non deve essere bloccata da un errore del logger.
-        }
-        finally
-        {
-            _compositionRoot = null;
+            // L'uscita del processo deve sempre proseguire, anche se la diagnostica è guasta.
         }
     }
 

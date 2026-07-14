@@ -102,8 +102,15 @@ public sealed class FileAppLogger : IAppLogger
         }
 
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await _commands.Writer.WriteAsync(new FlushCommand(completion), cancellationToken);
-        await completion.Task.WaitAsync(cancellationToken);
+        try
+        {
+            await _commands.Writer.WriteAsync(new FlushCommand(completion), cancellationToken);
+            await completion.Task.WaitAsync(cancellationToken);
+        }
+        catch (ChannelClosedException)
+        {
+            await _worker.WaitAsync(cancellationToken);
+        }
     }
 
     public async ValueTask DisposeAsync()
@@ -114,7 +121,7 @@ public sealed class FileAppLogger : IAppLogger
         }
 
         _commands.Writer.TryComplete();
-        await _worker;
+        await _worker.ConfigureAwait(false);
     }
 
     private async Task ProcessCommandsAsync()
@@ -150,8 +157,10 @@ public sealed class FileAppLogger : IAppLogger
             Volatile.Write(ref _lastFailureMessage, null);
             _isAvailable = true;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        catch (Exception ex)
         {
+            // Il worker del logger deve restare vivo anche davanti a errori non previsti:
+            // un worker terminato renderebbe impossibile completare Flush/Dispose in uscita.
             Volatile.Write(ref _lastFailureMessage, ex.Message);
             _isAvailable = false;
         }

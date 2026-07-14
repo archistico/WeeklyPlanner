@@ -120,6 +120,6 @@ public sealed class ApplicationCompositionRoot : IViewModelFactory, IAsyncDispos
         }
 
         _globalExceptionMonitor.Dispose();
-        await Logger.DisposeAsync();
+        await Logger.DisposeAsync().ConfigureAwait(false);
     }
 }

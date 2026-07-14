@@ -4,6 +4,8 @@ namespace WeeklyPlanner.App.Diagnostics;
 
 public sealed class GlobalExceptionMonitor : IDisposable
 {
+    private static readonly TimeSpan FatalFlushTimeout = TimeSpan.FromSeconds(1);
+
     private readonly IAppLogger _logger;
     private readonly IErrorReferenceGenerator _errorReferences;
     private bool _registered;
@@ -75,7 +77,8 @@ public sealed class GlobalExceptionMonitor : IDisposable
         {
             var reference = _errorReferences.Create();
             _logger.Critical(eventName, message, exception, reference);
-            _logger.FlushAsync().GetAwaiter().GetResult();
+            using var cancellation = new CancellationTokenSource(FatalFlushTimeout);
+            _logger.FlushAsync(cancellation.Token).GetAwaiter().GetResult();
         }
         catch
         {

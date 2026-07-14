@@ -1,6 +1,7 @@
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -202,7 +203,18 @@ public partial class MainWindow : Window
         finally
         {
             _shutdownCompleted = true;
-            Close();
+
+            // Non affidarsi soltanto alla rilevazione implicita dell'ultima finestra chiusa:
+            // dopo il cleanup della board richiedere esplicitamente la terminazione del lifetime.
+            if (Application.Current?.ApplicationLifetime is
+                IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                desktop.Shutdown();
+            }
+            else
+            {
+                Close();
+            }
         }
     }
 
