@@ -208,10 +208,6 @@ public sealed class SwimlaneBoardProjectionTests
                 "{Binding CanCreateCard}",
                 StringComparison.Ordinal));
 
-        Assert.Equal("Maximized", (string?)document.Root?.Attribute("WindowState"));
-        Assert.Equal("True", (string?)document.Root?.Attribute("ShowActivated"));
-        Assert.Equal("True", (string?)document.Root?.Attribute("ShowInTaskbar"));
-
         var priorityCombo = document
             .Descendants(avalonia + "ComboBox")
             .Single(element =>
@@ -237,6 +233,41 @@ public sealed class SwimlaneBoardProjectionTests
             "OnPrioritySummaryPointerPressed",
             (string?)prioritySummary.Attribute("PointerPressed"));
         Assert.Equal("Hand", (string?)prioritySummary.Attribute("Cursor"));
+
+        var relativeSaveText = document
+            .Descendants(avalonia + "TextBlock")
+            .Single(element =>
+                string.Equals(
+                    (string?)element.Attribute("Text"),
+                    "{Binding LastSavedRelativeText}",
+                    StringComparison.Ordinal));
+        Assert.Equal(
+            "{DynamicResource SuccessBrush}",
+            (string?)relativeSaveText.Attribute("Foreground"));
+        Assert.Contains(
+            document.Descendants(avalonia + "StackPanel"),
+            element => string.Equals(
+                (string?)element.Attribute("IsVisible"),
+                "{Binding ShowDirtyPersistenceState}",
+                StringComparison.Ordinal));
+        Assert.Contains(
+            document.Descendants(avalonia + "StackPanel"),
+            element => string.Equals(
+                (string?)element.Attribute("IsVisible"),
+                "{Binding ShowSavingPersistenceState}",
+                StringComparison.Ordinal));
+        Assert.Contains(
+            document.Descendants(avalonia + "StackPanel"),
+            element => string.Equals(
+                (string?)element.Attribute("IsVisible"),
+                "{Binding ShowErrorPersistenceState}",
+                StringComparison.Ordinal));
+        Assert.Contains(
+            document.Descendants(avalonia + "StackPanel"),
+            element => string.Equals(
+                (string?)element.Attribute("ToolTip.Tip"),
+                "{Binding LastSavedToolTipText}",
+                StringComparison.Ordinal));
 
         Assert.Equal("OnCardFieldGotFocus", (string?)priorityCombo.Attribute("GotFocus"));
         Assert.Null((string?)priorityCombo.Attribute("LostFocus"));
@@ -285,40 +316,26 @@ public sealed class SwimlaneBoardProjectionTests
     }
 
     [Fact]
-    public void Main_window_is_forced_maximized_before_show_and_after_native_opening()
+    public void Main_window_is_configured_once_before_show_without_geometry_persistence()
     {
         var appSourcePath = Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            "..",
-            "WeeklyPlanner.App",
-            "App.axaml.cs"));
+            "..", "..", "..", "..", "WeeklyPlanner.App", "App.axaml.cs"));
         var appSource = File.ReadAllText(appSourcePath);
-        Assert.Contains(
-            "mainWindow.WindowState = Avalonia.Controls.WindowState.Maximized;",
-            appSource,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "mainWindow.ShowActivated = true;",
-            appSource,
-            StringComparison.Ordinal);
+        Assert.Contains("WindowState = Avalonia.Controls.WindowState.Maximized,", appSource, StringComparison.Ordinal);
+        Assert.Contains("ShowActivated = true,", appSource, StringComparison.Ordinal);
+        Assert.Contains("ShowInTaskbar = true,", appSource, StringComparison.Ordinal);
+        Assert.Contains("Dispatcher.UIThread.Post(() => mainWindow.Activate()", appSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("Topmost", appSource, StringComparison.Ordinal);
 
         var windowSourcePath = Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            "..",
-            "WeeklyPlanner.App",
-            "Views",
-            "MainWindow.axaml.cs"));
+            "..", "..", "..", "..", "WeeklyPlanner.App", "Views", "MainWindow.axaml.cs"));
         var windowSource = File.ReadAllText(windowSourcePath);
-        Assert.Contains("ActivateWindowAtStartup();", windowSource, StringComparison.Ordinal);
-        Assert.Contains("Topmost = true;", windowSource, StringComparison.Ordinal);
-        Assert.Contains("Topmost = false;", windowSource, StringComparison.Ordinal);
-        Assert.Contains("Activate();", windowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("Topmost", windowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("WindowPlacement", windowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("PositionChanged", windowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("Resized", windowSource, StringComparison.Ordinal);
         Assert.Contains("priorityCombo.IsDropDownOpen = true;", windowSource, StringComparison.Ordinal);
         Assert.DoesNotContain("OnCardFieldLostFocus", windowSource, StringComparison.Ordinal);
 

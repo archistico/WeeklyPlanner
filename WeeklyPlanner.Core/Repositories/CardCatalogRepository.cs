@@ -433,7 +433,8 @@ public sealed partial class CardCatalogRepository : ICardCatalogRepository
                     """
                     SELECT card.Id, card.StableId, card.ColumnId, card.SortOrder,
                            card.PriorityId, card.PriorityAssignedAtUtc, card.DueAtUtc AS PreviousDueAtUtc,
-                           COALESCE(rule.DueHours, priority.DefaultDueHours) AS DueHours
+                           priority.DefaultDueHours,
+                           rule.DueHours AS OverrideDueHours
                     FROM Cards card
                     LEFT JOIN Priorities priority
                       ON priority.Id = card.PriorityId
@@ -1039,7 +1040,7 @@ public sealed partial class CardCatalogRepository : ICardCatalogRepository
             return null;
         }
 
-        if (card.DueHours is null)
+        if (card.DefaultDueHours is null)
         {
             throw new InvalidOperationException(
                 $"La priorità {card.PriorityId.Value} della card {card.Id} non esiste più.");
@@ -1055,7 +1056,10 @@ public sealed partial class CardCatalogRepository : ICardCatalogRepository
             card.PriorityAssignedAtUtc,
             CultureInfo.InvariantCulture,
             DateTimeStyles.RoundtripKind);
-        return FormatUtc(assignedAt.AddHours(card.DueHours.Value));
+        return FormatUtc(PriorityDeadlineCalculator.CalculateDueAt(
+            assignedAt,
+            card.DefaultDueHours.Value,
+            card.OverrideDueHours));
     }
 
     private async Task InsertCardTypeChangedEventAsync(
@@ -1138,7 +1142,9 @@ public sealed partial class CardCatalogRepository : ICardCatalogRepository
 
         public string? PreviousDueAtUtc { get; set; }
 
-        public int? DueHours { get; set; }
+        public int? DefaultDueHours { get; set; }
+
+        public int? OverrideDueHours { get; set; }
     }
 
     private sealed class CatalogOrderItemRow

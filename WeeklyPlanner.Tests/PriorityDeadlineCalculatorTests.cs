@@ -67,4 +67,23 @@ public sealed class PriorityDeadlineCalculatorTests
             priorities: [],
             deadlineRules: []));
     }
+
+    [Fact]
+    public void ResolveDueHours_is_shared_by_default_and_type_specific_paths()
+    {
+        PriorityDefinition[] priorities =
+        [
+            new() { Id = 3, Code = "D", DefaultDueHours = 720 },
+        ];
+        PriorityTypeDeadline[] rules =
+        [
+            new() { PriorityId = 3, CardTypeId = 5, DueHours = 1440 },
+        ];
+
+        Assert.Equal(720, PriorityDeadlineCalculator.ResolveDueHours(3, 4, priorities, rules));
+        Assert.Equal(1440, PriorityDeadlineCalculator.ResolveDueHours(3, 5, priorities, rules));
+        Assert.Equal(
+            AssignedAt.AddDays(60),
+            PriorityDeadlineCalculator.CalculateDueAt(AssignedAt, 720, 1440));
+    }
 }

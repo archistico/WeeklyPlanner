@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using WeeklyPlanner.Core.Models;
+using WeeklyPlanner.Core.Repositories;
 
 namespace WeeklyPlanner.App.ViewModels;
 
@@ -56,7 +57,6 @@ public sealed partial class CardViewModel : ViewModelBase
             }
         }
     }
-
 
     public ObservableCollection<CardPriorityOptionViewModel> PriorityOptions { get; } = [];
 
@@ -292,7 +292,13 @@ public sealed partial class CardViewModel : ViewModelBase
     public bool HasSaveError
     {
         get => _hasSaveError;
-        private set => SetProperty(ref _hasSaveError, value);
+        private set
+        {
+            if (SetProperty(ref _hasSaveError, value))
+            {
+                RaiseDerivedStateChanged();
+            }
+        }
     }
 
     public bool HasSaveSuccess
@@ -302,6 +308,60 @@ public sealed partial class CardViewModel : ViewModelBase
     }
 
     public bool HasSaveStatus => !string.IsNullOrWhiteSpace(SaveStatusText);
+
+    public bool HasLastSavedAt => GetLastSavedAt() is not null;
+
+    public string LastSavedRelativeText
+    {
+        get
+        {
+            var savedAt = GetLastSavedAt();
+            return savedAt is null
+                ? string.Empty
+                : FormatRelativeTime(_displayNow.ToUniversalTime() - savedAt.Value);
+        }
+    }
+
+    public string LastSavedExactText
+    {
+        get
+        {
+            var savedAt = GetLastSavedAt();
+            return savedAt is null
+                ? string.Empty
+                : savedAt.Value.ToLocalTime().ToString(
+                    "dd/MM/yyyy HH:mm:ss",
+                    CultureInfo.CurrentCulture);
+        }
+    }
+
+    public string LastSavedToolTipText
+    {
+        get
+        {
+            if (!HasLastSavedAt)
+            {
+                return "Data dell'ultimo salvataggio non disponibile.";
+            }
+
+            var updatedBy = string.IsNullOrWhiteSpace(Model.UpdatedBy)
+                ? string.Empty
+                : $" da {Model.UpdatedBy}";
+            return $"Ultimo salvataggio: {LastSavedExactText}{updatedBy}.";
+        }
+    }
+
+    public bool ShowDirtyPersistenceState => IsDirty && !IsSaving && !HasSaveError;
+
+    public bool ShowSavingPersistenceState => IsSaving;
+
+    public bool ShowErrorPersistenceState => HasSaveError;
+
+    public bool ShowSavedPersistenceState =>
+        !IsDirty &&
+        !IsSaving &&
+        !HasSaveError &&
+        HasLastSavedAt;
 
     public bool IsDropBeforeVisible
     {
@@ -363,7 +423,11 @@ public sealed partial class CardViewModel : ViewModelBase
     public bool ShowDeleteButton => CanRequestDelete && !IsDeleteConfirmationVisible;
 
     public bool HasLockStatus =>
-        IsEditing || IsLockedByAnotherUser || HasExternalChanges || HasLostEditLock || IsDeletedExternally;
+        (IsEditing && !(HasExternalChanges && HasSaveError)) ||
+        IsLockedByAnotherUser ||
+        (HasExternalChanges && !HasSaveError) ||
+        HasLostEditLock ||
+        IsDeletedExternally;
 
     public string LockStatusText
     {
@@ -436,11 +500,11 @@ public sealed partial class CardViewModel : ViewModelBase
             .ThenBy(priority => priority.Id)
             .Select(priority =>
             {
-                var effectiveDueHours = cardTypeId is long typeId
-                    ? deadlineRules.SingleOrDefault(rule =>
-                        rule.PriorityId == priority.Id &&
-                        rule.CardTypeId == typeId)?.DueHours ?? priority.DefaultDueHours
-                    : priority.DefaultDueHours;
+                var effectiveDueHours = PriorityDeadlineCalculator.ResolveDueHours(
+                    priority.Id,
+                    cardTypeId,
+                    priorities,
+                    deadlineRules);
                 return new CardPriorityOptionViewModel(priority, effectiveDueHours);
             })
             .ToList();
@@ -469,7 +533,6 @@ public sealed partial class CardViewModel : ViewModelBase
         _displayNow = now;
         RaiseDerivedStateChanged();
     }
-
 
     public void SetDropIndicator(bool afterCard)
     {
@@ -571,6 +634,15 @@ public sealed partial class CardViewModel : ViewModelBase
         HasSaveSuccess = false;
         HasSaveError = true;
         SaveStatusText = message;
+    }
+
+    public const string ConcurrencyConflictMessage =
+        "Conflitto rilevato: la bozza è conservata. Annulla per ricaricare la versione aggiornata.";
+
+    public void MarkConcurrencyConflict()
+    {
+        HasExternalChanges = true;
+        MarkSaveError(ConcurrencyConflictMessage);
     }
 
     /// <summary>
@@ -757,7 +829,6 @@ public sealed partial class CardViewModel : ViewModelBase
         RaiseDerivedStateChanged();
     }
 
-
     private void SelectPriority(long? priorityId)
     {
         var selected = PriorityOptions.FirstOrDefault(option => option.Id == priorityId)
@@ -779,7 +850,7 @@ public sealed partial class CardViewModel : ViewModelBase
         if (IsEditing && SelectedPriorityId != Model.PriorityId)
         {
             return SelectedPriorityOption.EffectiveDueHours is int hours
-                ? _displayNow.ToUniversalTime().AddHours(hours)
+                ? PriorityDeadlineCalculator.CalculateDueAt(_displayNow.ToUniversalTime(), hours)
                 : null;
         }
 
@@ -790,6 +861,43 @@ public sealed partial class CardViewModel : ViewModelBase
             out var dueAt)
             ? dueAt
             : null;
+    }
+
+    private DateTimeOffset? GetLastSavedAt()
+    {
+        var timestamp = string.IsNullOrWhiteSpace(Model.UpdatedAtUtc)
+            ? Model.CreatedAtUtc
+            : Model.UpdatedAtUtc;
+        return DateTimeOffset.TryParse(
+            timestamp,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out var savedAt)
+            ? savedAt
+            : null;
+    }
+
+    private static string FormatRelativeTime(TimeSpan elapsed)
+    {
+        if (elapsed < TimeSpan.Zero || elapsed.TotalMinutes < 1)
+        {
+            return "adesso";
+        }
+
+        if (elapsed.TotalHours < 1)
+        {
+            var minutes = Math.Max(1, (int)Math.Floor(elapsed.TotalMinutes));
+            return minutes == 1 ? "1 minuto fa" : $"{minutes} minuti fa";
+        }
+
+        if (elapsed.TotalDays < 1)
+        {
+            var hours = Math.Max(1, (int)Math.Floor(elapsed.TotalHours));
+            return hours == 1 ? "1 ora fa" : $"{hours} ore fa";
+        }
+
+        var days = Math.Max(1, (int)Math.Floor(elapsed.TotalDays));
+        return days == 1 ? "1 giorno fa" : $"{days} giorni fa";
     }
 
     private static string FormatDuration(TimeSpan duration)
@@ -843,6 +951,14 @@ public sealed partial class CardViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsOverdue));
         OnPropertyChanged(nameof(DueStatusText));
         OnPropertyChanged(nameof(DueExactText));
+        OnPropertyChanged(nameof(HasLastSavedAt));
+        OnPropertyChanged(nameof(LastSavedRelativeText));
+        OnPropertyChanged(nameof(LastSavedExactText));
+        OnPropertyChanged(nameof(LastSavedToolTipText));
+        OnPropertyChanged(nameof(ShowDirtyPersistenceState));
+        OnPropertyChanged(nameof(ShowSavingPersistenceState));
+        OnPropertyChanged(nameof(ShowErrorPersistenceState));
+        OnPropertyChanged(nameof(ShowSavedPersistenceState));
         OnPropertyChanged(nameof(TitleLengthText));
         OnPropertyChanged(nameof(IsTitleValid));
         OnPropertyChanged(nameof(HasTitleValidationError));

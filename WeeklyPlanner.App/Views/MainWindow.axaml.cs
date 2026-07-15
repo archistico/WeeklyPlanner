@@ -30,11 +30,8 @@ public partial class MainWindow : Window
     private bool _boardPanInProgress;
     private Point _boardPanStartPoint;
     private Vector _boardPanStartOffset;
-    private IAppSettingsService? _settingsService;
     private IViewModelFactory? _viewModelFactory;
     private AppSettings? _applicationSettings;
-    private bool _windowPlacementRestored;
-    private bool _startupActivationCompleted;
 
     public MainWindow()
     {
@@ -59,156 +56,18 @@ public partial class MainWindow : Window
             OnBoardPanPointerReleased,
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
-
-        Opened += OnWindowOpened;
-        PositionChanged += (_, _) => CaptureNormalWindowPlacement();
-        Resized += (_, _) => CaptureNormalWindowPlacement();
     }
 
     public void ConfigureApplicationServices(
-        IAppSettingsService settingsService,
         IViewModelFactory viewModelFactory,
         AppSettings settings)
     {
-        ArgumentNullException.ThrowIfNull(settingsService);
         ArgumentNullException.ThrowIfNull(viewModelFactory);
         ArgumentNullException.ThrowIfNull(settings);
 
-        _settingsService = settingsService;
         _viewModelFactory = viewModelFactory;
         _applicationSettings = settings.Clone();
         _applicationSettings.Normalize();
-
-        Width = _applicationSettings.WindowWidth;
-        Height = _applicationSettings.WindowHeight;
-        ShowActivated = true;
-        ShowInTaskbar = true;
-        WindowState = WindowState.Maximized;
-    }
-
-    private void OnWindowOpened(object? sender, EventArgs e)
-    {
-        if (_applicationSettings is null)
-        {
-            return;
-        }
-
-        var requestedPosition = _applicationSettings.WindowX is int x &&
-                                _applicationSettings.WindowY is int y
-            ? new PixelPoint(x, y)
-            : (PixelPoint?)null;
-        var storedScreen = requestedPosition is PixelPoint point
-            ? Screens.ScreenFromPoint(point)
-            : null;
-        var targetScreen = storedScreen ?? Screens.Primary;
-
-        if (targetScreen is not null)
-        {
-            var fittedSize = WindowPlacementCalculator.FitSizeToWorkingArea(
-                _applicationSettings.WindowWidth,
-                _applicationSettings.WindowHeight,
-                targetScreen.WorkingArea,
-                targetScreen.Scaling,
-                MinWidth,
-                MinHeight);
-            Width = fittedSize.Width;
-            Height = fittedSize.Height;
-        }
-
-        if (storedScreen is not null && requestedPosition is PixelPoint storedPosition)
-        {
-            WindowStartupLocation = WindowStartupLocation.Manual;
-            Position = WindowPlacementCalculator.ClampPosition(
-                storedPosition,
-                new Size(Width, Height),
-                storedScreen.WorkingArea,
-                storedScreen.Scaling);
-        }
-        else
-        {
-            WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        }
-
-        // La board usa una matrice ampia: ogni avvio parte massimizzato e attivo.
-        // Il passaggio Topmost è soltanto temporaneo e serve a evitare che Windows lasci
-        // la nuova finestra dietro ad altre applicazioni durante la creazione nativa.
-        ActivateWindowAtStartup();
-
-        _windowPlacementRestored = true;
-        CaptureNormalWindowPlacement();
-    }
-
-    private void ActivateWindowAtStartup()
-    {
-        if (_shutdownInProgress || _startupActivationCompleted)
-        {
-            return;
-        }
-
-        ShowActivated = true;
-        ShowInTaskbar = true;
-        EnsureWindowIsMaximized();
-        Topmost = true;
-        Activate();
-
-        Dispatcher.UIThread.Post(
-            () =>
-            {
-                if (_shutdownInProgress)
-                {
-                    Topmost = false;
-                    return;
-                }
-
-                EnsureWindowIsMaximized();
-                Activate();
-                Topmost = false;
-                _startupActivationCompleted = true;
-            },
-            DispatcherPriority.Background);
-    }
-
-    private void EnsureWindowIsMaximized()
-    {
-        if (!_shutdownInProgress && WindowState != WindowState.Maximized)
-        {
-            WindowState = WindowState.Maximized;
-        }
-    }
-
-    private void CaptureNormalWindowPlacement()
-    {
-        if (!_windowPlacementRestored ||
-            _applicationSettings is null ||
-            WindowState != WindowState.Normal)
-        {
-            return;
-        }
-
-        _applicationSettings.WindowWidth = Math.Max(MinWidth, ClientSize.Width);
-        _applicationSettings.WindowHeight = Math.Max(MinHeight, ClientSize.Height);
-        _applicationSettings.WindowX = Position.X;
-        _applicationSettings.WindowY = Position.Y;
-    }
-
-    private void PersistWindowPlacement()
-    {
-        if (_settingsService is null || _applicationSettings is null)
-        {
-            return;
-        }
-
-        CaptureNormalWindowPlacement();
-        _applicationSettings.WindowMaximized = WindowState == WindowState.Maximized;
-
-        try
-        {
-            _settingsService.Save(_applicationSettings);
-        }
-        catch
-        {
-            // Il salvataggio della geometria non deve impedire la chiusura dell'applicazione.
-        }
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)
@@ -220,7 +79,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        PersistWindowPlacement();
         e.Cancel = true;
         if (_shutdownInProgress)
         {
@@ -282,8 +140,7 @@ public partial class MainWindow : Window
 
     private async void OnOpenSettingsClick(object? sender, RoutedEventArgs e)
     {
-        if (_settingsService is null ||
-            _viewModelFactory is null ||
+        if (_viewModelFactory is null ||
             _applicationSettings is null ||
             DataContext is not BoardViewModel boardViewModel)
         {

@@ -61,6 +61,38 @@ public sealed class BoardViewModelDependencyTests
     }
 
     [Fact]
+    public async Task Shared_polling_tick_updates_relative_card_times_without_per_card_timers()
+    {
+        var context = BoardViewModelTestDoubles.Create();
+        var savedAt = context.Clock.Now;
+        context.Cards.Items.Add(new WeeklyPlanner.Core.Models.Card
+        {
+            Id = 1,
+            ColumnId = 0,
+            CardTypeId = 1,
+            StableId = "relative-time-card",
+            CreatedAtUtc = savedAt.ToString("O"),
+            Title = "Card con timestamp",
+            SortOrder = 0,
+            CreatedBy = "Emilie",
+            UpdatedBy = "Emilie",
+            UpdatedAtUtc = savedAt.ToString("O"),
+            Version = 1,
+        });
+        await context.ViewModel.StartAsync();
+        var card = Assert.Single(context.ViewModel.BacklogColumn!.Cards);
+        Assert.Equal("adesso", card.LastSavedRelativeText);
+
+        context.Clock.Now = savedAt.AddMinutes(5);
+        context.ChangeDetector.HasChanged = false;
+        await context.PollingScheduler.TriggerAsync();
+
+        Assert.Equal("5 minuti fa", card.LastSavedRelativeText);
+
+        await context.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
     public async Task DisposeAsync_stops_schedulers_and_releases_current_session()
     {
         var context = BoardViewModelTestDoubles.Create();

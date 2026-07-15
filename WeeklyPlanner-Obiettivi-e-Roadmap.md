@@ -238,7 +238,7 @@ Gli eventi vengono salvati nella stessa transazione della modifica.
 | M1.4 | lifecycle e recovery |
 | M2.1.1 | CRUD completo e validazione |
 | M2.2.3 | drag&drop, tastiera e pan orizzontale |
-| M2.3 | impostazioni, tema e geometria finestra |
+| M2.3 | impostazioni e tema; la geometria finestra viene rimossa in M3.12.1 |
 | M3.1 | composition root e dependency injection |
 | M3.2.1 | scheduler deterministici e feedback di persistenza |
 | M3.3.4 | logging, diagnostica e shutdown affidabile |
@@ -248,71 +248,48 @@ Gli eventi vengono salvati nella stessa transazione della modifica.
 | M3.7 | modello kanban, schema v5 e snapshot atomico |
 | M3.8 | configurazione delle fasce e trasferimento atomico delle card |
 | M3.9 | layout kanban a swimlane e pan bidimensionale |
+| M3.10 | movimento bidimensionale atomico |
+| M3.11 | priorità compatta, editing stabile e avvio massimizzato |
+| M3.12 | ultimo salvataggio relativo e stati di persistenza |
+| M3.12.1 | consolidamento tecnico, startup e regole condivise |
 
 ## 7. Milestone corrente
 
-### M3.11 — Priorità compatta sulla card
+### M3.12.1 — Consolidamento tecnico e startup
 
 #### Obiettivi
 
-- mostrare la priorità come badge compatto fuori modifica;
-- mostrare la ComboBox soltanto nella bozza protetta;
-- includere l’opzione esplicita Nessuna;
-- condividere lock, annullamento, dirty state, salvataggio e conflitti con titolo e note;
-- applicare la priorità predefinita attiva alle nuove card;
-- calcolare la scadenza con la regola priorità/fascia;
-- mantenere leggibili le priorità inattive già assegnate;
-- registrare `PriorityChanged` senza duplicare operazioni UI;
-- spostare il pulsante di creazione nelle cinque intestazioni operative;
-- creare la card in Generica direttamente nello stato selezionato;
-- aprire la finestra massimizzata e attiva in primo piano;
-- mantenere la bozza aperta fino a Salva, Annulla o Esc;
-- aprire direttamente la ComboBox cliccando sul riepilogo della priorità;
-- aumentare lo spazio inferiore di scorrimento.
+- aprire la board come normale finestra massimizzata e attiva;
+- non salvare né ripristinare posizione, dimensione o stato della finestra;
+- eliminare `Topmost` e le attivazioni ripetute;
+- rimuovere l’API monodimensionale `MoveAsync`;
+- centralizzare il calcolo delle scadenze;
+- rappresentare esplicitamente i conflitti di concorrenza senza modelli parziali;
+- evitare duplicazioni nel calcolo delle modifiche di titolo e note;
+- mantenere lo schema SQLite alla versione 5.
 
 #### Test
 
-- opzione Nessuna e priorità attive nella ComboBox;
-- priorità inattiva corrente ancora rappresentata;
-- cambio priorità incluso in `IsDirty` e nel modello editato;
-- annullamento della priorità insieme a titolo e note;
-- anteprima della scadenza con regola specifica della fascia;
-- badge e tempo residuo in sola lettura;
-- cinque pulsanti di creazione nelle intestazioni;
-- creazione in ciascuno dei cinque stati nella fascia Generica;
-- applicazione della priorità predefinita;
-- avvio massimizzato, attivazione iniziale e spazio inferiore della matrice;
-- assenza di salvataggio automatico su perdita del focus;
-- apertura diretta del menu della priorità;
-- schema SQLite ancora v5.
+- startup diretto e dopo onboarding configurato una sola volta;
+- assenza di persistenza della geometria e di `Topmost`;
+- caricamento dei settings compatibile con le vecchie proprietà finestra ignorate;
+- assenza di `MoveAsync` dall’interfaccia e dal repository;
+- scadenze coerenti tra calcolo predefinito e regole specifiche per fascia;
+- conflitto concorrente con bozza conservata e un solo stato di errore;
+- nessuna nuova migrazione SQLite.
 
 #### Criteri di chiusura
 
 1. `dotnet build` senza warning o errori;
 2. `dotnet test` completamente verde;
-3. badge `M3.11`;
-4. ComboBox visibile soltanto durante la modifica;
-5. badge compatto visibile fuori modifica;
-6. opzione Nessuna funzionante;
-7. scadenza calcolata con la regola della fascia;
-8. lock, bozza, conflitti e storico condivisi;
-9. creazione disponibile nelle cinque intestazioni;
-10. finestra aperta massimizzata e attiva davanti alle altre applicazioni;
-11. editing stabile durante polling e apertura dei popup;
-12. click sulla priorità con apertura immediata dell’elenco;
-13. ultima card interamente raggiungibile con lo scroll;
-14. database SQLite v5 integro.
+3. apertura massimizzata al lancio diretto e dopo onboarding;
+4. nessun `Topmost` e nessuna persistenza della geometria;
+5. nessun riferimento produttivo a `MoveAsync`;
+6. scadenze coerenti in creazione, modifica, movimento, trasferimento fascia e anteprima;
+7. conflitto concorrente con bozza conservata e un solo messaggio;
+8. badge `M3.12.1` e schema SQLite v5.
 
 ## 8. Roadmap successiva
-
-### M3.12 — Ultimo salvataggio relativo
-
-- floppy verde + testo relativo;
-- `adesso`, minuti, ore e giorni;
-- tooltip con data esatta;
-- ticker condiviso, non un timer per card;
-- distinzione dirty/saving/error;
-- aggiornamento dopo modifiche esterne.
 
 ### M3.13 — Informazioni e cronologia
 
@@ -360,4 +337,5 @@ Gli eventi vengono salvati nella stessa transazione della modifica.
 ADR di riferimento:
 
 - [`docs/ADR-0011-modello-kanban-swimlane.md`](docs/ADR-0011-modello-kanban-swimlane.md);
-- [`docs/ADR-0014-movimento-bidimensionale.md`](docs/ADR-0014-movimento-bidimensionale.md).
+- [`docs/ADR-0014-movimento-bidimensionale.md`](docs/ADR-0014-movimento-bidimensionale.md);
+- [`docs/ADR-0017-consolidamento-tecnico-startup.md`](docs/ADR-0017-consolidamento-tecnico-startup.md).

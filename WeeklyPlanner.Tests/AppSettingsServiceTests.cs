@@ -34,7 +34,6 @@ public sealed class AppSettingsServiceTests : IDisposable
         Assert.False(settings.IsComplete());
     }
 
-
     [Fact]
     public void Load_normalizes_null_strings_from_json()
     {
@@ -78,7 +77,6 @@ public sealed class AppSettingsServiceTests : IDisposable
         Assert.Empty(Directory.GetFiles(_tempDirectory, "*.tmp"));
     }
 
-
     [Fact]
     public void IsComplete_accepts_a_fully_qualified_local_database_path()
     {
@@ -102,7 +100,6 @@ public sealed class AppSettingsServiceTests : IDisposable
 
         Assert.False(settings.IsComplete());
     }
-
 
     [Fact]
     public void Normalize_converts_an_existing_directory_to_the_default_database_file()
@@ -198,9 +195,8 @@ public sealed class AppSettingsServiceTests : IDisposable
         }
     }
 
-
     [Fact]
-    public void Save_and_load_roundtrip_preserves_theme_and_window_placement()
+    public void Save_and_load_roundtrip_preserves_local_preferences()
     {
         var service = CreateService();
         var settings = new AppSettings
@@ -208,43 +204,52 @@ public sealed class AppSettingsServiceTests : IDisposable
             DatabasePath = Path.Combine(_tempDirectory, "data", "weeklyplanner.db"),
             UserName = "Emilie",
             ThemePreference = AppThemePreference.Dark,
-            WindowWidth = 1280,
-            WindowHeight = 820,
-            WindowX = 120,
-            WindowY = 80,
-            WindowMaximized = true,
+            PollingIntervalSeconds = 12,
         };
 
         service.Save(settings);
         var reloaded = service.Load();
 
         Assert.Equal(AppThemePreference.Dark, reloaded.ThemePreference);
-        Assert.Equal(1280d, reloaded.WindowWidth);
-        Assert.Equal(820d, reloaded.WindowHeight);
-        Assert.Equal(120, reloaded.WindowX);
-        Assert.Equal(80, reloaded.WindowY);
-        Assert.True(reloaded.WindowMaximized);
+        Assert.Equal(12, reloaded.PollingIntervalSeconds);
     }
 
     [Fact]
-    public void Normalize_repairs_invalid_theme_and_window_dimensions()
+    public void Normalize_repairs_invalid_theme_without_window_geometry()
     {
-        var settings = new AppSettings
-        {
-            ThemePreference = (AppThemePreference)999,
-            WindowWidth = double.NaN,
-            WindowHeight = 100,
-            WindowX = int.MaxValue,
-            WindowY = int.MinValue,
-        };
+        var settings = new AppSettings { ThemePreference = (AppThemePreference)999 };
 
         settings.Normalize();
 
         Assert.Equal(AppThemePreference.System, settings.ThemePreference);
-        Assert.Equal(AppSettings.DefaultWindowWidth, settings.WindowWidth);
-        Assert.Equal(AppSettings.MinimumWindowHeight, settings.WindowHeight);
-        Assert.Null(settings.WindowX);
-        Assert.Null(settings.WindowY);
+    }
+
+    [Fact]
+    public void Load_ignores_legacy_window_geometry_fields()
+    {
+        var databasePath = Path.Combine(_tempDirectory, "data", "weeklyplanner.db");
+        var json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            DatabasePath = databasePath,
+            UserName = "Emilie",
+            PollingIntervalSeconds = 7,
+            ThemePreference = 0,
+            WindowWidth = 1280,
+            WindowHeight = 820,
+            WindowX = 120,
+            WindowY = 80,
+            WindowMaximized = true,
+        });
+        Directory.CreateDirectory(_tempDirectory);
+        File.WriteAllText(GetSettingsPath(), json);
+
+        var settings = CreateService().Load();
+
+        Assert.Equal("Emilie", settings.UserName);
+        Assert.DoesNotContain(
+            "WindowWidth",
+            System.Text.Json.JsonSerializer.Serialize(settings),
+            StringComparison.Ordinal);
     }
 
     [Fact]

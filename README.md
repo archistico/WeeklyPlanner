@@ -1,6 +1,6 @@
 # WeeklyPlanner
 
-> **M3.11 — Priorità compatta sulla card**
+> **M3.12.1 — Consolidamento tecnico e startup**
 
 Applicazione desktop **C# / .NET 10 / Avalonia** per organizzare attività in un kanban locale,
 sviluppata per milestone piccole, test automatici, migrazioni protette e documentazione aggiornata
@@ -19,13 +19,12 @@ La baseline fino alla **M3.8** è stata validata su Windows con compilazione e t
 Il layout M3.9, comprese le correzioni a larghezza, scroll, pan e movimento nella fascia, è stato
 accettato dall'utente nella prova manuale.
 
-La M3.10 è stata validata con compilazione e test completamente riusciti. Anche la baseline M3.11
-ha superato compilazione e test; questo aggiornamento corregge il comportamento runtime di editing,
-ComboBox e attivazione iniziale della finestra. La priorità resta un campo compatto della card senza
-nuove tabelle: selezione, scadenza, lock, conflitti e storico riusano lo schema SQLite v5 e la
-transazione di modifica esistente.
+La M3.10 e la M3.11 sono state validate con compilazione, test e verifica manuale riusciti. La M3.12
+rende permanente e leggibile il feedback di persistenza. La M3.12.1 consolida la base prima della
+cronologia: startup semplificato, geometria non persistita, movimento esclusivamente bidimensionale,
+scadenze centralizzate e conflitti concorrenti espliciti. Lo schema SQLite resta alla versione 5.
 
-La suite dichiara **oltre 225 casi** considerando i test parametrizzati.
+La suite dichiara **oltre 220 casi** considerando i test parametrizzati.
 
 ## Workflow kanban
 
@@ -95,10 +94,28 @@ fino a **Salva**, **Annulla** o `Esc`. Titolo, note e priorità usano il medesim
 `PriorityAssignedAtUtc`, calcola `DueAtUtc` con l’eventuale regola specifica della fascia e registra
 `PriorityChanged`; un conflitto conserva l’intera bozza.
 
-La finestra principale viene creata massimizzata, con attivazione iniziale esplicita e un passaggio
-`Topmost` temporaneo rimosso subito dopo l’apertura. In questo modo viene mostrata davanti alle altre
-applicazioni senza restare sempre in primo piano. Un margine inferiore più ampio consente di scorrere
-oltre l’ultima fascia e visualizzare sempre integralmente la card più bassa.
+La finestra principale viene configurata una sola volta, prima della visualizzazione, come normale
+finestra Windows massimizzata e attiva. WeeklyPlanner non salva né ripristina posizione, dimensione o
+stato della finestra e non usa `Topmost`. Dopo l’onboarding la board viene mostrata, l’onboarding viene
+chiuso e l’attivazione viene richiesta una sola volta sul dispatcher. Un margine inferiore più ampio
+consente di visualizzare integralmente la card più bassa.
+
+## Ultimo salvataggio relativo
+
+Il footer della card mostra un solo stato di persistenza alla volta:
+
+- **floppy verde + tempo relativo** quando la card è salvata;
+- **Non salvata** quando la bozza contiene modifiche;
+- **Salvataggio…** durante la scrittura;
+- **Errore** quando la persistenza fallisce, con il dettaglio completo nel tooltip.
+
+Il testo relativo usa `adesso`, minuti, ore e giorni. Passando il mouse sul floppy viene mostrata la
+data locale completa al secondo e, quando disponibile, il nome dell'ultimo utente che ha modificato la
+card. Il valore deriva da `UpdatedAtUtc`, con fallback a `CreatedAtUtc` per eventuali righe legacy.
+
+L'aggiornamento temporale è centralizzato nel ticker di polling della board: tutte le card ricevono lo
+stesso istante e nessun `CardViewModel` crea un timer autonomo. Quando un'altra istanza modifica la
+card, il merge sostituisce il timestamp e aggiorna immediatamente testo relativo e tooltip.
 
 ## Tipologie come fasce
 
@@ -268,7 +285,6 @@ Dalle Impostazioni è possibile gestire:
 - percorso del database;
 - intervallo di polling;
 - tema Sistema/Chiaro/Scuro;
-- geometria della finestra;
 - priorità;
 - fasce, colori e ordine sotto Generica;
 - trasferimento atomico delle card quando si elimina una fascia usata;
@@ -344,18 +360,31 @@ dotnet test WeeklyPlanner.sln -c Release --no-build
 dotnet run --project .\WeeklyPlanner.App\WeeklyPlanner.App.csproj
 ```
 
-Nella M3.11 la finestra deve mostrare il badge `M3.11`, aprirsi massimizzata e presentare il pulsante
-di creazione in ciascuna intestazione operativa. La priorità deve apparire come badge in lettura e come
-ComboBox soltanto nella bozza di modifica.
+Nella M3.12.1 la finestra deve mostrare il badge `M3.12.1`, aprirsi massimizzata senza ripristino della
+geometria e restare attiva anche dopo l’onboarding. Le card conservano gli indicatori di persistenza
+introdotti in M3.12.
+
+## Consolidamento M3.12.1
+
+- `AppSettings` conserva soltanto preferenze applicative e percorso del database; eventuali campi
+  legacy della geometria presenti in `settings.json` vengono ignorati;
+- `MainWindow` non ascolta più eventi di posizione o ridimensionamento e non riscrive i settings alla
+  chiusura;
+- `ICardRepository` espone soltanto `MoveToCellAsync`, coerente con la posizione
+  `(CardTypeId, ColumnId, indice locale)`;
+- `PriorityDeadlineCalculator` è l’unica fonte di verità per durata predefinita, override di fascia e
+  calcolo della scadenza;
+- un conflitto di versione conserva la bozza, blocca il nuovo salvataggio e mostra un solo messaggio;
+- titolo e note vengono confrontati una sola volta prima di costruire audit e riepilogo.
 
 ## Roadmap immediata
 
-1. **M3.12 — Ultimo salvataggio relativo**  
-   Floppy verde, tempo relativo e tooltip esatto.
-2. **M3.13 — Informazioni e cronologia**  
+1. **M3.13 — Informazioni e cronologia**  
    Modale con metadati e storico paginato.
-3. **M3.14 — Consolidamento kanban**  
+2. **M3.14 — Consolidamento kanban**  
    Test UI, prestazioni, accessibilità e documentazione finale.
+3. **M4 — Packaging MVP locale**  
+   Publish Windows, backup documentato e smoke test distribuibile.
 
 Le decisioni del modello corrente sono descritte in:
 
@@ -363,4 +392,6 @@ Le decisioni del modello corrente sono descritte in:
 - [`docs/ADR-0012-configurazione-fasce.md`](docs/ADR-0012-configurazione-fasce.md);
 - [`docs/ADR-0013-layout-kanban-swimlane.md`](docs/ADR-0013-layout-kanban-swimlane.md);
 - [`docs/ADR-0014-movimento-bidimensionale.md`](docs/ADR-0014-movimento-bidimensionale.md);
-- [`docs/ADR-0015-priorita-compatta-card.md`](docs/ADR-0015-priorita-compatta-card.md).
+- [`docs/ADR-0015-priorita-compatta-card.md`](docs/ADR-0015-priorita-compatta-card.md);
+- [`docs/ADR-0016-ultimo-salvataggio-relativo.md`](docs/ADR-0016-ultimo-salvataggio-relativo.md);
+- [`docs/ADR-0017-consolidamento-tecnico-startup.md`](docs/ADR-0017-consolidamento-tecnico-startup.md).

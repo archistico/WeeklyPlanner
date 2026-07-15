@@ -149,19 +149,6 @@ internal static class BoardViewModelTestDoubles
             return Task.CompletedTask;
         }
 
-        public Task MoveAsync(
-            long cardId,
-            long targetColumnId,
-            int targetIndex,
-            string updatedBy,
-            CancellationToken cancellationToken = default)
-        {
-            var card = Items.Single(item => item.Id == cardId);
-            card.ColumnId = targetColumnId;
-            card.SortOrder = targetIndex;
-            return Task.CompletedTask;
-        }
-
         public Task MoveToCellAsync(
             long cardId,
             long targetColumnId,

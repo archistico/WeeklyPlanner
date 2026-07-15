@@ -36,7 +36,7 @@
 - nome e database protetti durante editing e operazioni in corso;
 - cambio database differito al successivo avvio;
 - apertura delle cartelle database e dati applicativi;
-- persistenza di dimensione, posizione e stato massimizzato della finestra;
+- persistenza iniziale della geometria finestra, successivamente rimossa in M3.12.1;
 - cursore `SizeAll` durante il pan con tasto centrale;
 - versione e milestone centralizzate in `Directory.Build.props` e lette dall'assembly;
 - test di settings, blocchi della sessione, tema, polling, cartelle e geometria;
@@ -121,7 +121,7 @@ Ogni milestone deve:
 | M2.2 — Tastiera e drop feedback | **Validata** | build e test passati; linea di inserimento, no-op rifiutati, `Alt` + frecce, focus e metadati accessibili |
 | M2.2.1 — Rifinitura visuale | **Validata tramite M2.2.3** | aggiunta nell’header colonna, titolo più grande, floppy verde e cestino a destra |
 | M2.2.3 — Pan orizzontale | **Validata** | build, test e prova manuale riusciti; autore corsivo e pan con tasto centrale |
-| M2.3 — Impostazioni | **Validata** | build, test e prova manuale riusciti; configurazione runtime, tema, geometria finestra e versione centralizzata |
+| M2.3 — Impostazioni | **Validata** | configurazione runtime e tema; la geometria persistita viene rimossa in M3.12.1 |
 | M3.1 — Composizione e DI | **Validata** | composition root, constructor injection, sessione/orologio/scheduler astratti e test senza SQLite |
 | M3.2 — Timer deterministici | **Validata** | callback seriali, stop asincrono, tempo simulato e test completi del lifecycle |
 | M3.2.1 — Feedback persistenza | **Implementata, verifica richiesta** | floppy per tutte le modifiche della card e footer riallineato |
@@ -133,7 +133,9 @@ Ogni milestone deve:
 | M3.8 — Configurazione fasce | **Validata** | Generica protetta, conteggi e trasferimento atomico in eliminazione |
 | M3.9 — Layout swimlane | **Accettata nella prova manuale** | matrice TIPOLOGIA × stato, scroll globale, pan e movimento nella fascia |
 | M3.10 — Drag&drop bidimensionale | **Validata** | compilazione e 225 test passati; cambio fascia/stato atomico e indice locale |
-| M3.11 — Priorità compatta | **Build e test validati; verifica UX richiesta** | bozza persistente, badge, scadenza, creazione dalle intestazioni e avvio attivo |
+| M3.11 — Priorità compatta | **Validata** | build, test e verifica UX riusciti; bozza persistente, badge, scadenza e avvio attivo |
+| M3.12 — Ultimo salvataggio relativo | **Implementata** | floppy verde, tempo relativo e ticker condiviso |
+| M3.12.1 — Consolidamento tecnico e startup | **Implementata, verifica richiesta** | startup semplice, API 2D unica, scadenze centralizzate e conflitti espliciti |
 | M4 — Packaging MVP locale | Pianificata | publish Windows, backup documentato, smoke test e pacchetto distribuibile |
 
 ## M1.1.1 — SQLite locale affidabile
@@ -170,7 +172,7 @@ Ogni milestone deve:
 
 - `CreateAsync` assegna il `SortOrder` nel repository e non accetta l'ordine proposto dalla UI;
 - prima di una creazione vengono ricompattati eventuali buchi o duplicati legacy nella colonna;
-- `MoveAsync` riceve un indice di inserimento e ricalcola l'intera sequenza interessata;
+- `MoveToCellAsync` riceve fascia, stato e indice locale e ricalcola atomicamente le sequenze interessate;
 - spostamento e riordino nella stessa colonna vengono eseguiti in una sola transazione non differita;
 - spostamento fra colonne ricompatta sorgente e destinazione nella stessa transazione;
 - `DeleteAsync` elimina e ricompatta la colonna nella stessa transazione;
@@ -408,7 +410,7 @@ Poi verificare manualmente:
 5. modificare il nome utente a sessione libera e verificare il nuovo nome nell'header;
 6. aprire una card in editing e verificare che nome e database siano bloccati;
 7. cambiare database e verificare il messaggio di riavvio, senza scollegare la board corrente;
-8. ridimensionare, spostare o massimizzare la finestra e verificare il ripristino al riavvio;
+8. verificare che il riavvio apra sempre la board massimizzata senza ripristinare geometrie precedenti;
 9. verificare il cursore di pan durante il trascinamento con tasto centrale.
 
 ## M3.2.1 — Feedback completo di persistenza
@@ -869,7 +871,7 @@ separarle dalla bozza protetta di titolo e note.
 - nuova card sempre in Generica, nello stato selezionato;
 - priorità predefinita attiva applicata in creazione;
 - finestra principale aperta sempre massimizzata e attivata davanti alle altre applicazioni;
-- attivazione iniziale con `ShowActivated` e `Topmost` temporaneo;
+- attivazione iniziale semplificata in M3.12.1 senza `Topmost`;
 - editing mantenuto fino a Salva, Annulla o `Esc`, senza commit su `LostFocus`;
 - click sul riepilogo della priorità con apertura diretta della ComboBox;
 - polling senza ricostruzione delle swimlane mentre esistono bozze attive;
@@ -902,3 +904,80 @@ separarle dalla bozza protetta di titolo e note.
 9. finestra massimizzata e attiva all’avvio;
 10. ultima card completamente visibile;
 11. database SQLite v5 integro.
+
+
+## M3.12 — Ultimo salvataggio relativo
+
+**Obiettivo:** rendere visibile e stabile lo stato di persistenza di ogni card senza introdurre timer
+per istanza o nuove colonne nel database.
+
+### Implementazione
+
+- timestamp letto da `UpdatedAtUtc`, con fallback a `CreatedAtUtc`;
+- testo relativo `adesso`, minuti, ore e giorni;
+- tooltip con data locale completa al secondo e autore dell'ultima modifica;
+- floppy verde permanente nello stato salvato;
+- indicatori separati per dirty, saving ed error;
+- aggiornamento di tutte le card dal ticker condiviso del polling;
+- aggiornamento automatico dopo merge di modifiche esterne;
+- ADR-0016;
+- schema SQLite invariato alla versione 5.
+
+### Test
+
+- bucket temporali relativi;
+- tooltip esatto;
+- transizioni fra saved, dirty, saving ed error;
+- ticker condiviso attraverso `PollingScheduler`;
+- refresh esterno del timestamp;
+- binding XAML dei quattro stati.
+
+### Criteri di chiusura
+
+1. `dotnet build` senza warning o errori;
+2. `dotnet test` completamente verde;
+3. badge `M3.12`;
+4. indicatore salvato sempre derivato dal timestamp persistito;
+5. nessun timer creato dalle singole card;
+6. modifiche esterne riflesse automaticamente;
+7. database SQLite v5 integro.
+
+## M3.12.1 — Consolidamento tecnico e startup
+
+**Obiettivo:** eliminare le ambiguità residue prima della finestra Informazioni e cronologia.
+
+### Implementazione
+
+- `WindowState`, `ShowActivated` e `ShowInTaskbar` impostati una sola volta prima dello `Show`;
+- nessun salvataggio o ripristino di larghezza, altezza, coordinate o stato massimizzato;
+- rimozione di `WindowPlacementCalculator`, eventi di geometria e `Topmost`;
+- attivazione post-onboarding richiesta una sola volta tramite dispatcher;
+- rimozione completa di `ICardRepository.MoveAsync` e dei test legacy monodimensionali;
+- `PriorityDeadlineCalculator` usato da repository card, trasferimento fascia e ViewModel;
+- conflitto di versione rappresentato tramite `MarkConcurrencyConflict`, senza `Card` parziali;
+- un solo messaggio di conflitto e bozza sempre conservata;
+- flag `titleChanged` e `notesChanged` calcolati una sola volta;
+- schema SQLite invariato alla versione 5.
+
+### Test
+
+- settings legacy con campi geometria ignorati;
+- bootstrap privo di `Topmost` e persistenza posizione;
+- assenza di `MoveAsync` dall’interfaccia e dai test double;
+- risoluzione condivisa di durata predefinita e override di fascia;
+- conflitto concorrente con bozza intatta e singolo stato di errore;
+- test repository bidimensionali e rollback esistenti mantenuti.
+
+### Criteri di chiusura
+
+1. `dotnet build` senza warning o errori;
+2. `dotnet test` completamente verde;
+3. board massimizzata e attiva sia all’avvio diretto sia dopo onboarding;
+4. nessuna geometria finestra scritta nei settings;
+5. nessun uso di `Topmost`;
+6. nessun riferimento a `MoveAsync`;
+7. scadenze identiche in tutti i percorsi applicativi;
+8. bozza concorrente conservata con un solo messaggio;
+9. badge `M3.12.1`;
+10. database SQLite v5 integro.
+

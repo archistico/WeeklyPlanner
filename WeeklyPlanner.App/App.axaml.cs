@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using WeeklyPlanner.App.Composition;
 using WeeklyPlanner.App.Diagnostics;
 using WeeklyPlanner.App.Services;
@@ -118,7 +119,7 @@ public partial class App : Application
             desktop.MainWindow = mainWindow;
             mainWindow.Show();
             window.Close();
-            mainWindow.Activate();
+            Dispatcher.UIThread.Post(() => mainWindow.Activate(), DispatcherPriority.Background);
         };
 
         desktop.MainWindow = window;
@@ -132,15 +133,12 @@ public partial class App : Application
         var mainWindow = new MainWindow
         {
             DataContext = viewModel,
+            ShowActivated = true,
+            ShowInTaskbar = true,
+            WindowState = Avalonia.Controls.WindowState.Maximized,
         };
 
-        mainWindow.ConfigureApplicationServices(
-            compositionRoot.SettingsService,
-            compositionRoot,
-            settings);
-        mainWindow.ShowActivated = true;
-        mainWindow.ShowInTaskbar = true;
-        mainWindow.WindowState = Avalonia.Controls.WindowState.Maximized;
+        mainWindow.ConfigureApplicationServices(compositionRoot, settings);
         mainWindow.Opened += async (_, _) => await viewModel.StartAsync();
         return mainWindow;
     }

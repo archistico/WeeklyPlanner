@@ -67,7 +67,7 @@ public sealed class CardRepository : ICardRepository
                 token);
             card.CardTypeId = resolvedCardTypeId;
             await EnsureCardTypeExistsAsync(connection, transaction, resolvedCardTypeId, token);
-            var creationCardType = await GetCardTypeForMoveAsync(
+            var creationCardType = await GetCardTypeForMovementAsync(
                 connection,
                 transaction,
                 resolvedCardTypeId,
@@ -223,9 +223,9 @@ public sealed class CardRepository : ICardRepository
                     token);
             }
 
-            var contentChanged =
-                !string.Equals(currentCard.Title, card.Title, StringComparison.Ordinal) ||
-                !string.Equals(currentCard.Notes, card.Notes, StringComparison.Ordinal);
+            var titleChanged = !string.Equals(currentCard.Title, card.Title, StringComparison.Ordinal);
+            var notesChanged = !string.Equals(currentCard.Notes, card.Notes, StringComparison.Ordinal);
+            var contentChanged = titleChanged || notesChanged;
 
             var priorityAssignedAtUtc = priorityChanged
                 ? card.PriorityId is null ? null : nowText
@@ -312,11 +312,11 @@ public sealed class CardRepository : ICardRepository
                     CardEventTypes.Updated,
                     nowText,
                     updatedBy,
-                    BuildContentSummary(currentCard, card),
+                    BuildContentSummary(titleChanged, notesChanged),
                     new
                     {
-                        titleChanged = !string.Equals(currentCard.Title, card.Title, StringComparison.Ordinal),
-                        notesChanged = !string.Equals(currentCard.Notes, card.Notes, StringComparison.Ordinal),
+                        titleChanged,
+                        notesChanged,
                     },
                     token);
             }
@@ -433,146 +433,6 @@ public sealed class CardRepository : ICardRepository
         }, cancellationToken);
     }
 
-    public async Task MoveAsync(
-        long cardId,
-        long targetColumnId,
-        int targetIndex,
-        string updatedBy,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(targetIndex);
-        ArgumentException.ThrowIfNullOrWhiteSpace(updatedBy);
-
-        await _writePipeline.ExecuteAsync(async token =>
-        {
-            await using var connection = _connectionFactory.Create();
-            using var transaction = connection.BeginTransaction(deferred: false);
-
-            var currentCard = await GetByIdAsync(connection, transaction, cardId, token)
-                ?? throw new KeyNotFoundException($"La card {cardId} non esiste.");
-            var sourceColumnId = currentCard.ColumnId;
-            await EnsureCardIsNotLockedAsync(connection, transaction, cardId, token);
-            await EnsureColumnExistsAsync(connection, transaction, targetColumnId, token);
-
-            var nowText = FormatUtc(GetUtcNow());
-            var sourceCards = await GetColumnOrderAsync(connection, transaction, sourceColumnId, token);
-            var draggedCard = sourceCards.Single(card => card.Id == cardId);
-            var sourceIndex = sourceCards.IndexOf(draggedCard);
-            var finalIndex = sourceIndex;
-
-            if (sourceColumnId == targetColumnId)
-            {
-                sourceCards.RemoveAt(sourceIndex);
-
-                var adjustedIndex = sourceIndex < targetIndex
-                    ? targetIndex - 1
-                    : targetIndex;
-                finalIndex = Math.Clamp(adjustedIndex, 0, sourceCards.Count);
-                sourceCards.Insert(finalIndex, draggedCard);
-
-                if (finalIndex == sourceIndex)
-                {
-                    transaction.Commit();
-                    return;
-                }
-
-                await PersistOrderAsync(
-                    connection,
-                    transaction,
-                    sourceCards,
-                    token);
-
-                await TouchCardAsync(
-                    connection,
-                    transaction,
-                    cardId,
-                    updatedBy,
-                    nowText,
-                    token);
-
-                var columnName = await GetColumnNameAsync(
-                    connection,
-                    transaction,
-                    sourceColumnId,
-                    token);
-                await InsertEventAsync(
-                    connection,
-                    transaction,
-                    currentCard,
-                    CardEventTypes.Reordered,
-                    nowText,
-                    updatedBy,
-                    $"Ordine della card aggiornato nella colonna {columnName}.",
-                    new
-                    {
-                        columnId = sourceColumnId,
-                        previousIndex = sourceIndex,
-                        index = finalIndex,
-                    },
-                    token);
-            }
-            else
-            {
-                var targetCards = await GetColumnOrderAsync(connection, transaction, targetColumnId, token);
-                sourceCards.RemoveAt(sourceIndex);
-
-                finalIndex = Math.Clamp(targetIndex, 0, targetCards.Count);
-                draggedCard.ColumnId = targetColumnId;
-                targetCards.Insert(finalIndex, draggedCard);
-
-                await PersistOrderAsync(
-                    connection,
-                    transaction,
-                    sourceCards,
-                    token);
-                await PersistOrderAsync(
-                    connection,
-                    transaction,
-                    targetCards,
-                    token);
-
-                await TouchCardAsync(
-                    connection,
-                    transaction,
-                    cardId,
-                    updatedBy,
-                    nowText,
-                    token);
-
-                var sourceColumnName = await GetColumnNameAsync(
-                    connection,
-                    transaction,
-                    sourceColumnId,
-                    token);
-                var targetColumnName = await GetColumnNameAsync(
-                    connection,
-                    transaction,
-                    targetColumnId,
-                    token);
-                currentCard.ColumnId = targetColumnId;
-                currentCard.SortOrder = finalIndex;
-                await InsertEventAsync(
-                    connection,
-                    transaction,
-                    currentCard,
-                    CardEventTypes.Moved,
-                    nowText,
-                    updatedBy,
-                    $"Card spostata da {sourceColumnName} a {targetColumnName}.",
-                    new
-                    {
-                        previousColumnId = sourceColumnId,
-                        columnId = targetColumnId,
-                        previousIndex = sourceIndex,
-                        index = finalIndex,
-                    },
-                    token);
-            }
-
-            transaction.Commit();
-        }, cancellationToken);
-    }
-
     public async Task MoveToCellAsync(
         long cardId,
         long targetColumnId,
@@ -601,12 +461,12 @@ public sealed class CardRepository : ICardRepository
                 transaction,
                 currentCard.CardTypeId,
                 token);
-            var sourceCardType = await GetCardTypeForMoveAsync(
+            var sourceCardType = await GetCardTypeForMovementAsync(
                 connection,
                 transaction,
                 sourceCardTypeId,
                 token);
-            var targetCardType = await GetCardTypeForMoveAsync(
+            var targetCardType = await GetCardTypeForMovementAsync(
                 connection,
                 transaction,
                 targetCardTypeId,
@@ -968,7 +828,7 @@ public sealed class CardRepository : ICardRepository
         return rows.AsList();
     }
 
-    private static async Task<CardTypeMoveRow> GetCardTypeForMoveAsync(
+    private static async Task<CardTypeMoveRow> GetCardTypeForMovementAsync(
         SqliteConnection connection,
         SqliteTransaction transaction,
         long cardTypeId,
@@ -1069,22 +929,6 @@ public sealed class CardRepository : ICardRepository
         }
     }
 
-    private static async Task TouchCardAsync(
-        SqliteConnection connection,
-        SqliteTransaction transaction,
-        long cardId,
-        string updatedBy,
-        string updatedAtUtc,
-        CancellationToken cancellationToken)
-    {
-        var command = new CommandDefinition(
-            "UPDATE Cards SET UpdatedBy = @UpdatedBy, UpdatedAtUtc = @UpdatedAtUtc WHERE Id = @CardId;",
-            new { CardId = cardId, UpdatedBy = updatedBy, UpdatedAtUtc = updatedAtUtc },
-            transaction,
-            cancellationToken: cancellationToken);
-        await connection.ExecuteAsync(command);
-    }
-
     private static async Task EnsurePriorityCanBeAssignedAsync(
         SqliteConnection connection,
         SqliteTransaction transaction,
@@ -1125,7 +969,8 @@ public sealed class CardRepository : ICardRepository
 
         var command = new CommandDefinition(
             """
-            SELECT COALESCE(rule.DueHours, priority.DefaultDueHours)
+            SELECT priority.DefaultDueHours,
+                   rule.DueHours AS OverrideDueHours
             FROM Priorities priority
             LEFT JOIN PriorityTypeDeadlines rule
               ON rule.PriorityId = priority.Id
@@ -1135,13 +980,16 @@ public sealed class CardRepository : ICardRepository
             new { PriorityId = priorityId.Value, CardTypeId = cardTypeId },
             transaction,
             cancellationToken: cancellationToken);
-        var dueHours = await connection.QuerySingleOrDefaultAsync<int?>(command)
+        var deadline = await connection.QuerySingleOrDefaultAsync<PriorityDeadlineRow>(command)
             ?? throw new KeyNotFoundException($"La priorità {priorityId.Value} non esiste.");
         var assignedAt = DateTimeOffset.Parse(
             assignedAtUtc,
             CultureInfo.InvariantCulture,
             DateTimeStyles.RoundtripKind);
-        return FormatUtc(assignedAt.AddHours(dueHours));
+        return FormatUtc(PriorityDeadlineCalculator.CalculateDueAt(
+            assignedAt,
+            deadline.DefaultDueHours,
+            deadline.OverrideDueHours));
     }
 
     private async Task InsertEventAsync(
@@ -1182,11 +1030,8 @@ public sealed class CardRepository : ICardRepository
         await connection.ExecuteAsync(command);
     }
 
-    private static string BuildContentSummary(Card currentCard, Card updatedCard)
+    private static string BuildContentSummary(bool titleChanged, bool notesChanged)
     {
-        var titleChanged = !string.Equals(currentCard.Title, updatedCard.Title, StringComparison.Ordinal);
-        var notesChanged = !string.Equals(currentCard.Notes, updatedCard.Notes, StringComparison.Ordinal);
-
         return (titleChanged, notesChanged) switch
         {
             (true, true) => "Titolo e note della card modificati.",
@@ -1231,6 +1076,13 @@ public sealed class CardRepository : ICardRepository
             throw new KeyNotFoundException(
                 $"Impossibile {operation} la card {cardId}: la card non esiste più.");
         }
+    }
+
+    private sealed class PriorityDeadlineRow
+    {
+        public int DefaultDueHours { get; set; }
+
+        public int? OverrideDueHours { get; set; }
     }
 
     private sealed class PriorityAssignmentRow

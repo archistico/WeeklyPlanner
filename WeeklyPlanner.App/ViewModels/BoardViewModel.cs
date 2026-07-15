@@ -535,27 +535,15 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         }
         catch (CardConcurrencyException ex)
         {
-            card.RefreshFromModel(new Card
-            {
-                Id = card.Model.Id,
-                ColumnId = card.Model.ColumnId,
-                Title = card.Model.Title,
-                Notes = card.Model.Notes,
-                SortOrder = card.Model.SortOrder,
-                CreatedBy = card.Model.CreatedBy,
-                UpdatedBy = card.Model.UpdatedBy,
-                UpdatedAtUtc = card.Model.UpdatedAtUtc,
-                Version = ex.ActualVersion,
-            });
-            const string message =
-                "Conflitto rilevato: la bozza è conservata e non è stata sovrascritta.";
-            card.MarkSaveError(message);
+            card.MarkConcurrencyConflict();
+            const string message = CardViewModel.ConcurrencyConflictMessage;
             _logger.Warning(
                 "card.concurrency_conflict",
                 "Conflitto di concorrenza durante il salvataggio.",
                 properties: new Dictionary<string, object?>
                 {
                     ["cardId"] = card.Model.Id,
+                    ["actualVersion"] = ex.ActualVersion,
                 });
             MarkConnectionHealthy();
             StatusMessage = message;
@@ -649,9 +637,15 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
 
     private async Task PollBoardAsync(CancellationToken cancellationToken)
     {
-        if (_isDisposed ||
-            cancellationToken.IsCancellationRequested ||
-            (ConnectionState == BoardConnectionState.Error && !_automaticRetryAllowed))
+        if (_isDisposed || cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        // M3.12: un solo ticker condiviso aggiorna tutte le etichette temporali,
+        // anche quando il polling del database è temporaneamente sospeso.
+        UpdateCardTimeIndicators();
+        if (ConnectionState == BoardConnectionState.Error && !_automaticRetryAllowed)
         {
             return;
         }
@@ -1166,6 +1160,15 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         OnPropertyChanged(nameof(InProgressColumn));
         OnPropertyChanged(nameof(TestingColumn));
         OnPropertyChanged(nameof(DoneColumn));
+    }
+
+    private void UpdateCardTimeIndicators()
+    {
+        var now = _clock.Now;
+        foreach (var card in Columns.SelectMany(column => column.Cards))
+        {
+            card.UpdateDisplayNow(now);
+        }
     }
 
     private void RefreshCardPresentationCatalogs()

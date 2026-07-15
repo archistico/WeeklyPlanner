@@ -1,15 +1,8 @@
-WeeklyPlanner M3.11 — Priorità compatta sulla card
+WeeklyPlanner M3.12.1 — Consolidamento tecnico e startup
 
-- La priorità è parte della stessa bozza protetta di titolo e note.
-- La ComboBox è visibile soltanto durante la modifica, include Nessuna e si apre direttamente cliccando sul riepilogo.
-- Fuori modifica la card mostra un badge compatto con codice, nome e tempo residuo.
-- Le priorità inattive non sono più assegnabili, ma restano visibili sulle card che le possiedono.
-- Il repository calcola DueAtUtc con la regola specifica priorità/fascia e registra PriorityChanged.
-- Il cambio di priorità usa lo stesso lock, la stessa optimistic concurrency e la stessa transazione della card.
-- Ogni intestazione BACKLOG, TODO, IN PROGRESS, TESTING e DONE espone il pulsante di creazione.
-- Le nuove card vengono create nella fascia Generica e direttamente nello stato scelto.
-- Se configurata, la priorità predefinita attiva viene applicata alla nuova card.
-- La bozza resta aperta fino a Salva, Annulla o Esc e non viene chiusa dal polling o dalla perdita del focus.
-- La finestra principale si apre massimizzata, attiva e davanti alle altre applicazioni, senza restare Topmost.
-- Lo spazio inferiore della board è aumentato per mostrare integralmente l’ultima card.
-- Lo schema SQLite resta alla versione 5.
+- avvio della board massimizzato e attivo, senza persistenza della geometria;
+- rimozione di Topmost, WindowPlacementCalculator e MoveAsync;
+- calcolo delle scadenze centralizzato in PriorityDeadlineCalculator;
+- conflitti concorrenti rappresentati esplicitamente senza Card parziali;
+- calcolo delle modifiche di titolo e note non duplicato;
+- schema SQLite invariato alla versione 5.

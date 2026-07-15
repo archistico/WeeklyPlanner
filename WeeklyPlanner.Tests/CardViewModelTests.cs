@@ -35,6 +35,23 @@ public sealed class CardViewModelTests
     }
 
     [Fact]
+    public void MarkConcurrencyConflict_preserves_draft_and_shows_a_single_error_state()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.BeginEdit(CreateLock("session-a", "Emilie"), "session-a");
+        viewModel.Title = "Bozza locale";
+
+        viewModel.MarkConcurrencyConflict();
+
+        Assert.Equal("Bozza locale", viewModel.Title);
+        Assert.True(viewModel.HasExternalChanges);
+        Assert.True(viewModel.HasSaveError);
+        Assert.Equal(CardViewModel.ConcurrencyConflictMessage, viewModel.SaveStatusText);
+        Assert.False(viewModel.HasLockStatus);
+        Assert.False(viewModel.CanSave);
+    }
+
+    [Fact]
     public void RefreshFromModel_does_not_overwrite_draft_while_editing()
     {
         var viewModel = CreateViewModel();
@@ -312,6 +329,93 @@ public sealed class CardViewModelTests
 
         Assert.False(viewModel.HasSaveSuccess);
         Assert.Null(viewModel.SaveStatusText);
+    }
+
+    [Theory]
+    [InlineData(0, "adesso")]
+    [InlineData(45, "adesso")]
+    [InlineData(60, "1 minuto fa")]
+    [InlineData(300, "5 minuti fa")]
+    [InlineData(3600, "1 ora fa")]
+    [InlineData(10800, "3 ore fa")]
+    [InlineData(86400, "1 giorno fa")]
+    [InlineData(259200, "3 giorni fa")]
+    public void Last_saved_text_uses_the_required_relative_buckets(
+        int elapsedSeconds,
+        string expected)
+    {
+        var savedAt = new DateTimeOffset(2026, 7, 14, 18, 0, 0, TimeSpan.Zero);
+        var model = CreateCard(priorityId: null, cardTypeId: 5);
+        model.UpdatedAtUtc = savedAt.ToString("O");
+        var viewModel = new CardViewModel(
+            model,
+            displayNow: savedAt.AddSeconds(elapsedSeconds));
+
+        Assert.Equal(expected, viewModel.LastSavedRelativeText);
+        Assert.True(viewModel.ShowSavedPersistenceState);
+        Assert.Contains("14/07/2026", viewModel.LastSavedToolTipText);
+        Assert.Contains("Emilie", viewModel.LastSavedToolTipText);
+    }
+
+    [Fact]
+    public void Last_saved_timestamp_falls_back_to_creation_time_for_legacy_rows()
+    {
+        var createdAt = new DateTimeOffset(2026, 7, 14, 16, 0, 0, TimeSpan.Zero);
+        var model = CreateCard(priorityId: null, cardTypeId: 5);
+        model.CreatedAtUtc = createdAt.ToString("O");
+        model.UpdatedAtUtc = string.Empty;
+        var viewModel = new CardViewModel(
+            model,
+            displayNow: createdAt.AddHours(2));
+
+        Assert.True(viewModel.HasLastSavedAt);
+        Assert.Equal("2 ore fa", viewModel.LastSavedRelativeText);
+    }
+
+    [Fact]
+    public void Persistence_indicator_distinguishes_dirty_saving_error_and_saved_states()
+    {
+        var viewModel = CreateViewModel();
+
+        Assert.True(viewModel.ShowSavedPersistenceState);
+        Assert.False(viewModel.ShowDirtyPersistenceState);
+
+        viewModel.BeginEdit(CreateLock("session-a", "Emilie"), "session-a");
+        viewModel.Title = "Bozza";
+
+        Assert.True(viewModel.ShowDirtyPersistenceState);
+        Assert.False(viewModel.ShowSavedPersistenceState);
+
+        viewModel.BeginSaving();
+
+        Assert.True(viewModel.ShowSavingPersistenceState);
+        Assert.False(viewModel.ShowDirtyPersistenceState);
+
+        viewModel.MarkSaveError("Errore di prova");
+
+        Assert.True(viewModel.ShowErrorPersistenceState);
+        Assert.False(viewModel.ShowSavingPersistenceState);
+        Assert.False(viewModel.ShowSavedPersistenceState);
+    }
+
+    [Fact]
+    public void External_refresh_replaces_the_timestamp_used_by_the_relative_indicator()
+    {
+        var now = new DateTimeOffset(2026, 7, 14, 18, 30, 0, TimeSpan.Zero);
+        var model = CreateCard(priorityId: null, cardTypeId: 5);
+        model.UpdatedAtUtc = now.AddHours(-2).ToString("O");
+        var viewModel = new CardViewModel(model, displayNow: now);
+
+        Assert.Equal("2 ore fa", viewModel.LastSavedRelativeText);
+
+        var updated = CreateCard(priorityId: null, cardTypeId: 5);
+        updated.Version = 2;
+        updated.UpdatedBy = "Alice";
+        updated.UpdatedAtUtc = now.AddMinutes(-3).ToString("O");
+        viewModel.RefreshFromModel(updated);
+
+        Assert.Equal("3 minuti fa", viewModel.LastSavedRelativeText);
+        Assert.Contains("Alice", viewModel.LastSavedToolTipText);
     }
 
     [Fact]

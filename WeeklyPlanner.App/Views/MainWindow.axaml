@@ -3,12 +3,7 @@
         xmlns:vm="using:WeeklyPlanner.App.ViewModels"
         x:Class="WeeklyPlanner.App.Views.MainWindow"
         Title="{Binding WindowTitle}"
-        Width="1100" Height="700"
-        MinWidth="720" MinHeight="480"
-        WindowState="Maximized"
-        ShowActivated="True"
-        ShowInTaskbar="True"
-        WindowStartupLocation="CenterScreen">
+        MinWidth="720" MinHeight="480">
 
   <Window.Resources>
     <DataTemplate x:Key="CardTemplate" DataType="vm:CardViewModel">
@@ -37,16 +32,6 @@
             <TextBlock Text="{Binding LockStatusText}"
                        IsVisible="{Binding HasLockStatus}"
                        Foreground="#C64600"
-                       FontSize="11"
-                       TextWrapping="Wrap" />
-
-            <TextBlock Text="{Binding SaveStatusText}"
-                       IsVisible="{Binding IsSaving}"
-                       Foreground="{DynamicResource TextSecondaryBrush}"
-                       FontSize="11" />
-            <TextBlock Text="{Binding SaveStatusText}"
-                       IsVisible="{Binding HasSaveError}"
-                       Foreground="{DynamicResource DangerBrush}"
                        FontSize="11"
                        TextWrapping="Wrap" />
 
@@ -219,21 +204,67 @@
                          FontStyle="Italic"
                          Foreground="{DynamicResource TextSecondaryBrush}" />
 
-              <Border Grid.Column="2"
-                      Width="24"
-                      Height="24"
-                      Background="Transparent"
-                      ToolTip.Tip="{Binding SaveStatusText}"
-                      AutomationProperties.Name="{Binding SaveStatusText}"
-                      IsVisible="{Binding HasSaveSuccess}">
-                <Path Width="14"
-                      Height="14"
-                      HorizontalAlignment="Center"
-                      VerticalAlignment="Center"
-                      Stretch="Uniform"
-                      Fill="{DynamicResource SuccessBrush}"
-                      Data="M1,1 L11,1 L15,5 L15,15 L1,15 Z M3,2 L10,2 L10,6 L3,6 Z M4,9 L12,9 L12,14 L4,14 Z" />
-              </Border>
+              <Grid Grid.Column="2">
+                <StackPanel Orientation="Horizontal"
+                            Spacing="4"
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding ShowSavedPersistenceState}"
+                            ToolTip.Tip="{Binding LastSavedToolTipText}"
+                            AutomationProperties.Name="{Binding LastSavedToolTipText}">
+                  <Path Width="13"
+                        Height="13"
+                        Stretch="Uniform"
+                        Fill="{DynamicResource SuccessBrush}"
+                        Data="M1,1 L11,1 L15,5 L15,15 L1,15 Z M3,2 L10,2 L10,6 L3,6 Z M4,9 L12,9 L12,14 L4,14 Z" />
+                  <TextBlock Text="{Binding LastSavedRelativeText}"
+                             VerticalAlignment="Center"
+                             FontSize="10"
+                             Foreground="{DynamicResource SuccessBrush}" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal"
+                            Spacing="4"
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding ShowDirtyPersistenceState}"
+                            ToolTip.Tip="Modifiche presenti nella bozza e non ancora salvate">
+                  <TextBlock Text="✎"
+                             FontSize="11"
+                             Foreground="{DynamicResource AccentBrush}" />
+                  <TextBlock Text="Non salvata"
+                             VerticalAlignment="Center"
+                             FontSize="10"
+                             Foreground="{DynamicResource AccentBrush}" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal"
+                            Spacing="4"
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding ShowSavingPersistenceState}"
+                            ToolTip.Tip="Salvataggio in corso">
+                  <TextBlock Text="↻"
+                             FontSize="12"
+                             Foreground="{DynamicResource TextSecondaryBrush}" />
+                  <TextBlock Text="Salvataggio…"
+                             VerticalAlignment="Center"
+                             FontSize="10"
+                             Foreground="{DynamicResource TextSecondaryBrush}" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal"
+                            Spacing="4"
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding ShowErrorPersistenceState}"
+                            ToolTip.Tip="{Binding SaveStatusText}"
+                            AutomationProperties.Name="{Binding SaveStatusText}">
+                  <TextBlock Text="⚠"
+                             FontSize="11"
+                             Foreground="{DynamicResource DangerBrush}" />
+                  <TextBlock Text="Errore"
+                             VerticalAlignment="Center"
+                             FontSize="10"
+                             Foreground="{DynamicResource DangerBrush}" />
+                </StackPanel>
+              </Grid>
 
               <Button Grid.Column="3"
                       Classes="icon dangerGhost"

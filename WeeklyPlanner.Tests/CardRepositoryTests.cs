@@ -233,114 +233,6 @@ public sealed class CardRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task MoveAsync_reorders_every_affected_card_within_same_column()
-    {
-        var first = await CreateCardAsync("A");
-        await CreateCardAsync("B");
-        await CreateCardAsync("C");
-        var fourth = await CreateCardAsync("D");
-
-        await _repository.MoveAsync(fourth.Id, targetColumnId: 0, targetIndex: 1, updatedBy: "Mover");
-        await AssertColumnAsync(0, "A", "D", "B", "C");
-
-        await _repository.MoveAsync(first.Id, targetColumnId: 0, targetIndex: 4, updatedBy: "Mover");
-        await AssertColumnAsync(0, "D", "B", "C", "A");
-    }
-
-    [Fact]
-    public async Task MoveAsync_reorders_source_and_target_columns_atomically()
-    {
-        await CreateCardAsync("A", columnId: 0);
-        var moving = await CreateCardAsync("B", columnId: 0);
-        await CreateCardAsync("C", columnId: 0);
-        await CreateCardAsync("X", columnId: 1);
-        await CreateCardAsync("Y", columnId: 1);
-
-        await _repository.MoveAsync(moving.Id, targetColumnId: 1, targetIndex: 1, updatedBy: "Mover");
-
-        await AssertColumnAsync(0, "A", "C");
-        await AssertColumnAsync(1, "X", "B", "Y");
-
-        var allCards = await _repository.GetAllAsync();
-        var moved = allCards.Single(card => card.Id == moving.Id);
-        Assert.Equal(1, moved.ColumnId);
-        Assert.Equal(1, moved.SortOrder);
-        Assert.Equal("Mover", moved.UpdatedBy);
-
-        Assert.Equal("Test", allCards.Single(card => card.Title == "C").UpdatedBy);
-        Assert.Equal("Test", allCards.Single(card => card.Title == "Y").UpdatedBy);
-    }
-
-    [Fact]
-    public async Task MoveAsync_clamps_target_index_to_end_of_column()
-    {
-        var moving = await CreateCardAsync("A", columnId: 0);
-        await CreateCardAsync("X", columnId: 1);
-
-        await _repository.MoveAsync(moving.Id, targetColumnId: 1, targetIndex: 500, updatedBy: "Mover");
-
-        await AssertColumnAsync(0);
-        await AssertColumnAsync(1, "X", "A");
-    }
-
-    [Fact]
-    public async Task MoveAsync_no_op_does_not_advance_revision()
-    {
-        var card = await CreateCardAsync("A");
-        var revisionBefore = await _revisionRepository.GetCurrentRevisionAsync();
-
-        await _repository.MoveAsync(card.Id, targetColumnId: 0, targetIndex: 0, updatedBy: "Mover");
-
-        Assert.Equal(revisionBefore, await _revisionRepository.GetCurrentRevisionAsync());
-        await AssertColumnAsync(0, "A");
-    }
-
-    [Fact]
-    public async Task MoveAsync_unknown_target_column_rolls_back_without_changing_order()
-    {
-        var first = await CreateCardAsync("A");
-        await CreateCardAsync("B");
-        var revisionBefore = await _revisionRepository.GetCurrentRevisionAsync();
-
-        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
-            _repository.MoveAsync(first.Id, targetColumnId: 999, targetIndex: 0, updatedBy: "Mover"));
-
-        Assert.Equal(revisionBefore, await _revisionRepository.GetCurrentRevisionAsync());
-        await AssertColumnAsync(0, "A", "B");
-    }
-
-    [Fact]
-    public async Task MoveAsync_rolls_back_every_update_when_one_reorder_step_fails()
-    {
-        var first = await CreateCardAsync("A");
-        await CreateCardAsync("B");
-        var third = await CreateCardAsync("C");
-        var revisionBefore = await _revisionRepository.GetCurrentRevisionAsync();
-
-        using (var connection = _connectionFactory.Create())
-        using (var command = connection.CreateCommand())
-        {
-            command.CommandText =
-                $"""
-                CREATE TRIGGER TR_Test_AbortReorder
-                BEFORE UPDATE OF SortOrder ON Cards
-                WHEN NEW.Id = {first.Id}
-                BEGIN
-                    SELECT RAISE(ABORT, 'forced reorder failure');
-                END;
-                """;
-            command.ExecuteNonQuery();
-        }
-
-        var exception = await Assert.ThrowsAsync<SqliteException>(() =>
-            _repository.MoveAsync(third.Id, targetColumnId: 0, targetIndex: 0, updatedBy: "Mover"));
-
-        Assert.Equal(19, exception.SqliteErrorCode);
-        Assert.Equal(revisionBefore, await _revisionRepository.GetCurrentRevisionAsync());
-        await AssertColumnAsync(0, "A", "B", "C");
-    }
-
-    [Fact]
     public async Task MoveToCellAsync_changes_type_and_state_and_recalculates_due_date_atomically()
     {
         var genericId = GetCardTypeId(SystemCardTypeKeys.Generic, bySystemKey: true);
@@ -629,7 +521,12 @@ public sealed class CardRepositoryTests : IDisposable
         await AcquireEditLockAsync(card.Id);
 
         await Assert.ThrowsAsync<CardEditLockException>(() =>
-            _repository.MoveAsync(card.Id, 1, 0, "Mover"));
+            _repository.MoveToCellAsync(
+                card.Id,
+                targetColumnId: 1,
+                targetCardTypeId: card.CardTypeId!.Value,
+                targetCellIndex: 0,
+                updatedBy: "Mover"));
         await Assert.ThrowsAsync<CardEditLockException>(() =>
             _repository.DeleteAsync(card.Id, "Deleter"));
 
@@ -673,7 +570,12 @@ public sealed class CardRepositoryTests : IDisposable
         await CreateCardAsync("Altra card");
         revision = await AssertRevisionAdvancedAsync(revision);
 
-        await _repository.MoveAsync(card.Id, 0, 2, "Test 3");
+        await _repository.MoveToCellAsync(
+            card.Id,
+            targetColumnId: 0,
+            targetCardTypeId: card.CardTypeId!.Value,
+            targetCellIndex: 2,
+            updatedBy: "Test 3");
         revision = await AssertRevisionAdvancedAsync(revision);
 
         await _repository.DeleteAsync(card.Id, "Test 4");

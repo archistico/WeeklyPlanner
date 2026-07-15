@@ -32,19 +32,6 @@ public interface ICardRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Sposta una card nella posizione indicata e ricompatta atomicamente tutte le card
-    /// coinvolte. targetIndex è un indice di inserimento riferito alla collection di
-    /// destinazione prima della rimozione della card trascinata. L'operazione viene
-    /// rifiutata se la card ha un lock di editing attivo.
-    /// </summary>
-    Task MoveAsync(
-        long cardId,
-        long targetColumnId,
-        int targetIndex,
-        string updatedBy,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Sposta atomicamente una card nella cella identificata da fascia e stato.
     /// targetCellIndex è un indice di inserimento relativo alle sole card della cella
     /// di destinazione prima della rimozione della card trascinata.
