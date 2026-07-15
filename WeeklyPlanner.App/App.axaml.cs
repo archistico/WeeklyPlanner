@@ -118,6 +118,7 @@ public partial class App : Application
             desktop.MainWindow = mainWindow;
             mainWindow.Show();
             window.Close();
+            mainWindow.Activate();
         };
 
         desktop.MainWindow = window;
@@ -137,6 +138,9 @@ public partial class App : Application
             compositionRoot.SettingsService,
             compositionRoot,
             settings);
+        mainWindow.ShowActivated = true;
+        mainWindow.ShowInTaskbar = true;
+        mainWindow.WindowState = Avalonia.Controls.WindowState.Maximized;
         mainWindow.Opened += async (_, _) => await viewModel.StartAsync();
         return mainWindow;
     }

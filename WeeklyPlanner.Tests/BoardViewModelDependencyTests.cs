@@ -74,4 +74,34 @@ public sealed class BoardViewModelDependencyTests
         Assert.True(context.HeartbeatScheduler.IsDisposed);
         Assert.Equal(context.Session.SessionId, context.Locks.ReleasedSessionId);
     }
+    [Fact]
+    public async Task StartAsync_exposes_the_catalogs_and_revision_from_the_atomic_snapshot()
+    {
+        var context = BoardViewModelTestDoubles.Create();
+        context.Snapshot.Revision = 42;
+        context.Snapshot.Priorities =
+        [
+            new WeeklyPlanner.Core.Models.PriorityDefinition
+            {
+                Id = 1,
+                Code = "U",
+                Name = "Urgente",
+                DefaultDueHours = 72,
+                SortOrder = 0,
+                IsActive = true,
+                Version = 1,
+            },
+        ];
+
+        await context.ViewModel.StartAsync();
+
+        Assert.Equal(42, context.ViewModel.BoardRevision);
+        Assert.Single(context.ViewModel.Priorities);
+        Assert.Single(
+            context.ViewModel.CardTypes,
+            item => item.SystemKey == WeeklyPlanner.Core.Models.SystemCardTypeKeys.Generic);
+
+        await context.ViewModel.DisposeAsync();
+    }
+
 }

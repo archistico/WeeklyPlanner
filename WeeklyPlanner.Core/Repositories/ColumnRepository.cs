@@ -25,7 +25,7 @@ public sealed class ColumnRepository : IColumnRepository
         {
             await using var connection = _connectionFactory.Create();
             var command = new CommandDefinition(
-                "SELECT Id, Name, SortOrder FROM Columns ORDER BY SortOrder;",
+                "SELECT Id, Name, SortOrder, SystemKey, IsSystem FROM Columns ORDER BY SortOrder, Id;",
                 cancellationToken: token);
             var columns = await connection.QueryAsync<Column>(command);
             return (IReadOnlyList<Column>)columns.AsList();

@@ -65,6 +65,24 @@ public sealed class ApplicationCompositionRoot : IViewModelFactory, IAsyncDispos
             canEditIdentityAndDatabase,
             _folderLauncher);
 
+    public BoardConfigurationViewModel CreateBoardConfigurationViewModel(
+        string databasePath,
+        string userName)
+    {
+        var connectionFactory = new SqliteConnectionFactory(databasePath);
+        var auditContextProvider = new ApplicationSessionCardAuditContextProvider(_applicationSession);
+        var repository = new CardCatalogRepository(
+            connectionFactory,
+            RetryPolicyFactory.CreateSqliteReadPipeline(),
+            RetryPolicyFactory.CreateSqliteWritePipeline(),
+            auditContextProvider: auditContextProvider);
+        return new BoardConfigurationViewModel(
+            repository,
+            Logger,
+            _errorReferences,
+            userName);
+    }
+
     public DiagnosticsViewModel CreateDiagnosticsViewModel(
         AppSettings settings,
         BoardRuntimeDiagnostics boardRuntime) =>
@@ -80,16 +98,27 @@ public sealed class ApplicationCompositionRoot : IViewModelFactory, IAsyncDispos
         var connectionFactory = new SqliteConnectionFactory(normalizedSettings.DatabasePath);
         var readPipeline = RetryPolicyFactory.CreateSqliteReadPipeline();
         var writePipeline = RetryPolicyFactory.CreateSqliteWritePipeline();
-        var databaseInitializer = new DatabaseInitializer(connectionFactory);
+        var integrityChecker = new SqliteDatabaseIntegrityChecker();
+        var migrationBackupService = new SqliteDatabaseMigrationBackupService(
+            integrityChecker: integrityChecker,
+            clock: _clock);
+        var databaseInitializer = new DatabaseInitializer(
+            connectionFactory,
+            new EmbeddedDatabaseMigrationCatalog(),
+            integrityChecker,
+            migrationBackupService);
         var cardRepository = new CardRepository(
             connectionFactory,
             writePipeline,
-            readPipeline: readPipeline);
+            readPipeline: readPipeline,
+            auditContextProvider: new ApplicationSessionCardAuditContextProvider(_applicationSession));
         var editLockRepository = new CardEditLockRepository(
             connectionFactory,
             writePipeline,
             readPipeline: readPipeline);
-        var columnRepository = new ColumnRepository(connectionFactory, readPipeline);
+        var snapshotRepository = new BoardSnapshotRepository(
+            connectionFactory,
+            readPipeline);
         var changeDetector = new BoardChangeDetector(
             new BoardRevisionRepository(connectionFactory, readPipeline));
         var pollingScheduler = new AvaloniaRecurringTaskScheduler(
@@ -102,7 +131,7 @@ public sealed class ApplicationCompositionRoot : IViewModelFactory, IAsyncDispos
             databaseInitializer,
             cardRepository,
             editLockRepository,
-            columnRepository,
+            snapshotRepository,
             changeDetector,
             pollingScheduler,
             heartbeatScheduler,

@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using System.Globalization;
 using WeeklyPlanner.Core.Models;
 
 namespace WeeklyPlanner.App.ViewModels;
@@ -8,6 +10,9 @@ public sealed partial class CardViewModel : ViewModelBase
     private string? _notes;
     private string _originalTitle;
     private string? _originalNotes;
+    private long? _originalPriorityId;
+    private CardPriorityOptionViewModel? _selectedPriorityOption;
+    private DateTimeOffset _displayNow;
     private int _editExpectedVersion;
     private bool _isEditing;
     private bool _hasExternalChanges;
@@ -49,6 +54,98 @@ public sealed partial class CardViewModel : ViewModelBase
                 ClearSaveFeedbackAfterUserChange();
                 RaiseDerivedStateChanged();
             }
+        }
+    }
+
+
+    public ObservableCollection<CardPriorityOptionViewModel> PriorityOptions { get; } = [];
+
+    public CardPriorityOptionViewModel? SelectedPriorityOption
+    {
+        get => _selectedPriorityOption;
+        set
+        {
+            var normalized = value ?? PriorityOptions.FirstOrDefault(option => option.IsNone);
+            if (SetProperty(ref _selectedPriorityOption, normalized))
+            {
+                ClearSaveFeedbackAfterUserChange();
+                RaiseDerivedStateChanged();
+            }
+        }
+    }
+
+    public long? SelectedPriorityId => SelectedPriorityOption?.Id;
+
+    public bool IsNotEditing => !IsEditing;
+
+    public bool HasPriority => SelectedPriorityId is not null;
+
+    public string PriorityBadgeCode => SelectedPriorityOption?.BadgeText ?? "—";
+
+    public string PriorityBadgeText => SelectedPriorityOption is null || SelectedPriorityOption.IsNone
+        ? "Nessuna priorità"
+        : SelectedPriorityOption.Name;
+
+    public string PriorityToolTipText
+    {
+        get
+        {
+            if (SelectedPriorityOption is null || SelectedPriorityOption.IsNone)
+            {
+                return "Nessuna priorità assegnata.";
+            }
+
+            var description = string.IsNullOrWhiteSpace(SelectedPriorityOption.Description)
+                ? $"Priorità {SelectedPriorityOption.Name}."
+                : SelectedPriorityOption.Description.Trim();
+            if (!HasDueStatus)
+            {
+                return description;
+            }
+
+            return string.IsNullOrWhiteSpace(DueExactText)
+                ? $"{description} {DueStatusText}."
+                : $"{description} {DueStatusText}. Scadenza: {DueExactText}.";
+        }
+    }
+
+    public bool HasDueStatus => !string.IsNullOrWhiteSpace(DueStatusText);
+
+    public bool IsOverdue
+    {
+        get
+        {
+            var dueAt = GetDisplayedDueAt();
+            return dueAt is not null && dueAt.Value < _displayNow.ToUniversalTime();
+        }
+    }
+
+    public string? DueStatusText
+    {
+        get
+        {
+            var dueAt = GetDisplayedDueAt();
+            if (dueAt is null)
+            {
+                return null;
+            }
+
+            var remaining = dueAt.Value - _displayNow.ToUniversalTime();
+            if (remaining < TimeSpan.Zero)
+            {
+                return $"Scaduta da {FormatDuration(-remaining)}";
+            }
+
+            return $"Scade tra {FormatDuration(remaining)}";
+        }
+    }
+
+    public string? DueExactText
+    {
+        get
+        {
+            var dueAt = GetDisplayedDueAt();
+            return dueAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm", CultureInfo.CurrentCulture);
         }
     }
 
@@ -221,7 +318,8 @@ public sealed partial class CardViewModel : ViewModelBase
     public bool IsDirty =>
         IsEditing &&
         (!string.Equals(Title, _originalTitle, StringComparison.Ordinal) ||
-         !string.Equals(Notes, _originalNotes, StringComparison.Ordinal));
+         !string.Equals(Notes, _originalNotes, StringComparison.Ordinal) ||
+         SelectedPriorityId != _originalPriorityId);
 
     public bool IsEditorReadOnly =>
         !IsEditing ||
@@ -238,6 +336,14 @@ public sealed partial class CardViewModel : ViewModelBase
         !IsDeleteConfirmationVisible;
 
     public bool CanCancelEdit => IsEditing && !IsSaving;
+
+    public bool CanEditDraft =>
+        IsEditing &&
+        !IsSaving &&
+        !IsLockedByAnotherUser &&
+        !IsDeletedExternally &&
+        !HasLostEditLock &&
+        !HasExternalChanges;
 
     public bool CanSave =>
         IsEditing &&
@@ -296,7 +402,11 @@ public sealed partial class CardViewModel : ViewModelBase
         }
     }
 
-    public CardViewModel(Card model)
+    public CardViewModel(
+        Card model,
+        IReadOnlyList<PriorityDefinition>? priorities = null,
+        IReadOnlyList<PriorityTypeDeadline>? deadlineRules = null,
+        DateTimeOffset? displayNow = null)
     {
         ArgumentNullException.ThrowIfNull(model);
 
@@ -305,7 +415,59 @@ public sealed partial class CardViewModel : ViewModelBase
         _notes = model.Notes;
         _originalTitle = model.Title;
         _originalNotes = model.Notes;
+        _originalPriorityId = model.PriorityId;
+        _displayNow = displayNow ?? DateTimeOffset.Now;
         _editExpectedVersion = model.Version;
+        UpdatePriorityCatalog(priorities ?? [], deadlineRules ?? []);
+    }
+
+    public void UpdatePriorityCatalog(
+        IReadOnlyList<PriorityDefinition> priorities,
+        IReadOnlyList<PriorityTypeDeadline> deadlineRules)
+    {
+        ArgumentNullException.ThrowIfNull(priorities);
+        ArgumentNullException.ThrowIfNull(deadlineRules);
+
+        var selectedId = IsEditing ? SelectedPriorityId : Model.PriorityId;
+        var cardTypeId = Model.CardTypeId;
+        var options = priorities
+            .Where(priority => priority.IsActive || priority.Id == selectedId)
+            .OrderBy(priority => priority.SortOrder)
+            .ThenBy(priority => priority.Id)
+            .Select(priority =>
+            {
+                var effectiveDueHours = cardTypeId is long typeId
+                    ? deadlineRules.SingleOrDefault(rule =>
+                        rule.PriorityId == priority.Id &&
+                        rule.CardTypeId == typeId)?.DueHours ?? priority.DefaultDueHours
+                    : priority.DefaultDueHours;
+                return new CardPriorityOptionViewModel(priority, effectiveDueHours);
+            })
+            .ToList();
+
+        PriorityOptions.Clear();
+        PriorityOptions.Add(CardPriorityOptionViewModel.None);
+        foreach (var option in options)
+        {
+            PriorityOptions.Add(option);
+        }
+
+        if (selectedId is long unresolvedId &&
+            PriorityOptions.All(option => option.Id != unresolvedId))
+        {
+            PriorityOptions.Add(CardPriorityOptionViewModel.Unknown(unresolvedId));
+        }
+
+        _selectedPriorityOption = PriorityOptions.FirstOrDefault(option => option.Id == selectedId)
+            ?? PriorityOptions[0];
+        OnPropertyChanged(nameof(SelectedPriorityOption));
+        RaiseDerivedStateChanged();
+    }
+
+    public void UpdateDisplayNow(DateTimeOffset now)
+    {
+        _displayNow = now;
+        RaiseDerivedStateChanged();
     }
 
 
@@ -334,6 +496,8 @@ public sealed partial class CardViewModel : ViewModelBase
 
         _originalTitle = Model.Title;
         _originalNotes = Model.Notes;
+        _originalPriorityId = Model.PriorityId;
+        SelectPriority(Model.PriorityId);
         _editExpectedVersion = Model.Version;
         HasExternalChanges = false;
         HasLostEditLock = false;
@@ -359,6 +523,13 @@ public sealed partial class CardViewModel : ViewModelBase
         {
             Id = Model.Id,
             ColumnId = Model.ColumnId,
+            StableId = Model.StableId,
+            CreatedAtUtc = Model.CreatedAtUtc,
+            CreatedAtIsEstimated = Model.CreatedAtIsEstimated,
+            PriorityId = SelectedPriorityId,
+            CardTypeId = Model.CardTypeId,
+            PriorityAssignedAtUtc = Model.PriorityAssignedAtUtc,
+            DueAtUtc = Model.DueAtUtc,
             Title = Title.Trim(),
             Notes = Notes,
             SortOrder = Model.SortOrder,
@@ -420,6 +591,7 @@ public sealed partial class CardViewModel : ViewModelBase
     {
         Title = Model.Title;
         Notes = Model.Notes;
+        SelectPriority(Model.PriorityId);
         EndEditState();
         ClearSaveFeedback();
     }
@@ -466,7 +638,14 @@ public sealed partial class CardViewModel : ViewModelBase
             if (updatedModel.Version != _editExpectedVersion ||
                 !string.Equals(updatedModel.Title, Model.Title, StringComparison.Ordinal) ||
                 !string.Equals(updatedModel.Notes, Model.Notes, StringComparison.Ordinal) ||
-                updatedModel.ColumnId != Model.ColumnId)
+                updatedModel.ColumnId != Model.ColumnId ||
+                updatedModel.PriorityId != Model.PriorityId ||
+                updatedModel.CardTypeId != Model.CardTypeId ||
+                !string.Equals(
+                    updatedModel.PriorityAssignedAtUtc,
+                    Model.PriorityAssignedAtUtc,
+                    StringComparison.Ordinal) ||
+                !string.Equals(updatedModel.DueAtUtc, Model.DueAtUtc, StringComparison.Ordinal))
             {
                 HasExternalChanges = true;
             }
@@ -480,6 +659,10 @@ public sealed partial class CardViewModel : ViewModelBase
             updatedModel.SortOrder != Model.SortOrder ||
             !string.Equals(updatedModel.Title, Model.Title, StringComparison.Ordinal) ||
             !string.Equals(updatedModel.Notes, Model.Notes, StringComparison.Ordinal) ||
+            updatedModel.PriorityId != Model.PriorityId ||
+            updatedModel.CardTypeId != Model.CardTypeId ||
+            !string.Equals(updatedModel.PriorityAssignedAtUtc, Model.PriorityAssignedAtUtc, StringComparison.Ordinal) ||
+            !string.Equals(updatedModel.DueAtUtc, Model.DueAtUtc, StringComparison.Ordinal) ||
             !string.Equals(updatedModel.UpdatedBy, Model.UpdatedBy, StringComparison.Ordinal) ||
             !string.Equals(updatedModel.UpdatedAtUtc, Model.UpdatedAtUtc, StringComparison.Ordinal);
 
@@ -528,6 +711,13 @@ public sealed partial class CardViewModel : ViewModelBase
     private void CopyPersistedModel(Card source, bool updateEditorText)
     {
         Model.ColumnId = source.ColumnId;
+        Model.StableId = source.StableId;
+        Model.CreatedAtUtc = source.CreatedAtUtc;
+        Model.CreatedAtIsEstimated = source.CreatedAtIsEstimated;
+        Model.PriorityId = source.PriorityId;
+        Model.CardTypeId = source.CardTypeId;
+        Model.PriorityAssignedAtUtc = source.PriorityAssignedAtUtc;
+        Model.DueAtUtc = source.DueAtUtc;
         Model.Title = source.Title;
         Model.Notes = source.Notes;
         Model.SortOrder = source.SortOrder;
@@ -544,6 +734,7 @@ public sealed partial class CardViewModel : ViewModelBase
             OnPropertyChanged(nameof(Notes));
         }
 
+        SelectPriority(source.PriorityId);
         OnPropertyChanged(nameof(ColumnId));
         OnPropertyChanged(nameof(Author));
         RaiseDerivedStateChanged();
@@ -553,6 +744,8 @@ public sealed partial class CardViewModel : ViewModelBase
     {
         _originalTitle = Title;
         _originalNotes = Notes;
+        _originalPriorityId = Model.PriorityId;
+        SelectPriority(Model.PriorityId);
         _editExpectedVersion = Model.Version;
         IsSaving = false;
         IsEditing = false;
@@ -562,6 +755,64 @@ public sealed partial class CardViewModel : ViewModelBase
         IsLockedByAnotherUser = false;
         EditingUserName = null;
         RaiseDerivedStateChanged();
+    }
+
+
+    private void SelectPriority(long? priorityId)
+    {
+        var selected = PriorityOptions.FirstOrDefault(option => option.Id == priorityId)
+            ?? PriorityOptions.FirstOrDefault(option => option.IsNone);
+        if (!ReferenceEquals(_selectedPriorityOption, selected))
+        {
+            _selectedPriorityOption = selected;
+            OnPropertyChanged(nameof(SelectedPriorityOption));
+        }
+    }
+
+    private DateTimeOffset? GetDisplayedDueAt()
+    {
+        if (SelectedPriorityOption is null || SelectedPriorityOption.IsNone)
+        {
+            return null;
+        }
+
+        if (IsEditing && SelectedPriorityId != Model.PriorityId)
+        {
+            return SelectedPriorityOption.EffectiveDueHours is int hours
+                ? _displayNow.ToUniversalTime().AddHours(hours)
+                : null;
+        }
+
+        return DateTimeOffset.TryParse(
+            Model.DueAtUtc,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out var dueAt)
+            ? dueAt
+            : null;
+    }
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalMinutes < 1)
+        {
+            return "meno di un minuto";
+        }
+
+        if (duration.TotalHours < 1)
+        {
+            var minutes = Math.Max(1, (int)Math.Ceiling(duration.TotalMinutes));
+            return minutes == 1 ? "1 minuto" : $"{minutes} minuti";
+        }
+
+        if (duration.TotalDays < 2)
+        {
+            var hours = Math.Max(1, (int)Math.Ceiling(duration.TotalHours));
+            return hours == 1 ? "1 ora" : $"{hours} ore";
+        }
+
+        var days = Math.Max(1, (int)Math.Ceiling(duration.TotalDays));
+        return days == 1 ? "1 giorno" : $"{days} giorni";
     }
 
     private void ClearSaveFeedbackAfterUserChange()
@@ -582,6 +833,16 @@ public sealed partial class CardViewModel : ViewModelBase
 
     private void RaiseDerivedStateChanged()
     {
+        OnPropertyChanged(nameof(IsNotEditing));
+        OnPropertyChanged(nameof(SelectedPriorityId));
+        OnPropertyChanged(nameof(HasPriority));
+        OnPropertyChanged(nameof(PriorityBadgeCode));
+        OnPropertyChanged(nameof(PriorityBadgeText));
+        OnPropertyChanged(nameof(PriorityToolTipText));
+        OnPropertyChanged(nameof(HasDueStatus));
+        OnPropertyChanged(nameof(IsOverdue));
+        OnPropertyChanged(nameof(DueStatusText));
+        OnPropertyChanged(nameof(DueExactText));
         OnPropertyChanged(nameof(TitleLengthText));
         OnPropertyChanged(nameof(IsTitleValid));
         OnPropertyChanged(nameof(HasTitleValidationError));
@@ -591,6 +852,7 @@ public sealed partial class CardViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanDrag));
         OnPropertyChanged(nameof(CanSave));
         OnPropertyChanged(nameof(CanCancelEdit));
+        OnPropertyChanged(nameof(CanEditDraft));
         OnPropertyChanged(nameof(CanRequestDelete));
         OnPropertyChanged(nameof(ShowDeleteButton));
         OnPropertyChanged(nameof(HasLockStatus));

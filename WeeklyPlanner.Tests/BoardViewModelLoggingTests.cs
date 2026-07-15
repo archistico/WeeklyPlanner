@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using WeeklyPlanner.App.Diagnostics;
+using WeeklyPlanner.Core.Models;
 using Xunit;
 
 namespace WeeklyPlanner.Tests;
@@ -12,7 +13,8 @@ public sealed class BoardViewModelLoggingTests
         var logger = new RecordingAppLogger();
         var context = BoardViewModelTestDoubles.Create(logger: logger);
         await context.ViewModel.StartAsync();
-        var column = Assert.Single(context.ViewModel.Columns);
+        var column = Assert.IsType<WeeklyPlanner.App.ViewModels.ColumnViewModel>(
+            context.ViewModel.BacklogColumn);
 
         await context.ViewModel.AddCardCommand.ExecuteAsync(column);
 
@@ -64,7 +66,7 @@ public sealed class BoardViewModelLoggingTests
         var diagnostics = context.ViewModel.GetRuntimeDiagnostics();
 
         Assert.Equal(1, diagnostics.CardCount);
-        Assert.Equal(1, diagnostics.ColumnCount);
+        Assert.Equal(5, diagnostics.ColumnCount);
         Assert.DoesNotContain("Segreto", diagnostics.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("Contenuto sensibile", diagnostics.ToString(), StringComparison.Ordinal);
 

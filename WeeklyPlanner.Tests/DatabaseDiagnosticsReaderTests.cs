@@ -33,7 +33,18 @@ public sealed class DatabaseDiagnosticsReaderTests : IDisposable
         new DatabaseInitializer(factory).EnsureInitialized();
         using (var connection = factory.Create())
         {
-            connection.Execute("INSERT INTO Cards (ColumnId, Title, SortOrder, CreatedBy, UpdatedBy, UpdatedAtUtc) VALUES (0, 'Test', 0, 'Emilie', 'Emilie', '2026-07-14T20:00:00.0000000Z');");
+            var genericTypeId = connection.ExecuteScalar<long>(
+                "SELECT Id FROM CardTypes WHERE SystemKey = 'generic';");
+            connection.Execute(
+                """
+                INSERT INTO Cards
+                    (ColumnId, StableId, CreatedAtUtc, CreatedAtIsEstimated, CardTypeId,
+                     Title, SortOrder, CreatedBy, UpdatedBy, UpdatedAtUtc, Version)
+                VALUES
+                    (0, 'diagnostics-card', '2026-07-14T20:00:00.0000000Z', 0, @GenericTypeId,
+                     'Test', 0, 'Emilie', 'Emilie', '2026-07-14T20:00:00.0000000Z', 1);
+                """,
+                new { GenericTypeId = genericTypeId });
         }
 
         var reader = new DatabaseDiagnosticsReader();

@@ -10,11 +10,15 @@ public sealed class DatabaseInitializerTests : IDisposable
         Path.GetTempPath(),
         $"weeklyplanner-migrations-tests-{Guid.NewGuid():N}.db");
 
+    private readonly string _tempBackupDirectory = Path.Combine(
+        Path.GetTempPath(),
+        $"weeklyplanner-migration-backups-tests-{Guid.NewGuid():N}");
+
     [Fact]
     public void EnsureInitialized_creates_expected_schema_and_is_idempotent()
     {
         var connectionFactory = new SqliteConnectionFactory(_tempDbPath);
-        var initializer = new DatabaseInitializer(connectionFactory);
+        var initializer = CreateInitializer(connectionFactory);
 
         initializer.EnsureInitialized();
         initializer.EnsureInitialized();
@@ -32,15 +36,44 @@ public sealed class DatabaseInitializerTests : IDisposable
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'TR_Cards_BoardRevision_%';");
         var lockRevisionTriggers = connection.ExecuteScalar<int>(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'TR_CardEditLocks_BoardRevision_%';");
+        var priorities = connection.ExecuteScalar<int>("SELECT COUNT(*) FROM Priorities;");
+        var cardTypes = connection.ExecuteScalar<int>("SELECT COUNT(*) FROM CardTypes;");
+        var deadlineRules = connection.ExecuteScalar<int>("SELECT COUNT(*) FROM PriorityTypeDeadlines;");
+        var eventTables = connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'CardEvents';");
+        var stableIdColumns = connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('Cards') WHERE name = 'StableId';");
+        var workflowKeys = connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM Columns WHERE IsSystem = 1 AND SystemKey IS NOT NULL;");
+        var genericTypes = connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM CardTypes WHERE SystemKey = 'generic' AND IsSystem = 1 AND IsDefault = 1;");
+        var cardTypeRequiredTriggers = connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' " +
+            "AND name LIKE 'TR_Cards_CardType_Required_%';");
+        var catalogRevisionTriggers = connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' " +
+            "AND (name LIKE 'TR_Priorities_BoardRevision_%' " +
+            "OR name LIKE 'TR_CardTypes_BoardRevision_%' " +
+            "OR name LIKE 'TR_PriorityTypeDeadlines_BoardRevision_%' " +
+            "OR name LIKE 'TR_Columns_BoardRevision_%');");
 
         Assert.Equal(DatabaseInitializer.ExpectedSchemaVersion, version);
-        Assert.Equal(8, columns);
+        Assert.Equal(5, columns);
         Assert.Equal(1, boardStateRows);
         Assert.Equal(0, revision);
         Assert.Equal(1, cardVersionColumns);
         Assert.Equal(1, lockTables);
         Assert.Equal(3, cardRevisionTriggers);
         Assert.Equal(2, lockRevisionTriggers);
+        Assert.Equal(4, priorities);
+        Assert.Equal(6, cardTypes);
+        Assert.Equal(1, deadlineRules);
+        Assert.Equal(1, eventTables);
+        Assert.Equal(1, stableIdColumns);
+        Assert.Equal(5, workflowKeys);
+        Assert.Equal(1, genericTypes);
+        Assert.Equal(2, cardTypeRequiredTriggers);
+        Assert.Equal(12, catalogRevisionTriggers);
     }
 
     [Fact]
@@ -49,7 +82,7 @@ public sealed class DatabaseInitializerTests : IDisposable
         var connectionFactory = new SqliteConnectionFactory(_tempDbPath);
         CreateVersionOneDatabase(connectionFactory);
 
-        new DatabaseInitializer(connectionFactory).EnsureInitialized();
+        CreateInitializer(connectionFactory).EnsureInitialized();
 
         using var connection = connectionFactory.Create();
         var version = connection.ExecuteScalar<int>("SELECT Version FROM SchemaVersion;");
@@ -57,9 +90,11 @@ public sealed class DatabaseInitializerTests : IDisposable
         var cardVersionColumns = connection.ExecuteScalar<int>(
             "SELECT COUNT(*) FROM pragma_table_info('Cards') WHERE name = 'Version';");
 
-        Assert.Equal(3, version);
+        Assert.Equal(DatabaseInitializer.ExpectedSchemaVersion, version);
         Assert.Equal(0, revision);
         Assert.Equal(1, cardVersionColumns);
+        Assert.Single(
+            Directory.GetFiles(_tempBackupDirectory, "weeklyplanner-migration-v1-to-v5-*.db"));
     }
 
     [Fact]
@@ -68,7 +103,7 @@ public sealed class DatabaseInitializerTests : IDisposable
         var connectionFactory = new SqliteConnectionFactory(_tempDbPath);
         CreateVersionTwoDatabase(connectionFactory);
 
-        new DatabaseInitializer(connectionFactory).EnsureInitialized();
+        CreateInitializer(connectionFactory).EnsureInitialized();
 
         using var connection = connectionFactory.Create();
         var version = connection.ExecuteScalar<int>("SELECT Version FROM SchemaVersion;");
@@ -76,16 +111,37 @@ public sealed class DatabaseInitializerTests : IDisposable
         var lockTables = connection.ExecuteScalar<int>(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'CardEditLocks';");
 
-        Assert.Equal(3, version);
+        Assert.Equal(DatabaseInitializer.ExpectedSchemaVersion, version);
         Assert.Equal(1, cardVersion);
         Assert.Equal(1, lockTables);
+        Assert.Single(
+            Directory.GetFiles(_tempBackupDirectory, "weeklyplanner-migration-v2-to-v5-*.db"));
+    }
+
+    [Fact]
+    public void EnsureInitialized_does_not_create_a_backup_when_schema_is_already_current()
+    {
+        var connectionFactory = new SqliteConnectionFactory(_tempDbPath);
+        var initializer = CreateInitializer(connectionFactory);
+        initializer.EnsureInitialized();
+
+        if (Directory.Exists(_tempBackupDirectory))
+        {
+            Directory.Delete(_tempBackupDirectory, recursive: true);
+        }
+
+        initializer.EnsureInitialized();
+
+        Assert.False(Directory.Exists(_tempBackupDirectory));
+        using var connection = connectionFactory.Create();
+        Assert.Equal(DatabaseInitializer.ExpectedSchemaVersion, connection.ExecuteScalar<int>("SELECT Version FROM SchemaVersion;"));
     }
 
     [Fact]
     public void EnsureInitialized_does_not_recreate_a_database_missing_during_recovery()
     {
         var connectionFactory = new SqliteConnectionFactory(_tempDbPath);
-        var initializer = new DatabaseInitializer(connectionFactory);
+        var initializer = CreateInitializer(connectionFactory);
         initializer.EnsureInitialized();
         File.Delete(_tempDbPath);
 
@@ -100,7 +156,7 @@ public sealed class DatabaseInitializerTests : IDisposable
     public void EnsureInitialized_rejects_a_newer_schema()
     {
         var connectionFactory = new SqliteConnectionFactory(_tempDbPath);
-        var initializer = new DatabaseInitializer(connectionFactory);
+        var initializer = CreateInitializer(connectionFactory);
         initializer.EnsureInitialized();
 
         using (var connection = connectionFactory.Create())
@@ -112,6 +168,24 @@ public sealed class DatabaseInitializerTests : IDisposable
 
         Assert.Equal(99, exception.FoundVersion);
         Assert.Equal(DatabaseInitializer.ExpectedSchemaVersion, exception.ExpectedVersion);
+    }
+
+    private DatabaseInitializer CreateInitializer(SqliteConnectionFactory connectionFactory)
+    {
+        var integrityChecker = new SqliteDatabaseIntegrityChecker();
+        var backupService = new SqliteDatabaseMigrationBackupService(
+            new DatabaseMigrationBackupOptions
+            {
+                BackupDirectory = _tempBackupDirectory,
+                RetentionCount = 5,
+            },
+            integrityChecker);
+
+        return new DatabaseInitializer(
+            connectionFactory,
+            new EmbeddedDatabaseMigrationCatalog(),
+            integrityChecker,
+            backupService);
     }
 
     private static void CreateVersionOneDatabase(SqliteConnectionFactory connectionFactory)
@@ -187,6 +261,11 @@ public sealed class DatabaseInitializerTests : IDisposable
         if (File.Exists(_tempDbPath))
         {
             File.Delete(_tempDbPath);
+        }
+
+        if (Directory.Exists(_tempBackupDirectory))
+        {
+            Directory.Delete(_tempBackupDirectory, recursive: true);
         }
     }
 }

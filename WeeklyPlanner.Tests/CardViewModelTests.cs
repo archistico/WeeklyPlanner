@@ -28,6 +28,7 @@ public sealed class CardViewModelTests
         viewModel.Title = "OriginaleX";
 
         Assert.True(viewModel.IsDirty);
+        Assert.True(viewModel.CanEditDraft);
         Assert.True(viewModel.CanSave);
         Assert.Equal("OriginaleX", viewModel.Title);
         Assert.Equal("Originale", viewModel.Model.Title);
@@ -140,6 +141,104 @@ public sealed class CardViewModelTests
         Assert.Equal("Titolo pulito", edited.Title);
     }
 
+
+    [Fact]
+    public void CreateEditedModel_preserves_schema_v4_metadata()
+    {
+        var model = new Card
+        {
+            Id = 1,
+            ColumnId = 0,
+            StableId = "stable-card",
+            CreatedAtUtc = "2026-07-14T18:00:00.0000000Z",
+            CreatedAtIsEstimated = true,
+            PriorityId = 3,
+            CardTypeId = 5,
+            PriorityAssignedAtUtc = "2026-07-14T18:00:00.0000000Z",
+            DueAtUtc = "2026-09-12T18:00:00.0000000Z",
+            Title = "Originale",
+            Notes = "Note originali",
+            CreatedBy = "Emilie",
+            UpdatedBy = "Emilie",
+            UpdatedAtUtc = "2026-07-14T18:00:00.0000000Z",
+            Version = 1,
+        };
+        var viewModel = new CardViewModel(model);
+        viewModel.BeginEdit(CreateLock("session-a", "Emilie"), "session-a");
+        viewModel.Title = "Aggiornata";
+
+        var edited = viewModel.CreateEditedModel("Emilie");
+
+        Assert.Equal(model.StableId, edited.StableId);
+        Assert.Equal(model.CreatedAtUtc, edited.CreatedAtUtc);
+        Assert.True(edited.CreatedAtIsEstimated);
+        Assert.Equal(model.PriorityId, edited.PriorityId);
+        Assert.Equal(model.CardTypeId, edited.CardTypeId);
+        Assert.Equal(model.PriorityAssignedAtUtc, edited.PriorityAssignedAtUtc);
+        Assert.Equal(model.DueAtUtc, edited.DueAtUtc);
+    }
+
+    [Fact]
+    public void Priority_is_a_shared_draft_field_and_none_is_an_explicit_option()
+    {
+        var priorities = CreatePriorities();
+        var viewModel = new CardViewModel(
+            CreateCard(priorityId: null, cardTypeId: 5),
+            priorities,
+            CreateDeadlineRules(),
+            new DateTimeOffset(2026, 7, 14, 18, 30, 0, TimeSpan.Zero));
+
+        Assert.True(viewModel.IsNotEditing);
+        Assert.Equal("Nessuna priorità", viewModel.PriorityBadgeText);
+        Assert.True(Assert.Single(viewModel.PriorityOptions, option => option.IsNone).IsNone);
+
+        viewModel.BeginEdit(CreateLock("session-a", "Emilie"), "session-a");
+        viewModel.SelectedPriorityOption = viewModel.PriorityOptions.Single(option => option.Id == 3);
+
+        Assert.True(viewModel.IsDirty);
+        Assert.True(viewModel.CanSave);
+        Assert.Equal("Scade tra 60 giorni", viewModel.DueStatusText);
+        Assert.Equal(3L, viewModel.CreateEditedModel("Emilie").PriorityId);
+
+        viewModel.CancelEdit();
+
+        Assert.Null(viewModel.SelectedPriorityId);
+        Assert.False(viewModel.IsDirty);
+        Assert.Equal("Nessuna priorità", viewModel.PriorityBadgeText);
+    }
+
+    [Fact]
+    public void Read_only_priority_badge_exposes_name_due_date_and_inactive_current_value()
+    {
+        var priorities = CreatePriorities();
+        priorities.Add(new PriorityDefinition
+        {
+            Id = 9,
+            Code = "X",
+            Name = "Legacy",
+            Description = "Priorità non più assegnabile.",
+            DefaultDueHours = 24,
+            SortOrder = 9,
+            IsActive = false,
+        });
+        var viewModel = new CardViewModel(
+            CreateCard(
+                priorityId: 9,
+                cardTypeId: 5,
+                dueAtUtc: "2026-07-15T18:30:00.0000000Z"),
+            priorities,
+            CreateDeadlineRules(),
+            new DateTimeOffset(2026, 7, 14, 18, 30, 0, TimeSpan.Zero));
+
+        Assert.True(viewModel.IsNotEditing);
+        Assert.Equal("X", viewModel.PriorityBadgeCode);
+        Assert.Equal("Legacy", viewModel.PriorityBadgeText);
+        Assert.Equal("Scade tra 24 ore", viewModel.DueStatusText);
+        Assert.Contains("Priorità non più assegnabile", viewModel.PriorityToolTipText);
+        Assert.Contains(viewModel.DueExactText!, viewModel.PriorityToolTipText);
+        Assert.Contains(viewModel.PriorityOptions, option => option.Id == 9 && !option.IsActive);
+    }
+
     [Fact]
     public void Save_feedback_exposes_saving_success_and_error_states()
     {
@@ -249,6 +348,63 @@ public sealed class CardViewModelTests
         Assert.False(viewModel.IsDeleteConfirmationVisible);
         Assert.False(viewModel.CanRequestDelete);
     }
+
+    private static List<PriorityDefinition> CreatePriorities() =>
+    [
+        new PriorityDefinition
+        {
+            Id = 1,
+            Code = "U",
+            Name = "Urgente",
+            Description = "Da eseguire rapidamente.",
+            DefaultDueHours = 72,
+            SortOrder = 0,
+            IsActive = true,
+        },
+        new PriorityDefinition
+        {
+            Id = 3,
+            Code = "D",
+            Name = "Differibile",
+            Description = "Gestibile nel medio periodo.",
+            DefaultDueHours = 720,
+            SortOrder = 1,
+            IsActive = true,
+        },
+    ];
+
+    private static IReadOnlyList<PriorityTypeDeadline> CreateDeadlineRules() =>
+    [
+        new PriorityTypeDeadline
+        {
+            PriorityId = 3,
+            CardTypeId = 5,
+            DueHours = 1440,
+            Version = 1,
+        },
+    ];
+
+    private static Card CreateCard(
+        long? priorityId,
+        long? cardTypeId,
+        string? dueAtUtc = null) => new()
+    {
+        Id = 1,
+        ColumnId = 0,
+        PriorityId = priorityId,
+        CardTypeId = cardTypeId,
+        PriorityAssignedAtUtc = priorityId is null
+            ? null
+            : "2026-07-14T18:30:00.0000000Z",
+        DueAtUtc = dueAtUtc,
+        Title = "Originale",
+        Notes = "Note originali",
+        SortOrder = 0,
+        CreatedBy = "Emilie",
+        UpdatedBy = "Emilie",
+        UpdatedAtUtc = "2026-07-14T18:00:00.0000000Z",
+        Version = 1,
+    };
 
     private static CardViewModel CreateViewModel() => new(new Card
     {

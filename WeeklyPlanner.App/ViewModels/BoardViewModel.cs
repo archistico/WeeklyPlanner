@@ -22,7 +22,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
     private readonly IDatabaseInitializer _databaseInitializer;
     private readonly ICardRepository _cardRepository;
     private readonly ICardEditLockRepository _editLockRepository;
-    private readonly IColumnRepository _columnRepository;
+    private readonly IBoardSnapshotRepository _snapshotRepository;
     private readonly IBoardChangeDetector _changeDetector;
     private readonly IRecurringTaskScheduler _pollingScheduler;
     private readonly IRecurringTaskScheduler _lockHeartbeatScheduler;
@@ -46,6 +46,32 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
     private DateTimeOffset? _lastSuccessfulSyncAt;
 
     public ObservableCollection<ColumnViewModel> Columns { get; } = new();
+
+    /// <summary>
+    /// Proiezione bidimensionale della board usata dal layout a swimlane.
+    /// Le collection Columns restano la sorgente tecnica per repository e operazioni esistenti.
+    /// </summary>
+    public ObservableCollection<SwimlaneViewModel> Swimlanes { get; } = new();
+
+    public bool HasSwimlanes => Swimlanes.Count > 0;
+
+    public ColumnViewModel? BacklogColumn => GetColumnBySystemKey(WorkflowColumnKeys.Backlog);
+
+    public ColumnViewModel? TodoColumn => GetColumnBySystemKey(WorkflowColumnKeys.Todo);
+
+    public ColumnViewModel? InProgressColumn => GetColumnBySystemKey(WorkflowColumnKeys.InProgress);
+
+    public ColumnViewModel? TestingColumn => GetColumnBySystemKey(WorkflowColumnKeys.Testing);
+
+    public ColumnViewModel? DoneColumn => GetColumnBySystemKey(WorkflowColumnKeys.Done);
+
+    public IReadOnlyList<PriorityDefinition> Priorities { get; private set; } = [];
+
+    public IReadOnlyList<CardTypeDefinition> CardTypes { get; private set; } = [];
+
+    public IReadOnlyList<PriorityTypeDeadline> DeadlineRules { get; private set; } = [];
+
+    public long BoardRevision { get; private set; }
 
     public BoardConnectionState ConnectionState
     {
@@ -221,7 +247,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         IDatabaseInitializer databaseInitializer,
         ICardRepository cardRepository,
         ICardEditLockRepository editLockRepository,
-        IColumnRepository columnRepository,
+        IBoardSnapshotRepository snapshotRepository,
         IBoardChangeDetector changeDetector,
         IRecurringTaskScheduler pollingScheduler,
         IRecurringTaskScheduler lockHeartbeatScheduler,
@@ -234,7 +260,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         ArgumentNullException.ThrowIfNull(databaseInitializer);
         ArgumentNullException.ThrowIfNull(cardRepository);
         ArgumentNullException.ThrowIfNull(editLockRepository);
-        ArgumentNullException.ThrowIfNull(columnRepository);
+        ArgumentNullException.ThrowIfNull(snapshotRepository);
         ArgumentNullException.ThrowIfNull(changeDetector);
         ArgumentNullException.ThrowIfNull(pollingScheduler);
         ArgumentNullException.ThrowIfNull(lockHeartbeatScheduler);
@@ -246,7 +272,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         _databaseInitializer = databaseInitializer;
         _cardRepository = cardRepository;
         _editLockRepository = editLockRepository;
-        _columnRepository = columnRepository;
+        _snapshotRepository = snapshotRepository;
         _changeDetector = changeDetector;
         _pollingScheduler = pollingScheduler;
         _lockHeartbeatScheduler = lockHeartbeatScheduler;
@@ -862,16 +888,13 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         _hasLoadedSuccessfully = true;
     }
 
-    private async Task<BoardSnapshot> ReadInitialSnapshotAsync(CancellationToken cancellationToken)
-    {
-        var columns = await _columnRepository.GetAllAsync(cancellationToken);
-        var cards = await _cardRepository.GetAllAsync(cancellationToken);
-        var activeLocks = await _editLockRepository.GetActiveAsync(cancellationToken);
-        return new BoardSnapshot(columns, cards, activeLocks);
-    }
+    private Task<KanbanBoardSnapshot> ReadInitialSnapshotAsync(CancellationToken cancellationToken) =>
+        _snapshotRepository.GetAsync(cancellationToken);
 
-    private void ApplyInitialSnapshot(BoardSnapshot snapshot)
+    private void ApplyInitialSnapshot(KanbanBoardSnapshot snapshot)
     {
+        ApplyCatalogSnapshot(snapshot);
+
         var columnViewModels = snapshot.Columns
             .OrderBy(column => column.SortOrder)
             .Select(column => new ColumnViewModel(column))
@@ -887,7 +910,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                     $"La card {card.Id} fa riferimento alla colonna inesistente {card.ColumnId}.");
             }
 
-            var cardViewModel = new CardViewModel(card);
+            var cardViewModel = new CardViewModel(card, Priorities, DeadlineRules, _clock.Now);
             locksByCardId.TryGetValue(card.Id, out var editLock);
             cardViewModel.ApplyLockState(editLock, _applicationSession.SessionId);
             column.Cards.Add(cardViewModel);
@@ -898,6 +921,9 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         {
             Columns.Add(column);
         }
+
+        RaiseHeaderColumnsChanged();
+        RebuildSwimlanes();
     }
 
     /// <summary>
@@ -906,8 +932,12 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
     /// </summary>
     private async Task MergeCardsAsync(CancellationToken cancellationToken)
     {
-        var cards = await _cardRepository.GetAllAsync(cancellationToken);
-        var activeLocks = await GetActiveLocksByCardIdAsync(cancellationToken);
+        var snapshot = await _snapshotRepository.GetAsync(cancellationToken);
+        ApplyCatalogSnapshot(snapshot);
+        MergeColumns(snapshot.Columns);
+
+        var cards = snapshot.Cards;
+        var activeLocks = snapshot.ActiveLocks.ToDictionary(editLock => editLock.CardId);
         var cardsById = cards.ToDictionary(card => card.Id);
         var existingByCardId = Columns
             .SelectMany(column => column.Cards)
@@ -919,7 +949,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
 
             if (!existingByCardId.TryGetValue(persistedCard.Id, out var cardViewModel))
             {
-                cardViewModel = new CardViewModel(persistedCard);
+                cardViewModel = new CardViewModel(persistedCard, Priorities, DeadlineRules, _clock.Now);
                 targetColumn.Cards.Add(cardViewModel);
                 existingByCardId.Add(persistedCard.Id, cardViewModel);
                 continue;
@@ -965,6 +995,135 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
             activeLocks.TryGetValue(cardViewModel.Model.Id, out var editLock);
             cardViewModel.ApplyLockState(editLock, _applicationSession.SessionId);
         }
+
+        RefreshCardPresentationCatalogs();
+
+        // Il polling può rilevare la revisione generata dall'acquisizione del lock.
+        // Ricreare in quel momento tutte le swimlane distruggerebbe i controlli attivi
+        // (focus e popup della priorità). La proiezione viene riallineata appena termina
+        // l'ultima bozza, perché Commit e Cancel richiamano nuovamente MergeCardsAsync.
+        if (!HasActiveEdits)
+        {
+            RebuildSwimlanes();
+        }
+    }
+
+    private void RebuildSwimlanes()
+    {
+        var generic = CardTypes.SingleOrDefault(cardType =>
+            string.Equals(
+                cardType.SystemKey,
+                SystemCardTypeKeys.Generic,
+                StringComparison.Ordinal));
+        if (generic is null)
+        {
+            throw new InvalidOperationException(
+                "La board non contiene la fascia di sistema Generica.");
+        }
+
+        var cards = Columns.SelectMany(column => column.Cards).ToList();
+        var assignedCardTypeIds = cards
+            .Select(card => card.Model.CardTypeId ?? generic.Id)
+            .ToHashSet();
+        var cardTypesById = CardTypes.ToDictionary(cardType => cardType.Id);
+
+        foreach (var assignedCardTypeId in assignedCardTypeIds)
+        {
+            if (!cardTypesById.ContainsKey(assignedCardTypeId))
+            {
+                throw new InvalidOperationException(
+                    $"Una card fa riferimento alla fascia inesistente {assignedCardTypeId}.");
+            }
+        }
+
+        var lanes = CardTypes
+            .Where(cardType =>
+                cardType.Id == generic.Id ||
+                cardType.IsActive ||
+                assignedCardTypeIds.Contains(cardType.Id))
+            .OrderBy(cardType => cardType.Id == generic.Id ? 0 : 1)
+            .ThenBy(cardType => cardType.SortOrder)
+            .ThenBy(cardType => cardType.Id)
+            .Select(cardType => new SwimlaneViewModel(cardType, Columns))
+            .ToList();
+        var lanesByCardTypeId = lanes.ToDictionary(lane => lane.Id);
+
+        foreach (var card in cards
+                     .OrderBy(card => card.Model.SortOrder)
+                     .ThenBy(card => card.Model.Id))
+        {
+            var cardTypeId = card.Model.CardTypeId ?? generic.Id;
+            lanesByCardTypeId[cardTypeId]
+                .GetCell(card.Model.ColumnId)
+                .Cards.Add(card);
+        }
+
+        Swimlanes.Clear();
+        foreach (var lane in lanes)
+        {
+            Swimlanes.Add(lane);
+        }
+
+        OnPropertyChanged(nameof(HasSwimlanes));
+    }
+
+    private void ApplyCatalogSnapshot(KanbanBoardSnapshot snapshot)
+    {
+        BoardRevision = snapshot.Revision;
+        Priorities = snapshot.Priorities;
+        CardTypes = snapshot.CardTypes;
+        DeadlineRules = snapshot.DeadlineRules;
+
+        OnPropertyChanged(nameof(BoardRevision));
+        OnPropertyChanged(nameof(Priorities));
+        OnPropertyChanged(nameof(CardTypes));
+        OnPropertyChanged(nameof(DeadlineRules));
+    }
+
+    private void MergeColumns(IReadOnlyList<Column> persistedColumns)
+    {
+        var persistedById = persistedColumns.ToDictionary(column => column.Id);
+        var existingById = Columns.ToDictionary(column => column.Id);
+
+        foreach (var persistedColumn in persistedColumns)
+        {
+            if (existingById.TryGetValue(persistedColumn.Id, out var existing))
+            {
+                existing.RefreshFromModel(persistedColumn);
+            }
+            else
+            {
+                Columns.Add(new ColumnViewModel(persistedColumn));
+            }
+        }
+
+        foreach (var obsolete in Columns
+                     .Where(column => !persistedById.ContainsKey(column.Id))
+                     .ToList())
+        {
+            if (obsolete.Cards.Any(card => card.IsEditing))
+            {
+                throw new InvalidOperationException(
+                    $"La colonna {obsolete.Name} è stata rimossa mentre contiene una card in modifica.");
+            }
+
+            Columns.Remove(obsolete);
+        }
+
+        var expectedOrder = Columns
+            .OrderBy(column => column.Model.SortOrder)
+            .ThenBy(column => column.Id)
+            .ToList();
+        for (var targetIndex = 0; targetIndex < expectedOrder.Count; targetIndex++)
+        {
+            var currentIndex = Columns.IndexOf(expectedOrder[targetIndex]);
+            if (currentIndex != targetIndex)
+            {
+                Columns.Move(currentIndex, targetIndex);
+            }
+        }
+
+        RaiseHeaderColumnsChanged();
     }
 
     private async Task RefreshLockStatesAsync(CancellationToken cancellationToken)
@@ -993,6 +1152,28 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         catch
         {
             return new Dictionary<long, CardEditLock>();
+        }
+    }
+
+    private ColumnViewModel? GetColumnBySystemKey(string systemKey) =>
+        Columns.FirstOrDefault(column =>
+            string.Equals(column.SystemKey, systemKey, StringComparison.Ordinal));
+
+    private void RaiseHeaderColumnsChanged()
+    {
+        OnPropertyChanged(nameof(BacklogColumn));
+        OnPropertyChanged(nameof(TodoColumn));
+        OnPropertyChanged(nameof(InProgressColumn));
+        OnPropertyChanged(nameof(TestingColumn));
+        OnPropertyChanged(nameof(DoneColumn));
+    }
+
+    private void RefreshCardPresentationCatalogs()
+    {
+        foreach (var card in Columns.SelectMany(column => column.Cards))
+        {
+            card.UpdatePriorityCatalog(Priorities, DeadlineRules);
+            card.UpdateDisplayNow(_clock.Now);
         }
     }
 
@@ -1025,16 +1206,39 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
     private Task AddCardAsync(ColumnViewModel? column) => ExecuteWriteAsync(
         async cancellationToken =>
         {
-            if (column is null)
+            var systemKey = column?.SystemKey;
+            if (column is null ||
+                string.IsNullOrWhiteSpace(systemKey) ||
+                !WorkflowColumnKeys.Ordered.Contains(systemKey, StringComparer.Ordinal))
             {
-                return;
+                throw new InvalidOperationException(
+                    "La colonna scelta non è uno stato operativo valido.");
             }
 
+            var generic = CardTypes.SingleOrDefault(cardType =>
+                string.Equals(
+                    cardType.SystemKey,
+                    SystemCardTypeKeys.Generic,
+                    StringComparison.Ordinal))
+                ?? throw new InvalidOperationException(
+                    "La board non contiene la fascia di sistema Generica.");
+            if (!generic.IsActive)
+            {
+                throw new InvalidOperationException(
+                    "La fascia Generica è inattiva e non può ricevere nuove card.");
+            }
+
+            var genericLane = Swimlanes.Single(lane => lane.Id == generic.Id);
+            var targetCell = genericLane.GetCell(column.Id);
+            var defaultPriorityId = Priorities.SingleOrDefault(priority =>
+                priority.IsActive && priority.IsDefault)?.Id;
             var newCard = new Card
             {
                 ColumnId = column.Id,
+                CardTypeId = generic.Id,
+                PriorityId = defaultPriorityId,
                 Title = "Nuova card",
-                SortOrder = column.Cards.Count,
+                SortOrder = targetCell.Cards.Count,
                 CreatedBy = _settings.UserName,
                 UpdatedBy = _settings.UserName,
             };
@@ -1044,11 +1248,13 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
             MarkCardPersistenceSuccess(createdCard.Id, "Card inserita");
             _logger.Information(
                 "card.created",
-                "Card creata.",
+                "Card creata nella fascia Generica.",
                 new Dictionary<string, object?>
                 {
                     ["cardId"] = createdCard.Id,
                     ["columnId"] = createdCard.ColumnId,
+                    ["cardTypeId"] = createdCard.CardTypeId,
+                    ["workflowState"] = systemKey,
                 });
         },
         "Creazione card...");
@@ -1111,12 +1317,16 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         },
         "Eliminazione card...");
 
-    public Task MoveCardAsync(CardViewModel card, ColumnViewModel targetColumn, int targetIndex) =>
+    public Task MoveCardAsync(
+        CardViewModel card,
+        SwimlaneCellViewModel targetCell,
+        int targetCellIndex) =>
         ExecuteWriteAsync(
             async cancellationToken =>
             {
                 ArgumentNullException.ThrowIfNull(card);
-                ArgumentNullException.ThrowIfNull(targetColumn);
+                ArgumentNullException.ThrowIfNull(targetCell);
+                ArgumentOutOfRangeException.ThrowIfNegative(targetCellIndex);
 
                 if (!card.CanDrag)
                 {
@@ -1128,38 +1338,62 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
                         card.EditingUserName);
                 }
 
-                if (!Columns.Any(column => column.Cards.Contains(card)))
+                var sourceCell = Swimlanes
+                    .SelectMany(lane => lane.Cells)
+                    .SingleOrDefault(cell => cell.Cards.Contains(card));
+                if (sourceCell is null)
                 {
                     throw new InvalidOperationException(
                         "La card trascinata non appartiene più alla board corrente.");
                 }
 
-                var sourceColumnId = card.ColumnId;
+                if (!Swimlanes.SelectMany(lane => lane.Cells).Contains(targetCell))
+                {
+                    throw new InvalidOperationException(
+                        "La cella di destinazione non appartiene più alla board corrente.");
+                }
+
+                if (!targetCell.IsCardTypeActive &&
+                    targetCell.CardTypeId != sourceCell.CardTypeId)
+                {
+                    throw new InvalidOperationException(
+                        $"La fascia {targetCell.CardTypeName} è inattiva e non può ricevere nuove card.");
+                }
+
+                var sourceColumnId = sourceCell.ColumnId;
+                var sourceCardTypeId = sourceCell.CardTypeId;
                 var cardId = card.Model.Id;
 
-                await _cardRepository.MoveAsync(
+                await _cardRepository.MoveToCellAsync(
                     cardId,
-                    targetColumn.Id,
-                    targetIndex,
+                    targetCell.ColumnId,
+                    targetCell.CardTypeId,
+                    targetCellIndex,
                     _settings.UserName,
                     cancellationToken);
 
                 await MergeCardsAsync(cancellationToken);
-                var reorderedWithinColumn = sourceColumnId == targetColumn.Id;
-                MarkCardPersistenceSuccess(
-                    cardId,
-                    reorderedWithinColumn
-                        ? "Ordine aggiornato"
-                        : "Card spostata");
+                var sameColumn = sourceColumnId == targetCell.ColumnId;
+                var sameCardType = sourceCardTypeId == targetCell.CardTypeId;
+                var statusText = sameColumn && sameCardType
+                    ? "Ordine aggiornato"
+                    : sameColumn
+                        ? "Fascia aggiornata"
+                        : "Card spostata";
+                MarkCardPersistenceSuccess(cardId, statusText);
                 _logger.Information(
-                    reorderedWithinColumn ? "card.reordered" : "card.moved",
-                    reorderedWithinColumn ? "Ordine della card aggiornato." : "Card spostata tra colonne.",
+                    sameColumn && sameCardType ? "card.reordered" : "card.moved",
+                    sameColumn && sameCardType
+                        ? "Ordine della card aggiornato nella cella."
+                        : "Posizione bidimensionale della card aggiornata.",
                     new Dictionary<string, object?>
                     {
                         ["cardId"] = cardId,
                         ["sourceColumnId"] = sourceColumnId,
-                        ["targetColumnId"] = targetColumn.Id,
-                        ["targetIndex"] = targetIndex,
+                        ["targetColumnId"] = targetCell.ColumnId,
+                        ["sourceCardTypeId"] = sourceCardTypeId,
+                        ["targetCardTypeId"] = targetCell.CardTypeId,
+                        ["targetCellIndex"] = targetCellIndex,
                     });
             },
             "Spostamento card...");
@@ -1391,10 +1625,5 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
     private string ShortSessionId() => _applicationSession.SessionId.Length <= 8
         ? _applicationSession.SessionId
         : _applicationSession.SessionId[..8];
-
-    private sealed record BoardSnapshot(
-        IReadOnlyList<Column> Columns,
-        IReadOnlyList<Card> Cards,
-        IReadOnlyList<CardEditLock> ActiveLocks);
 
 }

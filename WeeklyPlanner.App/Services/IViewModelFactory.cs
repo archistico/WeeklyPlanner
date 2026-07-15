@@ -14,6 +14,8 @@ public interface IViewModelFactory
         AppSettings settings,
         bool canEditIdentityAndDatabase);
 
+    BoardConfigurationViewModel CreateBoardConfigurationViewModel(string databasePath, string userName);
+
     DiagnosticsViewModel CreateDiagnosticsViewModel(
         AppSettings settings,
         BoardRuntimeDiagnostics boardRuntime);

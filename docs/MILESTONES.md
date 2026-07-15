@@ -93,7 +93,7 @@
 - azione di aggiunta sempre visibile;
 - schema invariato alla versione 3.
 
-Ultimo aggiornamento: 14 luglio 2026.
+Ultimo aggiornamento: 15 luglio 2026.
 
 ## Regole di sviluppo
 
@@ -125,7 +125,15 @@ Ogni milestone deve:
 | M3.1 — Composizione e DI | **Validata** | composition root, constructor injection, sessione/orologio/scheduler astratti e test senza SQLite |
 | M3.2 — Timer deterministici | **Validata** | callback seriali, stop asincrono, tempo simulato e test completi del lifecycle |
 | M3.2.1 — Feedback persistenza | **Implementata, verifica richiesta** | floppy per tutte le modifiche della card e footer riallineato |
-| M3.3 — Logging e diagnostica | Implementata | logging locale, correlazione errori e informazioni runtime |
+| M3.3 — Logging e diagnostica | **Validata tramite M3.3.4** | logging locale, correlazione errori e informazioni runtime |
+| M3.4 — Migrazioni protette | **Validata** | backup coerente, controlli d'integrità e rollback |
+| M3.5 — Cataloghi e storico | **Validata** | schema v4, priorità, tipologie, scadenze ed eventi card |
+| M3.6.1 — Configurazione cataloghi | **Validata** | CRUD priorità e tipologie con regole di concorrenza |
+| M3.7 — Modello kanban | **Validata** | schema v5, cinque stati, Generica e snapshot atomico |
+| M3.8 — Configurazione fasce | **Validata** | Generica protetta, conteggi e trasferimento atomico in eliminazione |
+| M3.9 — Layout swimlane | **Accettata nella prova manuale** | matrice TIPOLOGIA × stato, scroll globale, pan e movimento nella fascia |
+| M3.10 — Drag&drop bidimensionale | **Validata** | compilazione e 225 test passati; cambio fascia/stato atomico e indice locale |
+| M3.11 — Priorità compatta | **Build e test validati; verifica UX richiesta** | bozza persistente, badge, scadenza, creazione dalle intestazioni e avvio attivo |
 | M4 — Packaging MVP locale | Pianificata | publish Windows, backup documentato, smoke test e pacchetto distribuibile |
 
 ## M1.1.1 — SQLite locale affidabile
@@ -496,3 +504,401 @@ Poi verificare manualmente:
 - worker del logger protetto da errori di scrittura inattesi;
 - test del disposer bounded;
 - schema SQLite invariato alla versione 3.
+
+## M3.4 — Protezione preventiva delle migrazioni
+
+### Sicurezza dell'upgrade
+
+- tutte le migrazioni mancanti vengono selezionate e validate prima di modificare lo schema;
+- i database esistenti vengono sottoposti a `PRAGMA integrity_check` e `PRAGMA foreign_key_check`;
+- prima della prima migrazione viene creato un backup coerente tramite `SqliteConnection.BackupDatabase`;
+- anche il backup viene verificato prima di procedere;
+- dopo l'ultima migrazione viene ripetuto il controllo di integrità.
+
+### Rollback
+
+- se una migrazione intermedia o il controllo finale falliscono, la connessione viene chiusa;
+- il backup sostituisce il database parzialmente migrato;
+- il file ripristinato viene verificato nuovamente;
+- la versione schema ripristinata deve coincidere con quella iniziale;
+- il backup preventivo resta disponibile dopo il rollback;
+- se anche il restore fallisce, l'errore conserva separatamente eccezione di migrazione e di recovery.
+
+### Backup e retention
+
+- cartella predefinita `%LOCALAPPDATA%\WeeklyPlanner\Backups\Migrations`;
+- nomi file con versione origine, versione destinazione, timestamp UTC e identificativo univoco;
+- retention degli ultimi cinque backup;
+- pulizia best-effort, incapace di annullare una migrazione già riuscita;
+- temporanei e sidecar SQLite rimossi durante il ripristino;
+- database nuovi parziali eliminati dopo una creazione fallita.
+
+### Test
+
+- creazione di una copia coerente con dati e versione originali;
+- retention con conservazione obbligatoria del backup corrente;
+- restore di un database parzialmente modificato;
+- upgrade protetto da schema v1 e v2;
+- schema v3 corrente senza backup superfluo;
+- migrazione v3 simulata fallita con rollback alla v1;
+- integrity check fallito prima del backup;
+- recovery fallito con conservazione delle due cause;
+- rimozione del database nuovo parziale;
+- classificazione operativa di corruzione e migrazione ripristinata.
+
+### Criteri di chiusura
+
+1. eseguire `dotnet build` e `dotnet test` senza warning o errori;
+2. verificare il badge `M3.4`;
+3. aggiornare un database v1 e verificare la presenza del backup `v1-to-v3`;
+4. aggiornare un database v2 e verificare la presenza del backup `v2-to-v3`;
+5. riaprire un database v3 e verificare che non venga creato un nuovo backup;
+6. eseguire i test di migrazione fallita e verificare versione, dati e integrità del file ripristinato;
+7. verificare che lo schema SQLite applicativo resti alla versione 3.
+
+## M3.5 — Fondazione cataloghi e storico
+
+**Obiettivo:** introdurre il modello dati necessario a priorità, tipologie, scadenze e cronologia
+senza anticipare il relativo CRUD visuale.
+
+### Implementazione
+
+- schema SQLite v4;
+- `Priorities`, `CardTypes` e `PriorityTypeDeadlines`;
+- seed U/B/D/P e tipologie iniziali;
+- regola D + Esame strumentale = 60 giorni;
+- `StableId` immutabile e metadati di creazione sulle card;
+- priorità, tipologia, data di assegnazione e scadenza snapshot;
+- `CardEvents` persistente con payload JSON versionato;
+- eventi atomici per create, update, cambio priorità/tipologia, move, reorder e delete;
+- backfill delle card esistenti con evento `Imported`;
+- trigger di revisione per cataloghi e colonne;
+- repository di lettura per cataloghi e storico paginato;
+- contesto audit della sessione iniettato nel repository;
+- 176 casi di test stimati considerando `Fact` e `InlineData`.
+
+### Vincoli
+
+- titolo e note non vengono duplicati nello storico;
+- lo storico sopravvive all'eliminazione della card;
+- un errore di audit annulla la mutazione;
+- nessuna modifica visuale alla board;
+- backup preventivo M3.4 obbligatorio prima dell'upgrade.
+
+### Verifica
+
+```powershell
+dotnet build
+dotnet test
+dotnet run --project WeeklyPlanner.App
+```
+
+Smoke test database:
+
+1. avviare un database v3 e verificare il backup `v3-to-v4`;
+2. controllare schema v4 in Diagnostica;
+3. creare, modificare, spostare, riordinare ed eliminare una card;
+4. verificare tramite SQLite che gli eventi siano presenti e privi di titolo/note nel `DataJson`;
+5. verificare `PRAGMA integrity_check` e `PRAGMA foreign_key_check`.
+
+
+## M3.6 — Gestione priorità e tipologie
+
+### Funzioni
+
+- finestra Configura board aperta dalle Impostazioni;
+- CRUD completo di priorità e tipologie;
+- riordino atomico con concorrenza ottimistica;
+- default unico e stato attivo/disattivo;
+- colori tipologia con anteprima;
+- regole di scadenza per tipologia salvate come aggregato della priorità;
+- eliminazione bloccata per valori usati dalle card.
+
+### Test
+
+- creazione, update e normalizzazione;
+- duplicati e validazioni;
+- sostituzione delle regole;
+- conflitti di versione;
+- riordino e compattazione;
+- eliminazione di voci libere e rifiuto delle voci usate;
+- ViewModel della finestra e composition root.
+
+### Criteri di chiusura
+
+1. `dotnet build` senza warning o errori;
+2. `dotnet test` completamente verde;
+3. badge `M3.6`;
+4. CRUD manuale di una priorità e una tipologia;
+5. verifica della regola D + Esame strumentale;
+6. prova di cancellazione di una voce usata;
+7. schema SQLite ancora alla versione 4.
+
+
+## M3.6.1 — Correzione test regole di scadenza
+
+### Correzione
+
+Il caricamento della configurazione seleziona la prima priorità ordinata, cioè `U`.
+Il test dell’override a 60 giorni appartiene invece alla priorità `D` e ora la seleziona esplicitamente prima dell’asserzione.
+
+### Criteri di chiusura
+
+1. `dotnet build` senza warning o errori;
+2. `dotnet test` completamente verde;
+3. badge `M3.6.1`;
+4. nessuna modifica allo schema SQLite v4 o ai CRUD.
+
+## M3.7 — Modello kanban e migrazione v5
+
+**Obiettivo:** sostituire il modello settimanale con il fondamento dati del kanban a swimlane,
+senza introdurre ancora il nuovo layout visuale.
+
+### Implementazione
+
+- schema SQLite v5;
+- colonne di sistema BACKLOG, TODO, IN PROGRESS, TESTING e DONE;
+- chiavi stabili `backlog`, `todo`, `in_progress`, `testing`, `done`;
+- proprietà `SystemKey` e `IsSystem` su colonne e tipologie;
+- tipologia di sistema Generica con chiave `generic`, promuovendo senza duplicati un’eventuale tipologia omonima già esistente;
+- tipologia obbligatoria per ogni card;
+- assegnazione automatica a Generica nel repository;
+- migrazione Backlog→BACKLOG e giorni→TODO;
+- ordine deterministico delle card migrate;
+- eventi `WorkflowMigrated` e `TypeMigrated`;
+- protezione delle colonne di sistema;
+- `BoardSnapshotRepository` con lettura transazionale completa;
+- cataloghi e revisione esposti dal `BoardViewModel`;
+- riordino delle card vicine senza aggiornare `UpdatedAtUtc` e `UpdatedBy`;
+- ADR-0011.
+
+### Test
+
+- schema nuovo v5;
+- upgrade da v1, v2, v3 e v4;
+- backup v4→v5;
+- cinque colonne e chiavi di sistema;
+- backfill Generica;
+- eventi di migrazione;
+- `CardTypeId` obbligatorio;
+- colonne di sistema e tipologia Generica protette;
+- snapshot completo e lock scaduti esclusi;
+- tipo Generica assegnato automaticamente in creazione;
+- timestamp delle card vicine preservato;
+- integrity check e foreign key check.
+
+### Criteri di chiusura
+
+1. `dotnet build` senza warning o errori;
+2. `dotnet test` completamente verde;
+3. badge `M3.7`;
+4. backup `v4-to-v5` presente durante un upgrade;
+5. cinque colonne visibili nella UI transitoria;
+6. card dei giorni migrate in TODO;
+7. card senza tipologia assegnate a Generica;
+8. database integro e senza violazioni di foreign key.
+
+## M3.8 — Configurazione delle fasce
+
+**Obiettivo:** adattare il catalogo delle tipologie alle regole operative delle future swimlane,
+senza introdurre ancora il layout bidimensionale della board.
+
+### Implementazione
+
+- terminologia UI aggiornata da tipologie a fasce;
+- conteggio delle card per fascia nello snapshot di configurazione;
+- rimozione del default configurabile dal contratto e dall’editor delle fasce;
+- Generica sempre prima, attiva e protetta, con solo il colore modificabile;
+- riordino limitato alle fasce utente con ordini contigui da 1;
+- eliminazione diretta delle fasce vuote;
+- selezione di una destinazione attiva per le fasce usate;
+- trasferimento transazionale delle card con stato e ordine invariati;
+- ricalcolo della scadenza in base alla fascia di destinazione;
+- evento `TypeChanged` per ogni card trasferita;
+- contesto audit utente/sessione/macchina collegato alla configurazione;
+- blocco dell’eliminazione in presenza di lock di modifica attivi;
+- ADR-0012;
+- schema SQLite invariato alla versione 5.
+
+### Test
+
+- salvataggio e normalizzazione delle fasce;
+- protezioni di Generica;
+- riordino senza Generica e compattazione dopo delete;
+- conteggio delle card;
+- trasferimento verso una fascia scelta;
+- conservazione di `ColumnId`, `SortOrder` e `PriorityAssignedAtUtc`;
+- ricalcolo `DueAtUtc`;
+- evento `TypeChanged` e contesto audit;
+- rollback senza destinazione e su errore di audit;
+- rifiuto con lock attivo;
+- ViewModel della finestra e composition root aggiornati.
+
+### Criteri di chiusura
+
+1. `dotnet build` senza warning o errori;
+2. `dotnet test` completamente verde;
+3. badge `M3.8`;
+4. Generica sempre prima e non riordinabile;
+5. eliminazione di una fascia vuota;
+6. eliminazione di una fascia usata con trasferimento atomico;
+7. stato e ordine delle card invariati;
+8. evento `TypeChanged` presente per ogni card trasferita;
+9. database SQLite v5 integro e senza violazioni di foreign key.
+
+## M3.9 — Layout kanban a swimlane
+
+**Obiettivo:** rendere visibile il modello bidimensionale introdotto nello schema v5 senza
+anticipare il contratto di movimento bidimensionale della M3.10.
+
+### Implementazione
+
+- intestazioni TIPOLOGIA, BACKLOG, TODO, IN PROGRESS, TESTING e DONE;
+- nuova proiezione `SwimlaneViewModel` / `SwimlaneCellViewModel`;
+- cinque celle fisse per ogni fascia;
+- card instradate tramite `CardTypeId` e `ColumnId`;
+- riuso degli stessi `CardViewModel` posseduti dalle colonne tecniche;
+- Generica sempre prima;
+- fasce attive ordinate secondo catalogo;
+- fasce inattive mostrate soltanto quando contengono card;
+- indicatore e banda con il colore della fascia;
+- altezza condivisa fra le celle della riga mediante una singola Grid;
+- celle vuote senza testo segnaposto;
+- unico ScrollViewer verticale e orizzontale;
+- pan bidimensionale con tasto centrale;
+- aggiunta transitoria nelle celle di Generica;
+- drag&drop e `Alt` + frecce ripristinati per riordino e cambio stato nella fascia corrente;
+- traduzione degli indici visuali della cella verso il contratto tecnico per colonna;
+- cambio fascia riservato alla M3.10;
+- ADR-0013;
+- schema SQLite invariato alla versione 5.
+
+### Test
+
+- ordine e visibilità delle fasce;
+- cinque celle per fascia e chiavi di workflow corrette;
+- instradamento delle card nella cella corretta;
+- fallback a Generica per dati legacy senza tipologia;
+- fascia inattiva con card visibile e fascia inattiva vuota nascosta;
+- `CardViewModel` riutilizzato dopo refresh e cambio fascia/stato;
+- XAML con intestazioni, binding alle swimlane, larghezza elastica e scroll globale;
+- indici di drop corretti in presenza di card di fasce diverse nella stessa colonna;
+- pan su entrambi gli assi.
+
+### Criteri di chiusura
+
+1. `dotnet build` senza warning o errori;
+2. `dotnet test` completamente verde;
+3. badge `M3.9`;
+4. matrice completa e allineata;
+5. scroll verticale unico;
+6. pan bidimensionale funzionante;
+7. drag&drop e tastiera disponibili nella fascia corrente;
+8. nessuna card nascosta per fascia inattiva;
+9. nessuna duplicazione di stato UI;
+10. database SQLite v5 integro.
+
+## M3.10 — Drag&drop bidimensionale
+
+**Obiettivo:** rendere la posizione `(CardTypeId, ColumnId, indice nella cella)` un contratto atomico
+fra UI e repository, eliminando la traduzione M3.9 verso l'indice globale della colonna.
+
+### Implementazione
+
+- nuovo `ICardRepository.MoveToCellAsync` con indice locale della cella;
+- cambio stato, cambio fascia e cambio simultaneo;
+- riordino nella stessa cella con semantica prima/dopo/in fondo;
+- ordinamento tecnico canonico per fascia e ricompattazione di `SortOrder`;
+- ricalcolo di `DueAtUtc` al cambio fascia, senza modificare `PriorityAssignedAtUtc`;
+- incremento della `Version` della card spostata;
+- audit `Reordered` nella stessa cella e `Moved` negli altri casi;
+- evento `Moved` con fascia, stato, indici e scadenze precedenti e successivi;
+- rollback dell'intera transazione se fallisce l'audit;
+- rifiuto delle nuove assegnazioni verso fasce inattive;
+- drop sulla colonna TIPOLOGIA rifiutato;
+- indicatori prima/dopo/in fondo conservati;
+- `Alt` + Su/Giù per riordino;
+- `Alt` + Sinistra/Destra per cambio stato;
+- `Ctrl` + `Alt` + Su/Giù per cambio fascia attiva;
+- creazione definitiva soltanto in Generica / BACKLOG;
+- rimozione di `SwimlaneMoveIndexResolver`;
+- ADR-0014;
+- schema SQLite invariato alla versione 5.
+
+### Test
+
+- movimento bidimensionale e ricalcolo della scadenza;
+- indice locale con altre fasce presenti nella stessa colonna;
+- no-op senza revisione o audit;
+- rollback completo su errore dell'evento;
+- rifiuto della fascia inattiva;
+- proiezione ViewModel dopo cambio simultaneo;
+- creazione disponibile solo nell'incrocio definitivo;
+- XAML con drop sulle celle e comando di creazione corretto.
+
+### Criteri di chiusura
+
+1. `dotnet build` senza warning o errori;
+2. `dotnet test` completamente verde;
+3. badge `M3.10`;
+4. cambio fascia e stato simultaneo;
+5. riordino locale indipendente dalle altre fasce;
+6. audit leggibile e atomico;
+7. rollback completo su errore;
+8. nessuna nuova card in fasce inattive;
+9. creazione solo in Generica / BACKLOG;
+10. database SQLite v5 integro.
+
+
+
+## M3.11 — Priorità compatta sulla card
+
+**Obiettivo:** rendere priorità e scadenza visibili e modificabili senza appesantire la card né
+separarle dalla bozza protetta di titolo e note.
+
+### Implementazione
+
+- `CardPriorityOptionViewModel` con opzione esplicita Nessuna;
+- ComboBox mostrata soltanto durante l'editing;
+- badge compatto con codice, nome, tooltip e tempo residuo fuori modifica;
+- priorità inclusa in `IsDirty`, annullamento e `CreateEditedModel`;
+- priorità inattiva corrente mantenuta nel catalogo della card;
+- anteprima della scadenza basata sulla regola specifica della fascia;
+- persistenza tramite `CardRepository.UpdateAsync`, con `PriorityChanged`;
+- cinque pulsanti di creazione nelle intestazioni operative;
+- nuova card sempre in Generica, nello stato selezionato;
+- priorità predefinita attiva applicata in creazione;
+- finestra principale aperta sempre massimizzata e attivata davanti alle altre applicazioni;
+- attivazione iniziale con `ShowActivated` e `Topmost` temporaneo;
+- editing mantenuto fino a Salva, Annulla o `Esc`, senza commit su `LostFocus`;
+- click sul riepilogo della priorità con apertura diretta della ComboBox;
+- polling senza ricostruzione delle swimlane mentre esistono bozze attive;
+- spazio inferiore della board aumentato a 160 px;
+- ADR-0015;
+- schema SQLite invariato alla versione 5.
+
+### Test
+
+- bozza, annullamento e modello editato della priorità;
+- opzione Nessuna;
+- regola di scadenza specifica della fascia;
+- badge in sola lettura e priorità inattiva corrente;
+- cinque azioni di creazione e stato iniziale corretto;
+- priorità predefinita sulle nuove card;
+- binding XAML di ComboBox, badge, pulsanti, massimizzazione e spazio inferiore;
+- assenza del vecchio handler `LostFocus`;
+- attivazione iniziale e apertura diretta del menu priorità.
+
+### Criteri di chiusura
+
+1. `dotnet build` senza warning o errori;
+2. `dotnet test` completamente verde;
+3. badge `M3.11`;
+4. priorità modificata nella stessa bozza della card;
+5. scadenza e audit coerenti;
+6. creazione dalle cinque intestazioni;
+7. editing stabile fino a Salva, Annulla o `Esc`;
+8. ComboBox priorità aperta direttamente dal riepilogo;
+9. finestra massimizzata e attiva all’avvio;
+10. ultima card completamente visibile;
+11. database SQLite v5 integro.

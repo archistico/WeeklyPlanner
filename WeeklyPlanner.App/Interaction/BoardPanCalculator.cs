@@ -10,6 +10,9 @@ public static class BoardPanCalculator
         Point currentPointerPosition)
     {
         double horizontalDelta = currentPointerPosition.X - startPointerPosition.X;
-        return new Vector(startOffset.X - horizontalDelta, startOffset.Y);
+        double verticalDelta = currentPointerPosition.Y - startPointerPosition.Y;
+        return new Vector(
+            startOffset.X - horizontalDelta,
+            startOffset.Y - verticalDelta);
     }
 }

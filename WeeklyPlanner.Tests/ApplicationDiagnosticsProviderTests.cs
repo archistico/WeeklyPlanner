@@ -23,7 +23,7 @@ public sealed class ApplicationDiagnosticsProviderTests
             logger,
             settingsService,
             new ApplicationSession("1234567890abcdef", "PC-TEST"),
-            new StubDatabaseDiagnosticsReader(new DatabaseDiagnosticsInfo(true, 2048, 3, null)),
+            new StubDatabaseDiagnosticsReader(new DatabaseDiagnosticsInfo(true, 2048, 5, null)),
             new FixedClock(new DateTimeOffset(2026, 7, 14, 20, 30, 0, TimeSpan.Zero)));
         var activeDatabasePath = Path.Combine(Path.GetTempPath(), "wp-data", "weeklyplanner.db");
         var settings = new AppSettings
@@ -36,7 +36,7 @@ public sealed class ApplicationDiagnosticsProviderTests
             "Database online",
             new DateTimeOffset(2026, 7, 14, 20, 29, 0, TimeSpan.Zero),
             HasActiveEdits: true,
-            ColumnCount: 8,
+            ColumnCount: 5,
             CardCount: 15,
             ActiveDatabasePath: activeDatabasePath);
 
@@ -45,8 +45,8 @@ public sealed class ApplicationDiagnosticsProviderTests
 
         Assert.Equal("12345678", snapshot.SessionId);
         Assert.Equal("2 KB", snapshot.DatabaseSize);
-        Assert.Equal("3", snapshot.SchemaVersion);
-        Assert.Equal("8 colonne, 15 card", snapshot.ContentSummary);
+        Assert.Equal("5", snapshot.SchemaVersion);
+        Assert.Equal("5 colonne, 15 card", snapshot.ContentSummary);
         Assert.Contains("Database online", text, StringComparison.Ordinal);
         Assert.Equal(activeDatabasePath, snapshot.DatabasePath);
         Assert.Contains(activeDatabasePath, text, StringComparison.Ordinal);

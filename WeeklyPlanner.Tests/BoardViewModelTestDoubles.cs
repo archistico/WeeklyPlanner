@@ -21,6 +21,7 @@ internal static class BoardViewModelTestDoubles
         var cards = new StubCardRepository();
         var locks = new StubCardEditLockRepository();
         var columns = new StubColumnRepository();
+        var snapshot = new StubBoardSnapshotRepository(columns, cards, locks);
         var detector = new StubBoardChangeDetector();
         var polling = new ManualRecurringTaskScheduler();
         var heartbeat = new ManualRecurringTaskScheduler();
@@ -38,7 +39,7 @@ internal static class BoardViewModelTestDoubles
             initializer,
             cards,
             locks,
-            columns,
+            snapshot,
             detector,
             polling,
             heartbeat,
@@ -53,6 +54,7 @@ internal static class BoardViewModelTestDoubles
             cards,
             locks,
             columns,
+            snapshot,
             detector,
             polling,
             heartbeat,
@@ -66,6 +68,7 @@ internal static class BoardViewModelTestDoubles
         StubCardRepository Cards,
         StubCardEditLockRepository Locks,
         StubColumnRepository Columns,
+        StubBoardSnapshotRepository Snapshot,
         StubBoardChangeDetector ChangeDetector,
         ManualRecurringTaskScheduler PollingScheduler,
         ManualRecurringTaskScheduler HeartbeatScheduler,
@@ -159,10 +162,93 @@ internal static class BoardViewModelTestDoubles
             return Task.CompletedTask;
         }
 
+        public Task MoveToCellAsync(
+            long cardId,
+            long targetColumnId,
+            long targetCardTypeId,
+            int targetCellIndex,
+            string updatedBy,
+            CancellationToken cancellationToken = default)
+        {
+            var card = Items.Single(item => item.Id == cardId);
+            var sourceColumnId = card.ColumnId;
+            var sourceCardTypeId = card.CardTypeId ?? 1;
+            var sameCell = sourceColumnId == targetColumnId &&
+                           sourceCardTypeId == targetCardTypeId;
+            var sourceCell = Items
+                .Where(item => item.ColumnId == sourceColumnId &&
+                               (item.CardTypeId ?? 1) == sourceCardTypeId)
+                .OrderBy(item => item.SortOrder)
+                .ThenBy(item => item.Id)
+                .ToList();
+            var sourceCellIndex = sourceCell.IndexOf(card);
+            var finalCellIndex = targetCellIndex;
+            if (sameCell)
+            {
+                finalCellIndex = sourceCellIndex < targetCellIndex
+                    ? targetCellIndex - 1
+                    : targetCellIndex;
+                finalCellIndex = Math.Clamp(finalCellIndex, 0, sourceCell.Count - 1);
+                if (finalCellIndex == sourceCellIndex)
+                {
+                    return Task.CompletedTask;
+                }
+            }
+
+            var sourceColumn = Items
+                .Where(item => item.ColumnId == sourceColumnId)
+                .OrderBy(item => item.SortOrder)
+                .ThenBy(item => item.Id)
+                .ToList();
+            sourceColumn.Remove(card);
+            var targetColumn = sourceColumnId == targetColumnId
+                ? sourceColumn
+                : Items
+                    .Where(item => item.ColumnId == targetColumnId)
+                    .OrderBy(item => item.SortOrder)
+                    .ThenBy(item => item.Id)
+                    .ToList();
+            var targetCell = targetColumn
+                .Where(item => (item.CardTypeId ?? 1) == targetCardTypeId)
+                .ToList();
+            if (!sameCell)
+            {
+                finalCellIndex = Math.Clamp(targetCellIndex, 0, targetCell.Count);
+            }
+
+            var globalTargetIndex = targetCell.Count == 0
+                ? targetColumn.Count
+                : finalCellIndex < targetCell.Count
+                    ? targetColumn.IndexOf(targetCell[finalCellIndex])
+                    : targetColumn.IndexOf(targetCell[^1]) + 1;
+            card.ColumnId = targetColumnId;
+            card.CardTypeId = targetCardTypeId;
+            targetColumn.Insert(globalTargetIndex, card);
+
+            for (var index = 0; index < sourceColumn.Count; index++)
+            {
+                sourceColumn[index].SortOrder = index;
+            }
+
+            for (var index = 0; index < targetColumn.Count; index++)
+            {
+                targetColumn[index].SortOrder = index;
+            }
+
+            return Task.CompletedTask;
+        }
+
         internal static Card Clone(Card card) => new()
         {
             Id = card.Id,
             ColumnId = card.ColumnId,
+            StableId = card.StableId,
+            CreatedAtUtc = card.CreatedAtUtc,
+            CreatedAtIsEstimated = card.CreatedAtIsEstimated,
+            PriorityId = card.PriorityId,
+            CardTypeId = card.CardTypeId,
+            PriorityAssignedAtUtc = card.PriorityAssignedAtUtc,
+            DueAtUtc = card.DueAtUtc,
             Title = card.Title,
             Notes = card.Notes,
             SortOrder = card.SortOrder,
@@ -250,7 +336,46 @@ internal static class BoardViewModelTestDoubles
     {
         public IReadOnlyList<Column> Items { get; set; } =
         [
-            new Column { Id = 0, Name = "Backlog", SortOrder = 0 },
+            new Column
+            {
+                Id = 0,
+                Name = "BACKLOG",
+                SortOrder = 0,
+                SystemKey = WorkflowColumnKeys.Backlog,
+                IsSystem = true,
+            },
+            new Column
+            {
+                Id = 1,
+                Name = "TODO",
+                SortOrder = 1,
+                SystemKey = WorkflowColumnKeys.Todo,
+                IsSystem = true,
+            },
+            new Column
+            {
+                Id = 2,
+                Name = "IN PROGRESS",
+                SortOrder = 2,
+                SystemKey = WorkflowColumnKeys.InProgress,
+                IsSystem = true,
+            },
+            new Column
+            {
+                Id = 3,
+                Name = "TESTING",
+                SortOrder = 3,
+                SystemKey = WorkflowColumnKeys.Testing,
+                IsSystem = true,
+            },
+            new Column
+            {
+                Id = 4,
+                Name = "DONE",
+                SortOrder = 4,
+                SystemKey = WorkflowColumnKeys.Done,
+                IsSystem = true,
+            },
         ];
 
         public Func<CancellationToken, Task<IReadOnlyList<Column>>>? GetAllHandler { get; set; }
@@ -264,6 +389,64 @@ internal static class BoardViewModelTestDoubles
             return GetAllHandler is null
                 ? Task.FromResult(Items)
                 : GetAllHandler(cancellationToken);
+        }
+    }
+
+    internal sealed class StubBoardSnapshotRepository : IBoardSnapshotRepository
+    {
+        private readonly StubColumnRepository _columns;
+        private readonly StubCardRepository _cards;
+        private readonly StubCardEditLockRepository _locks;
+
+        public long Revision { get; set; }
+
+        public IReadOnlyList<PriorityDefinition> Priorities { get; set; } = [];
+
+        public IReadOnlyList<CardTypeDefinition> CardTypes { get; set; } =
+        [
+            new CardTypeDefinition
+            {
+                Id = 1,
+                Name = "Generica",
+                ColorHex = "#64748B",
+                SortOrder = 0,
+                IsActive = true,
+                IsDefault = true,
+                Version = 1,
+                SystemKey = SystemCardTypeKeys.Generic,
+                IsSystem = true,
+            },
+        ];
+
+        public IReadOnlyList<PriorityTypeDeadline> DeadlineRules { get; set; } = [];
+
+        public int GetCallCount { get; private set; }
+
+        public StubBoardSnapshotRepository(
+            StubColumnRepository columns,
+            StubCardRepository cards,
+            StubCardEditLockRepository locks)
+        {
+            _columns = columns;
+            _cards = cards;
+            _locks = locks;
+        }
+
+        public async Task<KanbanBoardSnapshot> GetAsync(
+            CancellationToken cancellationToken = default)
+        {
+            GetCallCount++;
+            var columns = await _columns.GetAllAsync(cancellationToken);
+            var cards = await _cards.GetAllAsync(cancellationToken);
+            var locks = await _locks.GetActiveAsync(cancellationToken);
+            return new KanbanBoardSnapshot(
+                Revision,
+                columns,
+                cards,
+                Priorities,
+                CardTypes,
+                DeadlineRules,
+                locks);
         }
     }
 

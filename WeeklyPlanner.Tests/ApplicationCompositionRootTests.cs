@@ -31,6 +31,7 @@ public sealed class ApplicationCompositionRootTests : IDisposable
         var preferences = root.CreateSettingsViewModel(
             settings,
             canEditIdentityAndDatabase: true);
+        var boardConfiguration = root.CreateBoardConfigurationViewModel(settings.DatabasePath, settings.UserName);
         var diagnostics = root.CreateDiagnosticsViewModel(
             settings,
             board.GetRuntimeDiagnostics());
@@ -38,6 +39,7 @@ public sealed class ApplicationCompositionRootTests : IDisposable
         Assert.NotNull(onboarding);
         Assert.NotNull(board);
         Assert.NotNull(preferences);
+        Assert.NotNull(boardConfiguration);
         Assert.NotNull(diagnostics);
         Assert.Same(settingsService, root.SettingsService);
 
@@ -57,7 +59,9 @@ public sealed class ApplicationCompositionRootTests : IDisposable
             NullAppLogger.Instance);
 
         var board = root.CreateBoardViewModel(settings);
+        var boardConfiguration = root.CreateBoardConfigurationViewModel(databasePath, settings.UserName);
 
+        Assert.NotNull(boardConfiguration);
         Assert.False(File.Exists(databasePath));
 
         await board.DisposeAsync();

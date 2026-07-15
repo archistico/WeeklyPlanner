@@ -26,7 +26,7 @@ public partial class MainWindow : Window
     private bool _shutdownInProgress;
     private bool _shutdownCompleted;
     private CardViewModel? _dropIndicatorCard;
-    private ColumnViewModel? _dropIndicatorColumn;
+    private SwimlaneCellViewModel? _dropIndicatorCell;
     private bool _boardPanInProgress;
     private Point _boardPanStartPoint;
     private Vector _boardPanStartOffset;
@@ -34,6 +34,7 @@ public partial class MainWindow : Window
     private IViewModelFactory? _viewModelFactory;
     private AppSettings? _applicationSettings;
     private bool _windowPlacementRestored;
+    private bool _startupActivationCompleted;
 
     public MainWindow()
     {
@@ -80,6 +81,9 @@ public partial class MainWindow : Window
 
         Width = _applicationSettings.WindowWidth;
         Height = _applicationSettings.WindowHeight;
+        ShowActivated = true;
+        ShowInTaskbar = true;
+        WindowState = WindowState.Maximized;
     }
 
     private void OnWindowOpened(object? sender, EventArgs e)
@@ -125,13 +129,51 @@ public partial class MainWindow : Window
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
         }
 
-        if (_applicationSettings.WindowMaximized)
-        {
-            WindowState = WindowState.Maximized;
-        }
+        // La board usa una matrice ampia: ogni avvio parte massimizzato e attivo.
+        // Il passaggio Topmost è soltanto temporaneo e serve a evitare che Windows lasci
+        // la nuova finestra dietro ad altre applicazioni durante la creazione nativa.
+        ActivateWindowAtStartup();
 
         _windowPlacementRestored = true;
         CaptureNormalWindowPlacement();
+    }
+
+    private void ActivateWindowAtStartup()
+    {
+        if (_shutdownInProgress || _startupActivationCompleted)
+        {
+            return;
+        }
+
+        ShowActivated = true;
+        ShowInTaskbar = true;
+        EnsureWindowIsMaximized();
+        Topmost = true;
+        Activate();
+
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (_shutdownInProgress)
+                {
+                    Topmost = false;
+                    return;
+                }
+
+                EnsureWindowIsMaximized();
+                Activate();
+                Topmost = false;
+                _startupActivationCompleted = true;
+            },
+            DispatcherPriority.Background);
+    }
+
+    private void EnsureWindowIsMaximized()
+    {
+        if (!_shutdownInProgress && WindowState != WindowState.Maximized)
+        {
+            WindowState = WindowState.Maximized;
+        }
     }
 
     private void CaptureNormalWindowPlacement()
@@ -254,6 +296,9 @@ public partial class MainWindow : Window
         var window = new SettingsWindow
         {
             DataContext = viewModel,
+            BoardConfigurationViewModel = _viewModelFactory.CreateBoardConfigurationViewModel(
+                boardViewModel.CurrentDatabasePath,
+                boardViewModel.CurrentUserName),
         };
 
         viewModel.Completed += (_, result) => window.Close(result);
@@ -291,28 +336,40 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnCardFieldLostFocus(object? sender, RoutedEventArgs e)
+    private async void OnPrioritySummaryPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (sender is not Control control ||
             control.DataContext is not CardViewModel card ||
-            DataContext is not BoardViewModel boardViewModel)
+            DataContext is not BoardViewModel boardViewModel ||
+            card.IsEditing ||
+            card.IsLockedByAnotherUser ||
+            !e.GetCurrentPoint(control).Properties.IsLeftButtonPressed)
         {
             return;
         }
 
+        e.Handled = true;
         var cardBorder = FindAncestorBorderWithClass(control, "card");
-        if (cardBorder is null)
+        if (!await boardViewModel.BeginEditCardAsync(card))
         {
+            cardBorder?.Focus();
             return;
         }
 
         Dispatcher.UIThread.Post(
-            async () =>
+            () =>
             {
-                if (card.IsEditing && !cardBorder.IsKeyboardFocusWithin)
+                var priorityCombo = cardBorder?
+                    .GetVisualDescendants()
+                    .OfType<ComboBox>()
+                    .FirstOrDefault(comboBox => ReferenceEquals(comboBox.DataContext, card));
+                if (priorityCombo is null)
                 {
-                    await boardViewModel.CommitEditCommand.ExecuteAsync(card);
+                    return;
                 }
+
+                priorityCombo.Focus();
+                priorityCombo.IsDropDownOpen = true;
             },
             DispatcherPriority.Background);
     }
@@ -334,42 +391,72 @@ public partial class MainWindow : Window
 
     private async void OnCardKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.KeyModifiers != KeyModifiers.Alt ||
-            sender is not Border cardBorder ||
+        if (sender is not Border cardBorder ||
             !ReferenceEquals(e.Source, cardBorder) ||
             cardBorder.DataContext is not CardViewModel card ||
             DataContext is not BoardViewModel { CanModifyBoard: true } boardViewModel ||
-            !card.CanDrag ||
-            !TryGetMoveDirection(e.Key, out var direction))
+            !card.CanDrag)
         {
             return;
         }
 
-        var sourceColumn = boardViewModel.Columns
-            .FirstOrDefault(column => column.Cards.Contains(card));
-        if (sourceColumn is null)
+        var sourceCell = FindSwimlaneCell(boardViewModel, card);
+        var sourceLane = sourceCell is null
+            ? null
+            : boardViewModel.Swimlanes.FirstOrDefault(
+                lane => lane.Cells.Any(cell => ReferenceEquals(cell, sourceCell)));
+        if (sourceCell is null || sourceLane is null)
         {
             return;
         }
 
-        var sourceColumnIndex = boardViewModel.Columns.IndexOf(sourceColumn);
-        var sourceCardIndex = sourceColumn.Cards.IndexOf(card);
-        var cardCounts = boardViewModel.Columns.Select(column => column.Cards.Count).ToArray();
-        if (!CardMovePlanner.TryCreate(
-                sourceColumnIndex,
-                sourceCardIndex,
-                cardCounts,
-                direction,
-                out var plan))
+        SwimlaneCellViewModel? targetCell = null;
+        var targetCellIndex = 0;
+        if (e.KeyModifiers == KeyModifiers.Alt &&
+            TryGetMoveDirection(e.Key, out var direction))
+        {
+            var sourceCellIndex = IndexOfCell(sourceLane.Cells, sourceCell);
+            var sourceCardIndex = sourceCell.Cards.IndexOf(card);
+            var cardCounts = sourceLane.Cells.Select(cell => cell.Cards.Count).ToArray();
+            if (!CardMovePlanner.TryCreate(
+                    sourceCellIndex,
+                    sourceCardIndex,
+                    cardCounts,
+                    direction,
+                    out var plan))
+            {
+                return;
+            }
+
+            targetCell = sourceLane.Cells[plan.TargetColumnIndex];
+            targetCellIndex = plan.TargetIndex;
+        }
+        else if (e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Alt) &&
+                 TryGetLaneDelta(e.Key, out var laneDelta))
+        {
+            var sourceLaneIndex = IndexOfLane(boardViewModel.Swimlanes, sourceLane);
+            var targetLane = FindActiveLane(
+                boardViewModel.Swimlanes,
+                sourceLaneIndex,
+                laneDelta);
+            if (targetLane is null)
+            {
+                return;
+            }
+
+            targetCell = targetLane.GetCell(sourceCell.ColumnId);
+            targetCellIndex = Math.Min(
+                sourceCell.Cards.IndexOf(card),
+                targetCell.Cards.Count);
+        }
+
+        if (targetCell is null)
         {
             return;
         }
 
         e.Handled = true;
-        await boardViewModel.MoveCardAsync(
-            card,
-            boardViewModel.Columns[plan.TargetColumnIndex],
-            plan.TargetIndex);
+        await boardViewModel.MoveCardAsync(card, targetCell, targetCellIndex);
 
         Dispatcher.UIThread.Post(
             () => FindCardBorder(card)?.Focus(),
@@ -507,7 +594,7 @@ public partial class MainWindow : Window
         if (DataContext is not BoardViewModel { CanModifyBoard: true } boardViewModel ||
             e.Source is not Control targetControl ||
             !TryGetDraggedCard(e, boardViewModel, out var card) ||
-            !TryGetDropTarget(e, targetControl, out var dropTarget) ||
+            !TryGetDropTarget(e, targetControl, boardViewModel, card, out var dropTarget) ||
             !WouldChangePosition(boardViewModel, card, dropTarget))
         {
             ClearDropIndicators();
@@ -533,7 +620,7 @@ public partial class MainWindow : Window
             if (DataContext is not BoardViewModel { CanModifyBoard: true } boardViewModel ||
                 e.Source is not Control targetControl ||
                 !TryGetDraggedCard(e, boardViewModel, out var card) ||
-                !TryGetDropTarget(e, targetControl, out var dropTarget) ||
+                !TryGetDropTarget(e, targetControl, boardViewModel, card, out var dropTarget) ||
                 !WouldChangePosition(boardViewModel, card, dropTarget))
             {
                 e.DragEffects = DragDropEffects.None;
@@ -543,7 +630,10 @@ public partial class MainWindow : Window
 
             e.DragEffects = DragDropEffects.Move;
             e.Handled = true;
-            await boardViewModel.MoveCardAsync(card, dropTarget.Column, dropTarget.TargetIndex);
+            await boardViewModel.MoveCardAsync(
+                card,
+                dropTarget.Cell,
+                dropTarget.TargetCellIndex);
         }
         finally
         {
@@ -580,10 +670,21 @@ public partial class MainWindow : Window
     private static bool TryGetDropTarget(
         DragEventArgs e,
         Control targetControl,
+        BoardViewModel boardViewModel,
+        CardViewModel draggedCard,
         out DropTarget dropTarget)
     {
-        var columnBorder = FindAncestorBorderWithClass(targetControl, "column");
-        if (columnBorder?.DataContext is not ColumnViewModel targetColumn)
+        var cellBorder = FindAncestorBorderWithClass(targetControl, "swimlaneCell");
+        if (cellBorder?.DataContext is not SwimlaneCellViewModel targetCell)
+        {
+            dropTarget = default;
+            return false;
+        }
+
+        var sourceCell = FindSwimlaneCell(boardViewModel, draggedCard);
+        if (sourceCell is null ||
+            (!targetCell.IsCardTypeActive &&
+             sourceCell.CardTypeId != targetCell.CardTypeId))
         {
             dropTarget = default;
             return false;
@@ -591,20 +692,20 @@ public partial class MainWindow : Window
 
         var cardBorder = FindAncestorBorderWithClass(targetControl, "card");
         if (cardBorder?.DataContext is not CardViewModel targetCard ||
-            !targetColumn.Cards.Contains(targetCard))
+            !targetCell.Cards.Contains(targetCard))
         {
             dropTarget = new DropTarget(
-                targetColumn,
-                targetColumn.Cards.Count,
+                targetCell,
+                targetCell.Cards.Count,
                 TargetCard: null,
                 AfterCard: false);
             return true;
         }
 
-        var targetCardIndex = targetColumn.Cards.IndexOf(targetCard);
+        var targetCardIndex = targetCell.Cards.IndexOf(targetCard);
         var afterCard = e.GetPosition(cardBorder).Y >= cardBorder.Bounds.Height / 2;
         dropTarget = new DropTarget(
-            targetColumn,
+            targetCell,
             afterCard ? targetCardIndex + 1 : targetCardIndex,
             targetCard,
             afterCard);
@@ -616,26 +717,32 @@ public partial class MainWindow : Window
         CardViewModel card,
         DropTarget dropTarget)
     {
-        var sourceColumn = boardViewModel.Columns.FirstOrDefault(column => column.Cards.Contains(card));
-        if (sourceColumn is null)
+        var sourceCell = FindSwimlaneCell(boardViewModel, card);
+        if (sourceCell is null)
         {
             return false;
         }
 
-        var sourceColumnIndex = boardViewModel.Columns.IndexOf(sourceColumn);
-        var targetColumnIndex = boardViewModel.Columns.IndexOf(dropTarget.Column);
+        if (sourceCell.CardTypeId != dropTarget.Cell.CardTypeId ||
+            sourceCell.ColumnId != dropTarget.Cell.ColumnId)
+        {
+            return true;
+        }
+
         return CardMovePlanner.WouldChangePosition(
-            sourceColumnIndex,
-            sourceColumn.Cards.IndexOf(card),
-            sourceColumn.Cards.Count,
-            targetColumnIndex,
-            dropTarget.TargetIndex);
+            sourceColumnIndex: 0,
+            sourceCardIndex: sourceCell.Cards.IndexOf(card),
+            sourceColumnCount: sourceCell.Cards.Count,
+            targetColumnIndex: 0,
+            targetIndex: dropTarget.TargetCellIndex);
     }
 
     private void SetDropIndicator(DropTarget dropTarget)
     {
         if (ReferenceEquals(_dropIndicatorCard, dropTarget.TargetCard) &&
-            ReferenceEquals(_dropIndicatorColumn, dropTarget.TargetCard is null ? dropTarget.Column : null))
+            ReferenceEquals(
+                _dropIndicatorCell,
+                dropTarget.TargetCard is null ? dropTarget.Cell : null))
         {
             if (dropTarget.TargetCard is not null)
             {
@@ -653,17 +760,39 @@ public partial class MainWindow : Window
         }
         else
         {
-            _dropIndicatorColumn = dropTarget.Column;
-            _dropIndicatorColumn.SetDropAtEnd(true);
+            _dropIndicatorCell = dropTarget.Cell;
+            _dropIndicatorCell.SetDropAtEnd(true);
         }
     }
 
     private void ClearDropIndicators()
     {
         _dropIndicatorCard?.ClearDropIndicator();
-        _dropIndicatorColumn?.SetDropAtEnd(false);
+        _dropIndicatorCell?.SetDropAtEnd(false);
         _dropIndicatorCard = null;
-        _dropIndicatorColumn = null;
+        _dropIndicatorCell = null;
+    }
+
+    private static SwimlaneCellViewModel? FindSwimlaneCell(
+        BoardViewModel boardViewModel,
+        CardViewModel card) => boardViewModel.Swimlanes
+        .SelectMany(lane => lane.Cells)
+        .FirstOrDefault(cell => cell.Cards.Contains(card));
+
+    private static int IndexOfCell(
+        IReadOnlyList<SwimlaneCellViewModel> cells,
+        SwimlaneCellViewModel targetCell)
+    {
+        for (var index = 0; index < cells.Count; index++)
+        {
+            if (ReferenceEquals(cells[index], targetCell))
+            {
+                return index;
+            }
+        }
+
+        throw new InvalidOperationException(
+            "La cella non appartiene alla fascia visualizzata.");
     }
 
     private Border? FindCardBorder(CardViewModel card) => this
@@ -695,6 +824,56 @@ public partial class MainWindow : Window
         }
     }
 
+    private static bool TryGetLaneDelta(Key key, out int delta)
+    {
+        switch (key)
+        {
+            case Key.Up:
+                delta = -1;
+                return true;
+            case Key.Down:
+                delta = 1;
+                return true;
+            default:
+                delta = 0;
+                return false;
+        }
+    }
+
+    private static SwimlaneViewModel? FindActiveLane(
+        IReadOnlyList<SwimlaneViewModel> lanes,
+        int sourceLaneIndex,
+        int delta)
+    {
+        for (var index = sourceLaneIndex + delta;
+             index >= 0 && index < lanes.Count;
+             index += delta)
+        {
+            if (lanes[index].IsActive)
+            {
+                return lanes[index];
+            }
+        }
+
+        return null;
+    }
+
+    private static int IndexOfLane(
+        IReadOnlyList<SwimlaneViewModel> lanes,
+        SwimlaneViewModel targetLane)
+    {
+        for (var index = 0; index < lanes.Count; index++)
+        {
+            if (ReferenceEquals(lanes[index], targetLane))
+            {
+                return index;
+            }
+        }
+
+        throw new InvalidOperationException(
+            "La fascia non appartiene alla board visualizzata.");
+    }
+
     private static Border? FindAncestorBorderWithClass(Control control, string className)
     {
         var border = control.FindAncestorOfType<Border>(includeSelf: true);
@@ -707,8 +886,8 @@ public partial class MainWindow : Window
     }
 
     private readonly record struct DropTarget(
-        ColumnViewModel Column,
-        int TargetIndex,
+        SwimlaneCellViewModel Cell,
+        int TargetCellIndex,
         CardViewModel? TargetCard,
         bool AfterCard);
 }

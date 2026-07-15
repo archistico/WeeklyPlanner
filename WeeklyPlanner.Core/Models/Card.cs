@@ -12,6 +12,21 @@ public sealed class Card
 
     public long ColumnId { get; set; }
 
+    /// <summary>Identificativo immutabile usato dallo storico anche dopo l'eliminazione.</summary>
+    public string StableId { get; set; } = string.Empty;
+
+    public string CreatedAtUtc { get; set; } = string.Empty;
+
+    public bool CreatedAtIsEstimated { get; set; }
+
+    public long? PriorityId { get; set; }
+
+    public long? CardTypeId { get; set; }
+
+    public string? PriorityAssignedAtUtc { get; set; }
+
+    public string? DueAtUtc { get; set; }
+
     public string Title { get; set; } = string.Empty;
 
     public string? Notes { get; set; }

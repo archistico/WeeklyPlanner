@@ -1,0 +1,331 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:WeeklyPlanner.App.ViewModels"
+        x:Class="WeeklyPlanner.App.Views.BoardConfigurationWindow"
+        Title="WeeklyPlanner - Configura board"
+        Width="980" Height="700"
+        MinWidth="820" MinHeight="600"
+        WindowStartupLocation="CenterOwner"
+        Opened="OnOpened">
+  <Grid RowDefinitions="Auto,*,Auto">
+    <Border Grid.Row="0" Classes="headerBar">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Spacing="2">
+          <TextBlock Text="Configura board" FontSize="20" FontWeight="SemiBold" />
+          <TextBlock Text="Gestisci priorità, fasce, colori e regole di scadenza."
+                     Foreground="{DynamicResource TextSecondaryBrush}" />
+        </StackPanel>
+        <TextBlock Grid.Column="1" Text="{Binding ApplicationMilestone}" FontSize="11"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+
+    <TabControl Grid.Row="1" Margin="18">
+      <TabItem Header="Priorità">
+        <Grid ColumnDefinitions="330,*" ColumnSpacing="18" Margin="0,12,0,0">
+          <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto" RowSpacing="10">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Priorità" FontSize="16" FontWeight="SemiBold"
+                         VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="compact primary"
+                      Content="+ Nuova" Command="{Binding NewPriorityCommand}"
+                      IsEnabled="{Binding CanEdit}" />
+            </Grid>
+
+            <ListBox Grid.Row="1"
+                     ItemsSource="{Binding Priorities}"
+                     SelectedItem="{Binding SelectedPriority}"
+                     IsEnabled="{Binding CanEdit}">
+              <ListBox.ItemTemplate>
+                <DataTemplate DataType="vm:PriorityCatalogItemViewModel">
+                  <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="2,5">
+                    <Border Background="{DynamicResource AccentBrush}"
+                            CornerRadius="5" Padding="6,2" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Code}" Foreground="White"
+                                 FontWeight="Bold" FontSize="11" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Spacing="1">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding DeadlineText}"
+                                 FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center" HorizontalAlignment="Right">
+                      <TextBlock Text="Sistema" FontSize="9" FontWeight="SemiBold"
+                                 Foreground="{DynamicResource SuccessBrush}"
+                                 IsVisible="{Binding IsSystem}" />
+                      <TextBlock Text="{Binding CardCountText}" FontSize="9"
+                                 Foreground="{DynamicResource TextSecondaryBrush}" />
+                      <TextBlock Text="Disattivata" FontSize="9"
+                                 Foreground="{DynamicResource TextSecondaryBrush}"
+                                 IsVisible="{Binding IsInactive}" />
+                    </StackPanel>
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+
+            <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
+              <Button Classes="compact" Content="↑ Su"
+                      Command="{Binding MovePriorityUpCommand}"
+                      IsEnabled="{Binding CanMovePriorityUp}" />
+              <Button Classes="compact" Content="↓ Giù"
+                      Command="{Binding MovePriorityDownCommand}"
+                      IsEnabled="{Binding CanMovePriorityDown}" />
+            </StackPanel>
+          </Grid>
+
+          <Border Grid.Column="1" Classes="card"
+                  IsVisible="{Binding IsPriorityEditorVisible}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <StackPanel Spacing="12" Margin="4">
+                <TextBlock Text="{Binding PriorityEditorTitle}"
+                           FontSize="17" FontWeight="SemiBold" />
+
+                <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="12">
+                  <TextBlock Grid.Row="0" Text="Codice" VerticalAlignment="Center" />
+                  <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding PriorityCode}"
+                           MaxLength="12" Watermark="Es. U" />
+                  <TextBlock Grid.Row="1" Text="Nome" VerticalAlignment="Center" />
+                  <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding PriorityName}"
+                           MaxLength="80" Watermark="Es. Urgente" />
+                  <TextBlock Grid.Row="2" Text="Descrizione" VerticalAlignment="Top" Margin="0,7,0,0" />
+                  <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding PriorityDescription}"
+                           MaxLength="500" AcceptsReturn="True" MinHeight="76"
+                           TextWrapping="Wrap" />
+                </Grid>
+
+                <Grid ColumnDefinitions="140,140,150,*" ColumnSpacing="12">
+                  <TextBlock Text="Scadenza standard" VerticalAlignment="Center" />
+                  <NumericUpDown Grid.Column="1" Value="{Binding PriorityDueValue}"
+                                 Minimum="1" Maximum="87600" />
+                  <ComboBox Grid.Column="2" ItemsSource="{Binding DeadlineUnits}"
+                            SelectedItem="{Binding PriorityDueUnit}" />
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" Spacing="18">
+                  <CheckBox Content="Attiva" IsChecked="{Binding PriorityIsActive}" />
+                  <CheckBox Content="Predefinita per le nuove card"
+                            IsChecked="{Binding PriorityIsDefault}" />
+                </StackPanel>
+
+                <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                        CornerRadius="8" Padding="10">
+                  <StackPanel Spacing="8">
+                    <TextBlock Text="Eccezioni per fascia" FontWeight="SemiBold" />
+                    <TextBlock Text="Abilita una riga per sostituire la scadenza standard quando la card appartiene a quella fascia."
+                               FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap" />
+                    <ItemsControl ItemsSource="{Binding PriorityDeadlineRules}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:PriorityDeadlineRuleViewModel">
+                          <Grid ColumnDefinitions="Auto,24,*,110,110" ColumnSpacing="8" Margin="0,3">
+                            <CheckBox IsChecked="{Binding UseOverride}" VerticalAlignment="Center" />
+                            <Border Grid.Column="1" Width="12" Height="12" CornerRadius="6"
+                                    Background="{Binding ColorBrush}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                              <TextBlock Text="{Binding CardTypeName}" />
+                              <TextBlock Text="(disattiva)" FontSize="10"
+                                         Foreground="{DynamicResource TextSecondaryBrush}"
+                                         IsVisible="{Binding IsCardTypeInactive}" />
+                            </StackPanel>
+                            <NumericUpDown Grid.Column="3" Value="{Binding DueValue}"
+                                           Minimum="1" Maximum="87600"
+                                           IsEnabled="{Binding UseOverride}" />
+                            <ComboBox Grid.Column="4" ItemsSource="{Binding DeadlineUnits}"
+                                      SelectedItem="{Binding SelectedUnit}"
+                                      IsEnabled="{Binding UseOverride}" />
+                          </Grid>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </Border>
+
+                <TextBlock Text="{Binding PriorityMessage}"
+                           IsVisible="{Binding ShowPriorityError}"
+                           Foreground="{DynamicResource DangerBrush}"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="{Binding PriorityMessage}"
+                           IsVisible="{Binding ShowPrioritySuccess}"
+                           Foreground="{DynamicResource SuccessBrush}"
+                           TextWrapping="Wrap" />
+
+                <Border Classes="deleteConfirmation"
+                        IsVisible="{Binding IsPriorityDeleteConfirmationVisible}">
+                  <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                    <TextBlock Text="Eliminare la priorità? Le regole collegate verranno rimosse."
+                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                    <Button Grid.Column="1" Classes="compact" Content="Annulla"
+                            Command="{Binding CancelDeletePriorityCommand}" />
+                    <Button Grid.Column="2" Classes="compact danger" Content="Elimina"
+                            Command="{Binding ConfirmDeletePriorityCommand}" />
+                  </Grid>
+                </Border>
+
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                  <Button Classes="dangerGhost compact" Content="Elimina"
+                          Command="{Binding RequestDeletePriorityCommand}"
+                          IsEnabled="{Binding CanDeletePriority}" />
+                  <Button Grid.Column="2" Classes="compact" Content="Ripristina"
+                          Command="{Binding CancelPriorityEditCommand}" />
+                  <Button Grid.Column="3" Classes="primary" Content="Salva priorità"
+                          Command="{Binding SavePriorityCommand}"
+                          IsEnabled="{Binding CanEdit}" />
+                </Grid>
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="Fasce">
+        <Grid ColumnDefinitions="330,*" ColumnSpacing="18" Margin="0,12,0,0">
+          <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto" RowSpacing="10">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Fasce" FontSize="16" FontWeight="SemiBold"
+                         VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="compact primary"
+                      Content="+ Nuova" Command="{Binding NewCardTypeCommand}"
+                      IsEnabled="{Binding CanEdit}" />
+            </Grid>
+
+            <ListBox Grid.Row="1"
+                     ItemsSource="{Binding CardTypes}"
+                     SelectedItem="{Binding SelectedCardType}"
+                     IsEnabled="{Binding CanEdit}">
+              <ListBox.ItemTemplate>
+                <DataTemplate DataType="vm:CardTypeCatalogItemViewModel">
+                  <Grid ColumnDefinitions="24,*,Auto" ColumnSpacing="8" Margin="2,6">
+                    <Border Width="13" Height="13" CornerRadius="7"
+                            Background="{Binding ColorBrush}" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Spacing="1">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding ColorHex}" FontSize="10"
+                                 Foreground="{DynamicResource TextSecondaryBrush}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center" HorizontalAlignment="Right">
+                      <TextBlock Text="Sistema" FontSize="9" FontWeight="SemiBold"
+                                 Foreground="{DynamicResource SuccessBrush}"
+                                 IsVisible="{Binding IsSystem}" />
+                      <TextBlock Text="{Binding CardCountText}" FontSize="9"
+                                 Foreground="{DynamicResource TextSecondaryBrush}" />
+                      <TextBlock Text="Disattivata" FontSize="9"
+                                 Foreground="{DynamicResource TextSecondaryBrush}"
+                                 IsVisible="{Binding IsInactive}" />
+                    </StackPanel>
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+
+            <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
+              <Button Classes="compact" Content="↑ Su"
+                      Command="{Binding MoveCardTypeUpCommand}"
+                      IsEnabled="{Binding CanMoveCardTypeUp}" />
+              <Button Classes="compact" Content="↓ Giù"
+                      Command="{Binding MoveCardTypeDownCommand}"
+                      IsEnabled="{Binding CanMoveCardTypeDown}" />
+            </StackPanel>
+          </Grid>
+
+          <Border Grid.Column="1" Classes="card"
+                  IsVisible="{Binding IsCardTypeEditorVisible}">
+            <StackPanel Spacing="14" Margin="4">
+              <TextBlock Text="{Binding CardTypeEditorTitle}"
+                         FontSize="17" FontWeight="SemiBold" />
+
+              <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto" RowSpacing="12" ColumnSpacing="12">
+                <TextBlock Text="Nome" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1" Text="{Binding CardTypeName}"
+                         MaxLength="80" Watermark="Es. SQL"
+                         IsEnabled="{Binding CanEditCardTypeIdentity}" />
+                <TextBlock Grid.Row="1" Text="Colore" VerticalAlignment="Center" />
+                <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                  <Border Width="28" Height="28" CornerRadius="14"
+                          BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                          Background="{Binding CardTypeColorBrush}" />
+                  <TextBox Grid.Column="1" Text="{Binding CardTypeColorHex}"
+                           MaxLength="7" Watermark="#3584E4" />
+                </Grid>
+              </Grid>
+
+              <TextBlock Text="Il colore deve essere indicato nel formato esadecimale #RRGGBB."
+                         FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" />
+
+              <StackPanel Spacing="6">
+                <CheckBox Content="Attiva"
+                          IsChecked="{Binding CardTypeIsActive}"
+                          IsEnabled="{Binding CanEditCardTypeIdentity}" />
+                <TextBlock Text="Generica è sempre la fascia assegnata alle nuove card quando non ne viene scelta un’altra."
+                           FontSize="11"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBlock Text="La fascia di sistema può cambiare soltanto colore."
+                           FontSize="11"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           IsVisible="{Binding IsSelectedCardTypeSystem}" />
+              </StackPanel>
+
+              <TextBlock Text="{Binding CardTypeMessage}"
+                         IsVisible="{Binding ShowCardTypeError}"
+                         Foreground="{DynamicResource DangerBrush}"
+                         TextWrapping="Wrap" />
+              <TextBlock Text="{Binding CardTypeMessage}"
+                         IsVisible="{Binding ShowCardTypeSuccess}"
+                         Foreground="{DynamicResource SuccessBrush}"
+                         TextWrapping="Wrap" />
+
+              <Border Classes="deleteConfirmation"
+                      IsVisible="{Binding IsCardTypeDeleteConfirmationVisible}">
+                <StackPanel Spacing="10">
+                  <TextBlock Text="{Binding CardTypeDeleteDescription}"
+                             TextWrapping="Wrap" />
+                  <Grid ColumnDefinitions="140,*" ColumnSpacing="10"
+                        IsVisible="{Binding SelectedCardTypeHasCards}">
+                    <TextBlock Text="Destinazione" VerticalAlignment="Center" />
+                    <ComboBox Grid.Column="1"
+                              ItemsSource="{Binding CardTypeDeleteDestinations}"
+                              SelectedItem="{Binding SelectedCardTypeDeleteDestination}">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate DataType="vm:CardTypeCatalogItemViewModel">
+                          <Grid ColumnDefinitions="18,*" ColumnSpacing="7">
+                            <Border Width="11" Height="11" CornerRadius="6"
+                                    Background="{Binding ColorBrush}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding Name}" />
+                          </Grid>
+                        </DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                  </Grid>
+                  <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                    <Button Classes="compact" Content="Annulla"
+                            Command="{Binding CancelDeleteCardTypeCommand}" />
+                    <Button Classes="compact danger" Content="Elimina fascia"
+                            Command="{Binding ConfirmDeleteCardTypeCommand}"
+                            IsEnabled="{Binding CanConfirmDeleteCardType}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                <Button Classes="dangerGhost compact" Content="Elimina"
+                        Command="{Binding RequestDeleteCardTypeCommand}"
+                        IsEnabled="{Binding CanDeleteCardType}" />
+                <Button Grid.Column="2" Classes="compact" Content="Ripristina"
+                        Command="{Binding CancelCardTypeEditCommand}" />
+                <Button Grid.Column="3" Classes="primary" Content="Salva fascia"
+                        Command="{Binding SaveCardTypeCommand}"
+                        IsEnabled="{Binding CanEdit}" />
+              </Grid>
+            </StackPanel>
+          </Border>
+        </Grid>
+      </TabItem>
+    </TabControl>
+
+    <Border Grid.Row="2" BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="0,1,0,0" Padding="18,10">
+      <Button Content="Chiudi" HorizontalAlignment="Right" Click="OnCloseClick" />
+    </Border>
+  </Grid>
+</Window>

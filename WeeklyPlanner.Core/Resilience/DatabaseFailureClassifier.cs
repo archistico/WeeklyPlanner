@@ -19,6 +19,13 @@ public static class DatabaseFailureClassifier
             SqliteException sqliteException => ClassifySqlite(sqliteException.SqliteErrorCode),
             SchemaVersionMismatchException schemaException => CreateSchemaFailure(schemaException.Message),
             MissingMigrationException migrationException => CreateSchemaFailure(migrationException.Message),
+            DatabaseIntegrityException integrityException => new DatabaseFailure(
+                DatabaseFailureKind.Corrupt,
+                integrityException.Message,
+                CanRetryAutomatically: false,
+                RequiresAttention: true),
+            DatabaseMigrationFailedException migrationException => CreateSchemaFailure(migrationException.Message),
+            DatabaseMigrationRecoveryException recoveryException => CreateSchemaFailure(recoveryException.Message),
             UnauthorizedAccessException => CreatePermissionDenied(),
             IOException => CreateUnavailable(),
             _ => new DatabaseFailure(
@@ -80,6 +87,15 @@ public static class DatabaseFailureClassifier
 
     private static Exception Unwrap(Exception exception)
     {
+        if (exception is SchemaVersionMismatchException or
+            MissingMigrationException or
+            DatabaseIntegrityException or
+            DatabaseMigrationFailedException or
+            DatabaseMigrationRecoveryException)
+        {
+            return exception;
+        }
+
         if (exception is AggregateException aggregateException)
         {
             var flattened = aggregateException.Flatten();

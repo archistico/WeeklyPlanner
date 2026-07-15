@@ -5,7 +5,290 @@
         Title="{Binding WindowTitle}"
         Width="1100" Height="700"
         MinWidth="720" MinHeight="480"
+        WindowState="Maximized"
+        ShowActivated="True"
+        ShowInTaskbar="True"
         WindowStartupLocation="CenterScreen">
+
+  <Window.Resources>
+    <DataTemplate x:Key="CardTemplate" DataType="vm:CardViewModel">
+      <Grid>
+        <Border Classes="card"
+                Focusable="True"
+                KeyDown="OnCardKeyDown"
+                AutomationProperties.Name="{Binding Title}"
+                AutomationProperties.AcceleratorKey="Alt+Frecce; Ctrl+Alt+Su/Giù"
+                AutomationProperties.HelpText="Trascina la card in qualsiasi cella. Usa Alt più freccia su o giù per riordinarla, Alt più freccia sinistra o destra per cambiarne lo stato e Ctrl più Alt più freccia su o giù per cambiarne la fascia.">
+          <StackPanel Spacing="5">
+            <Border Height="20"
+                    Cursor="SizeAll"
+                    Background="Transparent"
+                    IsEnabled="{Binding CanDrag}"
+                    ToolTip.Tip="Trascina la card in qualsiasi cella; Alt + frecce cambia ordine o stato, Ctrl + Alt + Su/Giù cambia fascia"
+                    PointerPressed="OnCardDragHandlePointerPressed"
+                    PointerMoved="OnCardDragHandlePointerMoved"
+                    PointerReleased="OnCardDragHandlePointerReleased">
+              <TextBlock Text="⋮⋮⋮"
+                         HorizontalAlignment="Center"
+                         Foreground="{DynamicResource TextSecondaryBrush}"
+                         FontSize="10" />
+            </Border>
+
+            <TextBlock Text="{Binding LockStatusText}"
+                       IsVisible="{Binding HasLockStatus}"
+                       Foreground="#C64600"
+                       FontSize="11"
+                       TextWrapping="Wrap" />
+
+            <TextBlock Text="{Binding SaveStatusText}"
+                       IsVisible="{Binding IsSaving}"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       FontSize="11" />
+            <TextBlock Text="{Binding SaveStatusText}"
+                       IsVisible="{Binding HasSaveError}"
+                       Foreground="{DynamicResource DangerBrush}"
+                       FontSize="11"
+                       TextWrapping="Wrap" />
+
+            <TextBox Text="{Binding Title}"
+                     MaxLength="{Binding TitleMaxLength}"
+                     Watermark="Titolo della card"
+                     ToolTip.Tip="Clicca per acquisire il lock e modificare la card"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     Padding="8,4"
+                     FontWeight="Medium"
+                     FontSize="15"
+                     IsReadOnly="{Binding IsEditorReadOnly}"
+                     GotFocus="OnCardFieldGotFocus"
+                     KeyDown="OnCardFieldKeyDown" />
+
+            <Grid ColumnDefinitions="*,Auto"
+                  IsVisible="{Binding IsEditing}">
+              <TextBlock Grid.Column="0"
+                         Text="{Binding TitleValidationMessage}"
+                         IsVisible="{Binding HasTitleValidationError}"
+                         Foreground="{DynamicResource DangerBrush}"
+                         FontSize="11"
+                         TextWrapping="Wrap" />
+              <TextBlock Grid.Column="1"
+                         Text="{Binding TitleLengthText}"
+                         Foreground="{DynamicResource TextSecondaryBrush}"
+                         FontSize="10"
+                         HorizontalAlignment="Right" />
+            </Grid>
+
+            <TextBox Text="{Binding Notes}"
+                     Watermark="Note"
+                     ToolTip.Tip="Clicca per acquisire il lock e modificare la card"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     Padding="8,4"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
+                     FontSize="12"
+                     IsReadOnly="{Binding IsEditorReadOnly}"
+                     GotFocus="OnCardFieldGotFocus"
+                     KeyDown="OnCardFieldKeyDown" />
+
+            <Grid IsVisible="{Binding IsEditing}"
+                  ColumnDefinitions="Auto,*"
+                  RowDefinitions="Auto,Auto"
+                  ColumnSpacing="8"
+                  RowSpacing="3"
+                  Margin="8,2,8,2">
+              <TextBlock Grid.Row="0"
+                         Grid.Column="0"
+                         Text="Priorità"
+                         VerticalAlignment="Center"
+                         FontSize="11"
+                         Foreground="{DynamicResource TextSecondaryBrush}" />
+              <ComboBox Grid.Row="0"
+                        Grid.Column="1"
+                        MinWidth="150"
+                        HorizontalAlignment="Stretch"
+                        ItemsSource="{Binding PriorityOptions}"
+                        SelectedItem="{Binding SelectedPriorityOption}"
+                        IsEnabled="{Binding CanEditDraft}"
+                        ToolTip.Tip="La priorità e la scadenza vengono salvate insieme a titolo e note"
+                        GotFocus="OnCardFieldGotFocus"
+                        KeyDown="OnCardFieldKeyDown">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate DataType="vm:CardPriorityOptionViewModel">
+                    <Grid ColumnDefinitions="28,*" ColumnSpacing="6">
+                      <Border Grid.Column="0" Classes="priorityCodeBadge">
+                        <TextBlock Text="{Binding BadgeText}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   FontSize="10" />
+                      </Border>
+                      <TextBlock Grid.Column="1"
+                                 Text="{Binding DisplayName}"
+                                 VerticalAlignment="Center" />
+                    </Grid>
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <TextBlock Grid.Row="1"
+                         Grid.Column="1"
+                         Text="{Binding DueStatusText}"
+                         IsVisible="{Binding HasDueStatus}"
+                         FontSize="10"
+                         Foreground="{DynamicResource TextSecondaryBrush}"
+                         ToolTip.Tip="{Binding DueExactText}" />
+            </Grid>
+
+            <Border Classes="prioritySummary"
+                    IsVisible="{Binding IsNotEditing}"
+                    ToolTip.Tip="{Binding PriorityToolTipText}"
+                    Margin="8,2,8,2"
+                    Cursor="Hand"
+                    Focusable="True"
+                    PointerPressed="OnPrioritySummaryPointerPressed">
+              <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="7">
+                <Border Grid.Column="0" Classes="priorityCodeBadge">
+                  <TextBlock Text="{Binding PriorityBadgeCode}"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center"
+                             FontWeight="SemiBold"
+                             FontSize="10" />
+                </Border>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding PriorityBadgeText}"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           FontWeight="Medium" />
+                <TextBlock Grid.Column="2"
+                           Text="{Binding DueStatusText}"
+                           IsVisible="{Binding HasDueStatus}"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Right"
+                           FontSize="10"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           ToolTip.Tip="{Binding DueExactText}" />
+              </Grid>
+            </Border>
+
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Spacing="6"
+                        IsVisible="{Binding IsEditing}">
+              <Button Content="Annulla"
+                      Padding="8,4"
+                      IsEnabled="{Binding CanCancelEdit}"
+                      Command="{Binding $parent[Window].DataContext.CancelEditCommand}"
+                      CommandParameter="{Binding}" />
+              <Button Classes="primary"
+                      Content="Salva"
+                      Padding="8,4"
+                      IsEnabled="{Binding CanSave}"
+                      Command="{Binding $parent[Window].DataContext.CommitEditCommand}"
+                      CommandParameter="{Binding}" />
+            </StackPanel>
+
+            <Border Classes="deleteConfirmation"
+                    IsVisible="{Binding IsDeleteConfirmationVisible}">
+              <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                <TextBlock Grid.Column="0"
+                           Text="Eliminare questa card?"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap" />
+                <Button Grid.Column="1"
+                        Classes="compact"
+                        Content="Annulla"
+                        Command="{Binding $parent[Window].DataContext.CancelDeleteCardCommand}"
+                        CommandParameter="{Binding}" />
+                <Button Grid.Column="2"
+                        Classes="compact danger"
+                        Content="Elimina"
+                        IsEnabled="{Binding $parent[Window].DataContext.CanModifyBoard}"
+                        Command="{Binding $parent[Window].DataContext.DeleteCardCommand}"
+                        CommandParameter="{Binding}" />
+              </Grid>
+            </Border>
+
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto"
+                  ColumnSpacing="4">
+              <TextBlock Grid.Column="0"
+                         Text="{Binding Author, StringFormat='di {0}'}"
+                         Margin="8,0,0,0"
+                         VerticalAlignment="Center"
+                         FontSize="11"
+                         FontStyle="Italic"
+                         Foreground="{DynamicResource TextSecondaryBrush}" />
+
+              <Border Grid.Column="2"
+                      Width="24"
+                      Height="24"
+                      Background="Transparent"
+                      ToolTip.Tip="{Binding SaveStatusText}"
+                      AutomationProperties.Name="{Binding SaveStatusText}"
+                      IsVisible="{Binding HasSaveSuccess}">
+                <Path Width="14"
+                      Height="14"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      Stretch="Uniform"
+                      Fill="{DynamicResource SuccessBrush}"
+                      Data="M1,1 L11,1 L15,5 L15,15 L1,15 Z M3,2 L10,2 L10,6 L3,6 Z M4,9 L12,9 L12,14 L4,14 Z" />
+              </Border>
+
+              <Button Grid.Column="3"
+                      Classes="icon dangerGhost"
+                      ToolTip.Tip="Elimina la card"
+                      AutomationProperties.Name="Elimina la card"
+                      IsVisible="{Binding ShowDeleteButton}"
+                      IsEnabled="{Binding $parent[Window].DataContext.CanModifyBoard}"
+                      Command="{Binding $parent[Window].DataContext.RequestDeleteCardCommand}"
+                      CommandParameter="{Binding}">
+                <Path Width="12"
+                      Height="14"
+                      Stretch="Uniform"
+                      Fill="{DynamicResource DangerBrush}"
+                      Data="M3,2 L9,2 L10,4 L12,4 L12,5 L0,5 L0,4 L2,4 Z M2,6 L10,6 L9,14 L3,14 Z M4,7 L5,7 L5,12 L4,12 Z M7,7 L8,7 L8,12 L7,12 Z" />
+              </Button>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="dropIndicator"
+                Height="4"
+                Margin="8,2,8,0"
+                VerticalAlignment="Top"
+                IsHitTestVisible="False"
+                IsVisible="{Binding IsDropBeforeVisible}" />
+        <Border Classes="dropIndicator"
+                Height="4"
+                Margin="8,0,8,4"
+                VerticalAlignment="Bottom"
+                IsHitTestVisible="False"
+                IsVisible="{Binding IsDropAfterVisible}" />
+      </Grid>
+    </DataTemplate>
+
+    <DataTemplate x:Key="SwimlaneCellTemplate" DataType="vm:SwimlaneCellViewModel">
+      <Border Classes="swimlaneCell"
+              MinHeight="132"
+              DragDrop.AllowDrop="True"
+              AutomationProperties.Name="{Binding AutomationName}">
+        <Grid RowDefinitions="Auto,Auto">
+          <ItemsControl Grid.Row="0"
+                        Name="CardsItemsControl"
+                        ItemsSource="{Binding Cards}"
+                        ItemTemplate="{StaticResource CardTemplate}" />
+
+          <Border Grid.Row="1"
+                  Classes="dropIndicator"
+                  Height="4"
+                  Margin="8,2,8,2"
+                  IsHitTestVisible="False"
+                  IsVisible="{Binding IsDropAtEndVisible}" />
+        </Grid>
+      </Border>
+    </DataTemplate>
+  </Window.Resources>
 
   <DockPanel>
     <Border DockPanel.Dock="Top" Classes="headerBar">
@@ -82,262 +365,151 @@
 
     <ScrollViewer x:Name="BoardScrollViewer"
                   Padding="18"
+                  Background="Transparent"
+                  HorizontalContentAlignment="Stretch"
+                  VerticalContentAlignment="Stretch"
                   HorizontalScrollBarVisibility="Auto"
-                  VerticalScrollBarVisibility="Disabled"
-                  VerticalContentAlignment="Stretch">
-      <ItemsControl x:Name="ColumnsItemsControl"
-                    ItemsSource="{Binding Columns}"
-                    VerticalAlignment="Stretch">
-        <ItemsControl.ItemsPanel>
-          <ItemsPanelTemplate>
-            <StackPanel Orientation="Horizontal"
-                        Spacing="12"
-                        VerticalAlignment="Stretch" />
-          </ItemsPanelTemplate>
-        </ItemsControl.ItemsPanel>
+                  VerticalScrollBarVisibility="Auto">
+      <Grid MinWidth="1630"
+            HorizontalAlignment="Stretch"
+            RowDefinitions="Auto,Auto,160">
+        <Grid Grid.Row="0" ColumnDefinitions="230,*,*,*,*,*">
+          <Border Grid.Column="0" Classes="boardHeaderCell first">
+            <TextBlock Classes="columnHeader" Text="TIPOLOGIA" />
+          </Border>
+          <Border Grid.Column="1" Classes="boardHeaderCell">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Classes="columnHeader" Text="BACKLOG" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="columnAdd headerAdd"
+                      IsEnabled="{Binding CanModifyBoard}"
+                      ToolTip.Tip="Aggiungi una card in Generica / BACKLOG"
+                      AutomationProperties.Name="Aggiungi card in BACKLOG"
+                      Command="{Binding AddCardCommand}"
+                      CommandParameter="{Binding BacklogColumn}">
+                <TextBlock Text="+" FontSize="18" FontWeight="SemiBold" />
+              </Button>
+            </Grid>
+          </Border>
+          <Border Grid.Column="2" Classes="boardHeaderCell">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Classes="columnHeader" Text="TODO" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="columnAdd headerAdd"
+                      IsEnabled="{Binding CanModifyBoard}"
+                      ToolTip.Tip="Aggiungi una card in Generica / TODO"
+                      AutomationProperties.Name="Aggiungi card in TODO"
+                      Command="{Binding AddCardCommand}"
+                      CommandParameter="{Binding TodoColumn}">
+                <TextBlock Text="+" FontSize="18" FontWeight="SemiBold" />
+              </Button>
+            </Grid>
+          </Border>
+          <Border Grid.Column="3" Classes="boardHeaderCell">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Classes="columnHeader" Text="IN PROGRESS" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="columnAdd headerAdd"
+                      IsEnabled="{Binding CanModifyBoard}"
+                      ToolTip.Tip="Aggiungi una card in Generica / IN PROGRESS"
+                      AutomationProperties.Name="Aggiungi card in IN PROGRESS"
+                      Command="{Binding AddCardCommand}"
+                      CommandParameter="{Binding InProgressColumn}">
+                <TextBlock Text="+" FontSize="18" FontWeight="SemiBold" />
+              </Button>
+            </Grid>
+          </Border>
+          <Border Grid.Column="4" Classes="boardHeaderCell">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Classes="columnHeader" Text="TESTING" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="columnAdd headerAdd"
+                      IsEnabled="{Binding CanModifyBoard}"
+                      ToolTip.Tip="Aggiungi una card in Generica / TESTING"
+                      AutomationProperties.Name="Aggiungi card in TESTING"
+                      Command="{Binding AddCardCommand}"
+                      CommandParameter="{Binding TestingColumn}">
+                <TextBlock Text="+" FontSize="18" FontWeight="SemiBold" />
+              </Button>
+            </Grid>
+          </Border>
+          <Border Grid.Column="5" Classes="boardHeaderCell last">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Classes="columnHeader" Text="DONE" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="columnAdd headerAdd"
+                      IsEnabled="{Binding CanModifyBoard}"
+                      ToolTip.Tip="Aggiungi una card in Generica / DONE"
+                      AutomationProperties.Name="Aggiungi card in DONE"
+                      Command="{Binding AddCardCommand}"
+                      CommandParameter="{Binding DoneColumn}">
+                <TextBlock Text="+" FontSize="18" FontWeight="SemiBold" />
+              </Button>
+            </Grid>
+          </Border>
+        </Grid>
 
-        <ItemsControl.ItemTemplate>
-          <DataTemplate DataType="vm:ColumnViewModel">
-            <Border Classes="column"
-                    Width="280"
-                    VerticalAlignment="Stretch"
-                    ClipToBounds="True"
-                    DragDrop.AllowDrop="True"
-                    AutomationProperties.Name="{Binding Name}">
-              <Grid RowDefinitions="Auto,*">
-                <Grid Grid.Row="0"
-                      ColumnDefinitions="Auto,Auto,*"
-                      ColumnSpacing="6"
-                      Margin="12,12,12,6">
-                  <TextBlock Grid.Column="0"
-                             Classes="columnHeader"
-                             Text="{Binding Name}"
-                             VerticalAlignment="Center" />
-                  <Button Grid.Column="1"
-                          Classes="columnAdd"
-                          ToolTip.Tip="{Binding Name, StringFormat='Aggiungi una card a {0}'}"
-                          AutomationProperties.Name="{Binding Name, StringFormat='Aggiungi una card a {0}'}"
-                          IsEnabled="{Binding $parent[Window].DataContext.CanModifyBoard}"
-                          Command="{Binding $parent[Window].DataContext.AddCardCommand}"
-                          CommandParameter="{Binding}">
-                    <StackPanel Orientation="Horizontal" Spacing="2">
-                      <TextBlock Text="+"
-                                 FontSize="14"
-                                 FontWeight="SemiBold"
-                                 VerticalAlignment="Center" />
-                      <Path Width="11"
-                            Height="12"
-                            Stretch="Uniform"
-                            Stroke="{DynamicResource TextSecondaryBrush}"
-                            StrokeThickness="1.25"
-                            Data="M1,1 L10,1 L10,12 L1,12 Z M3,4 L8,4 M3,7 L8,7" />
+        <ItemsControl x:Name="SwimlanesItemsControl"
+                      Grid.Row="1"
+                      HorizontalAlignment="Stretch"
+                      ItemsSource="{Binding Swimlanes}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Vertical" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="vm:SwimlaneViewModel">
+              <Grid MinWidth="1630"
+                    HorizontalAlignment="Stretch"
+                    ColumnDefinitions="230,*,*,*,*,*">
+                <Border Grid.Column="0"
+                        Classes="swimlaneLabel"
+                        AutomationProperties.Name="{Binding Name}">
+                  <Border BorderBrush="{Binding ColorBrush}"
+                          BorderThickness="5,0,0,0"
+                          Padding="12,10">
+                    <StackPanel Spacing="6" VerticalAlignment="Center">
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Border Width="11"
+                                Height="11"
+                                CornerRadius="6"
+                                Background="{Binding ColorBrush}"
+                                VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Name}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center" />
+                      </StackPanel>
+                      <TextBlock Text="Inattiva"
+                                 IsVisible="{Binding IsInactive}"
+                                 Foreground="{DynamicResource TextSecondaryBrush}"
+                                 FontSize="10"
+                                 FontStyle="Italic" />
                     </StackPanel>
-                  </Button>
-                </Grid>
+                  </Border>
+                </Border>
 
-                <ScrollViewer Grid.Row="1"
-                              MinHeight="0"
-                              VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled">
-                  <StackPanel Margin="12,0,6,0">
-                    <ItemsControl Name="CardsItemsControl"
-                                  ItemsSource="{Binding Cards}">
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="vm:CardViewModel">
-                          <Grid>
-                            <Border Classes="card"
-                                    Focusable="True"
-                                    KeyDown="OnCardKeyDown"
-                                    AutomationProperties.Name="{Binding Title}"
-                                    AutomationProperties.AcceleratorKey="Alt+Frecce"
-                                    AutomationProperties.HelpText="Usa Alt più freccia su o giù per riordinare; Alt più freccia sinistra o destra per cambiare colonna.">
-                              <StackPanel Spacing="5">
-                                <Border Height="20"
-                                        Cursor="SizeAll"
-                                        Background="Transparent"
-                                        IsEnabled="{Binding CanDrag}"
-                                        ToolTip.Tip="Trascina la card oppure selezionala con Tab e usa Alt + frecce"
-                                        PointerPressed="OnCardDragHandlePointerPressed"
-                                        PointerMoved="OnCardDragHandlePointerMoved"
-                                        PointerReleased="OnCardDragHandlePointerReleased">
-                                  <TextBlock Text="⋮⋮⋮"
-                                             HorizontalAlignment="Center"
-                                             Foreground="{DynamicResource TextSecondaryBrush}"
-                                             FontSize="10" />
-                                </Border>
-
-                                <TextBlock Text="{Binding LockStatusText}"
-                                           IsVisible="{Binding HasLockStatus}"
-                                           Foreground="#C64600"
-                                           FontSize="11"
-                                           TextWrapping="Wrap" />
-
-                                <TextBlock Text="{Binding SaveStatusText}"
-                                           IsVisible="{Binding IsSaving}"
-                                           Foreground="{DynamicResource TextSecondaryBrush}"
-                                           FontSize="11" />
-                                <TextBlock Text="{Binding SaveStatusText}"
-                                           IsVisible="{Binding HasSaveError}"
-                                           Foreground="{DynamicResource DangerBrush}"
-                                           FontSize="11"
-                                           TextWrapping="Wrap" />
-
-                                <TextBox Text="{Binding Title}"
-                                         MaxLength="{Binding TitleMaxLength}"
-                                         Watermark="Titolo della card"
-                                         ToolTip.Tip="Clicca per acquisire il lock e modificare la card"
-                                         Background="Transparent"
-                                         BorderThickness="0"
-                                         Padding="8,4"
-                                         FontWeight="Medium"
-                                         FontSize="15"
-                                         IsReadOnly="{Binding IsEditorReadOnly}"
-                                         GotFocus="OnCardFieldGotFocus"
-                                         LostFocus="OnCardFieldLostFocus"
-                                         KeyDown="OnCardFieldKeyDown" />
-
-                                <Grid ColumnDefinitions="*,Auto"
-                                      IsVisible="{Binding IsEditing}">
-                                  <TextBlock Grid.Column="0"
-                                             Text="{Binding TitleValidationMessage}"
-                                             IsVisible="{Binding HasTitleValidationError}"
-                                             Foreground="{DynamicResource DangerBrush}"
-                                             FontSize="11"
-                                             TextWrapping="Wrap" />
-                                  <TextBlock Grid.Column="1"
-                                             Text="{Binding TitleLengthText}"
-                                             Foreground="{DynamicResource TextSecondaryBrush}"
-                                             FontSize="10"
-                                             HorizontalAlignment="Right" />
-                                </Grid>
-
-                                <TextBox Text="{Binding Notes}"
-                                         Watermark="Note"
-                                         ToolTip.Tip="Clicca per acquisire il lock e modificare la card"
-                                         Background="Transparent"
-                                         BorderThickness="0"
-                                         Padding="8,4"
-                                         AcceptsReturn="True"
-                                         TextWrapping="Wrap"
-                                         Foreground="{DynamicResource TextSecondaryBrush}"
-                                         FontSize="12"
-                                         IsReadOnly="{Binding IsEditorReadOnly}"
-                                         GotFocus="OnCardFieldGotFocus"
-                                         LostFocus="OnCardFieldLostFocus"
-                                         KeyDown="OnCardFieldKeyDown" />
-
-                                <StackPanel Orientation="Horizontal"
-                                            HorizontalAlignment="Right"
-                                            Spacing="6"
-                                            IsVisible="{Binding IsEditing}">
-                                  <Button Content="Annulla"
-                                          Padding="8,4"
-                                          IsEnabled="{Binding CanCancelEdit}"
-                                          Command="{Binding $parent[Window].DataContext.CancelEditCommand}"
-                                          CommandParameter="{Binding}" />
-                                  <Button Classes="primary"
-                                          Content="Salva"
-                                          Padding="8,4"
-                                          IsEnabled="{Binding CanSave}"
-                                          Command="{Binding $parent[Window].DataContext.CommitEditCommand}"
-                                          CommandParameter="{Binding}" />
-                                </StackPanel>
-
-                                <Border Classes="deleteConfirmation"
-                                        IsVisible="{Binding IsDeleteConfirmationVisible}">
-                                  <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
-                                    <TextBlock Grid.Column="0"
-                                               Text="Eliminare questa card?"
-                                               VerticalAlignment="Center"
-                                               TextWrapping="Wrap" />
-                                    <Button Grid.Column="1"
-                                            Classes="compact"
-                                            Content="Annulla"
-                                            Command="{Binding $parent[Window].DataContext.CancelDeleteCardCommand}"
-                                            CommandParameter="{Binding}" />
-                                    <Button Grid.Column="2"
-                                            Classes="compact danger"
-                                            Content="Elimina"
-                                            IsEnabled="{Binding $parent[Window].DataContext.CanModifyBoard}"
-                                            Command="{Binding $parent[Window].DataContext.DeleteCardCommand}"
-                                            CommandParameter="{Binding}" />
-                                  </Grid>
-                                </Border>
-
-                                <Grid ColumnDefinitions="Auto,*,Auto,Auto"
-                                      ColumnSpacing="4">
-                                  <TextBlock Grid.Column="0"
-                                             Text="{Binding Author, StringFormat='di {0}'}"
-                                             Margin="8,0,0,0"
-                                             VerticalAlignment="Center"
-                                             FontSize="11"
-                                             FontStyle="Italic"
-                                             Foreground="{DynamicResource TextSecondaryBrush}" />
-
-                                  <Border Grid.Column="2"
-                                          Width="24"
-                                          Height="24"
-                                          Background="Transparent"
-                                          ToolTip.Tip="{Binding SaveStatusText}"
-                                          AutomationProperties.Name="{Binding SaveStatusText}"
-                                          IsVisible="{Binding HasSaveSuccess}">
-                                    <Path Width="14"
-                                          Height="14"
-                                          HorizontalAlignment="Center"
-                                          VerticalAlignment="Center"
-                                          Stretch="Uniform"
-                                          Fill="{DynamicResource SuccessBrush}"
-                                          Data="M1,1 L11,1 L15,5 L15,15 L1,15 Z M3,2 L10,2 L10,6 L3,6 Z M4,9 L12,9 L12,14 L4,14 Z" />
-                                  </Border>
-
-                                  <Button Grid.Column="3"
-                                          Classes="icon dangerGhost"
-                                          ToolTip.Tip="Elimina la card"
-                                          AutomationProperties.Name="Elimina la card"
-                                          IsVisible="{Binding ShowDeleteButton}"
-                                          IsEnabled="{Binding $parent[Window].DataContext.CanModifyBoard}"
-                                          Command="{Binding $parent[Window].DataContext.RequestDeleteCardCommand}"
-                                          CommandParameter="{Binding}">
-                                    <Path Width="12"
-                                          Height="14"
-                                          Stretch="Uniform"
-                                          Fill="{DynamicResource DangerBrush}"
-                                          Data="M3,2 L9,2 L10,4 L12,4 L12,5 L0,5 L0,4 L2,4 Z M2,6 L10,6 L9,14 L3,14 Z M4,7 L5,7 L5,12 L4,12 Z M7,7 L8,7 L8,12 L7,12 Z" />
-                                  </Button>
-                                </Grid>
-                              </StackPanel>
-                            </Border>
-
-                            <Border Classes="dropIndicator"
-                                    Height="4"
-                                    Margin="8,2,8,0"
-                                    VerticalAlignment="Top"
-                                    IsHitTestVisible="False"
-                                    IsVisible="{Binding IsDropBeforeVisible}" />
-                            <Border Classes="dropIndicator"
-                                    Height="4"
-                                    Margin="8,0,8,4"
-                                    VerticalAlignment="Bottom"
-                                    IsHitTestVisible="False"
-                                    IsVisible="{Binding IsDropAfterVisible}" />
-                          </Grid>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-
-                    <Border Classes="dropIndicator"
-                            Height="4"
-                            Margin="8,0,8,6"
-                            IsHitTestVisible="False"
-                            IsVisible="{Binding IsDropAtEndVisible}" />
-                  </StackPanel>
-                </ScrollViewer>
-
+                <ContentControl Grid.Column="1"
+                                Content="{Binding Backlog}"
+                                ContentTemplate="{StaticResource SwimlaneCellTemplate}" />
+                <ContentControl Grid.Column="2"
+                                Content="{Binding Todo}"
+                                ContentTemplate="{StaticResource SwimlaneCellTemplate}" />
+                <ContentControl Grid.Column="3"
+                                Content="{Binding InProgress}"
+                                ContentTemplate="{StaticResource SwimlaneCellTemplate}" />
+                <ContentControl Grid.Column="4"
+                                Content="{Binding Testing}"
+                                ContentTemplate="{StaticResource SwimlaneCellTemplate}" />
+                <ContentControl Grid.Column="5"
+                                Content="{Binding Done}"
+                                ContentTemplate="{StaticResource SwimlaneCellTemplate}" />
               </Grid>
-            </Border>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Spazio tecnico abbondante per portare interamente l'ultima card sopra la scrollbar orizzontale. -->
+        <Border Grid.Row="2"
+                Height="160"
+                IsHitTestVisible="False" />
+      </Grid>
     </ScrollViewer>
   </DockPanel>
 </Window>

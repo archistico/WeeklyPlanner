@@ -138,7 +138,8 @@ public sealed class BoardViewModelLifecycleTests
         var context = BoardViewModelTestDoubles.Create();
         context.Cards.Items.Add(CreateCard());
         await context.ViewModel.StartAsync();
-        var card = Assert.Single(Assert.Single(context.ViewModel.Columns).Cards);
+        var card = Assert.Single(context.ViewModel.Columns.Single(
+            column => column.SystemKey == WorkflowColumnKeys.Backlog).Cards);
 
         Assert.True(await context.ViewModel.BeginEditCardAsync(card));
         context.Locks.RenewHandler = (_, _, _, _) =>

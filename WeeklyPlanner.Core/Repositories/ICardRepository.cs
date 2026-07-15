@@ -13,7 +13,8 @@ public interface ICardRepository
     Task<Card> CreateAsync(Card card, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Salva titolo e note soltanto se la sessione possiede un lock attivo e la Version
+    /// Salva contenuto, priorità, tipologia e scadenza soltanto se la sessione possiede
+    /// un lock attivo e la Version
     /// coincide con quella letta all'inizio dell'editing.
     /// </summary>
     Task<Card> UpdateAsync(
@@ -40,6 +41,21 @@ public interface ICardRepository
         long cardId,
         long targetColumnId,
         int targetIndex,
+        string updatedBy,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sposta atomicamente una card nella cella identificata da fascia e stato.
+    /// targetCellIndex è un indice di inserimento relativo alle sole card della cella
+    /// di destinazione prima della rimozione della card trascinata.
+    /// L'operazione aggiorna anche la scadenza quando cambia la fascia e viene
+    /// rifiutata se la card ha un lock di editing attivo.
+    /// </summary>
+    Task MoveToCellAsync(
+        long cardId,
+        long targetColumnId,
+        long targetCardTypeId,
+        int targetCellIndex,
         string updatedBy,
         CancellationToken cancellationToken = default);
 }

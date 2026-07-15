@@ -12,7 +12,9 @@ public sealed class ColumnViewModelTests
         var viewModel = new ColumnViewModel(new Column
         {
             Id = 1,
-            Name = "Lunedì",
+            Name = "TODO",
+            SystemKey = WorkflowColumnKeys.Todo,
+            IsSystem = true,
             SortOrder = 1,
         });
 
@@ -22,4 +24,31 @@ public sealed class ColumnViewModelTests
         viewModel.SetDropAtEnd(false);
         Assert.False(viewModel.IsDropAtEndVisible);
     }
+    [Fact]
+    public void RefreshFromModel_updates_workflow_metadata()
+    {
+        var viewModel = new ColumnViewModel(new Column
+        {
+            Id = 1,
+            Name = "TODO",
+            SortOrder = 1,
+            SystemKey = WorkflowColumnKeys.Todo,
+            IsSystem = true,
+        });
+
+        viewModel.RefreshFromModel(new Column
+        {
+            Id = 1,
+            Name = "IN PROGRESS",
+            SortOrder = 2,
+            SystemKey = WorkflowColumnKeys.InProgress,
+            IsSystem = true,
+        });
+
+        Assert.Equal("IN PROGRESS", viewModel.Name);
+        Assert.Equal(WorkflowColumnKeys.InProgress, viewModel.SystemKey);
+        Assert.True(viewModel.IsSystem);
+        Assert.Equal(2, viewModel.Model.SortOrder);
+    }
+
 }

@@ -1,135 +1,319 @@
 # WeeklyPlanner
 
+> **M3.11 — Priorità compatta sulla card**
 
-> **M3.3.4** — Logging, diagnostica e terminazione affidabile del processo. Gli eventi tecnici sono correlati con riferimenti errore, senza registrare titolo o note delle card; una finestra dedicata raccoglie stato applicativo, database e percorsi utili all’assistenza.
+Applicazione desktop **C# / .NET 10 / Avalonia** per organizzare attività in un kanban locale,
+sviluppata per milestone piccole, test automatici, migrazioni protette e documentazione aggiornata
+insieme al codice.
 
-Planner settimanale desktop in **C# / .NET 10 / Avalonia**, sviluppato per milestone piccole,
-test automatici e documentazione aggiornata insieme al codice.
+Il nome WeeklyPlanner resta invariato, ma il prodotto non è più concepito come semplice planner
+settimanale. La direzione corrente è una board kanban a **swimlane**:
+
+- le colonne rappresentano lo stato del lavoro;
+- le fasce orizzontali rappresentano la tipologia o area progettuale;
+- priorità, storico e scadenze restano attributi della card.
 
 ## Stato del progetto
 
-La baseline **M0.1.2** è stata validata su Windows: `dotnet build` e tutti i test sono passati.
+La baseline fino alla **M3.8** è stata validata su Windows con compilazione e test riusciti.
+Il layout M3.9, comprese le correzioni a larghezza, scroll, pan e movimento nella fascia, è stato
+accettato dall'utente nella prova manuale.
 
-La milestone **M1.1 — Revisione monotona locale** introduce lo schema SQLite v2 e sostituisce il
-polling basato sui timestamp con una revisione numerica incrementata automaticamente nella stessa
-transazione di ogni inserimento, modifica, spostamento o cancellazione di una card.
+La M3.10 è stata validata con compilazione e test completamente riusciti. Anche la baseline M3.11
+ha superato compilazione e test; questo aggiornamento corregge il comportamento runtime di editing,
+ComboBox e attivazione iniziale della finestra. La priorità resta un campo compatto della card senza
+nuove tabelle: selezione, scadenza, lock, conflitti e storico riusano lo schema SQLite v5 e la
+transazione di modifica esistente.
 
-La milestone **M1.1.1 — SQLite locale affidabile** è stata validata su Windows: build, test e
-avvio runtime sono riusciti. La normalizzazione dei percorsi legacy espande variabili come
-`%LOCALAPPDATA%` e converte una cartella nel file `weeklyplanner.db`.
+La suite dichiara **oltre 225 casi** considerando i test parametrizzati.
 
-La milestone **M1.2 — Riordino atomico** è stata validata su Windows: compilazione e test sono
-passati.
+## Workflow kanban
 
-La milestone **M1.3.1 — Editing protetto verificabile** è stata validata su Windows: lock, indicatore
-utente, pulsanti Salva/Annulla e protezione della bozza dal polling funzionano correttamente.
+Le colonne operative sono cinque e sono voci di sistema:
 
-La milestone **M1.4 — Stato operativo e lifecycle affidabile** è stata validata su Windows: build e
-test sono passati.
+| Chiave stabile | Titolo |
+|---|---|
+| `backlog` | BACKLOG |
+| `todo` | TODO |
+| `in_progress` | IN PROGRESS |
+| `testing` | TESTING |
+| `done` | DONE |
 
-La milestone **M2.1.1 — Rifinitura dell'eliminazione** è stata validata su Windows: build, test e
-prova manuale sono riusciti.
-
-La milestone **M2.2 — Drag&drop rifinito e accessibilità da tastiera** è stata validata su Windows:
-compilazione e test sono passati.
-
-La milestone **M2.2.1 — Rifinitura visuale della board** sposta l’azione di aggiunta
-nell’intestazione della colonna, aumenta leggermente il titolo della card e riallinea il footer con
-l’autore a sinistra e le icone di salvataggio ed eliminazione a destra.
-
-La milestone **M2.2.3 — Pan orizzontale e allineamento autore** è stata validata su Windows:
-compilazione, test e prova manuale sono riusciti.
-
-La milestone **M2.3 — Impostazioni e rifinitura della sessione** è stata validata su Windows: build,
-test e prova manuale sono riusciti.
-
-La milestone **M3.1 — Composizione applicativa e dependency injection** è stata validata su Windows.
-La milestone **M3.2 — Scheduler deterministici e lifecycle verificabile** è stata validata su Windows:
-polling e heartbeat sono serializzati, arrestabili e testabili senza timer reali.
-
-La milestone **M3.2.1 — Feedback completo di persistenza** è stata validata su Windows: build,
-test e prova manuale sono riusciti. La floppy verde conferma inserimento, salvataggio, spostamento e
-riordino della card.
-
-La milestone corrente **M3.3.4 — Logging, diagnostica e terminazione affidabile** mantiene i log
-tecnici locali asincroni, i riferimenti errore correlabili e la finestra Diagnostica, aggiungendo uno
-shutdown esplicito del lifetime desktop e un limite temporale al cleanup globale. La chiusura della
-finestra deve quindi terminare anche il processo avviato tramite `dotnet run`.
+Le colonne non possono essere rinominate o eliminate. `TIPOLOGIA` non è una colonna persistita:
+è l'intestazione visuale della prima area descrittiva nel layout a swimlane.
 
 
-La revisione **M3.3.3 — Test versione non fragile** elimina dal test di `ApplicationVersionInfo`
-l’aspettativa hardcoded della milestone: il valore atteso viene letto direttamente dagli stessi metadati
-centralizzati dell’assembly usati dall’applicazione.
+## Layout kanban a swimlane
 
-Per la fase corrente è stata adottata una persistenza **SQLite locale senza server**. Il database
-deve risiedere su un disco locale della macchina; la sincronizzazione fra computer e l'apertura del
-file tramite share di rete non fanno parte del perimetro attuale. La decisione è documentata in
-[`docs/ADR-0002-sqlite-locale.md`](docs/ADR-0002-sqlite-locale.md).
+La finestra principale mostra una matrice con intestazioni fisse:
 
-## Struttura
+```text
+TIPOLOGIA | BACKLOG | TODO | IN PROGRESS | TESTING | DONE
+```
 
-- `WeeklyPlanner.Core`: modelli, repository, resilienza, diagnostica database, configurazione, orologio e migrazioni SQLite;
-- `WeeklyPlanner.App`: applicazione Avalonia con MVVM, composition root, board, scheduler, logging e diagnostica;
-- `WeeklyPlanner.Tests`: test unitari e di integrazione su file SQLite temporanei;
-- `docs`: decisioni architetturali e milestone operative;
-- `scripts`: verifica e pubblicazione da PowerShell.
+Ogni tipologia è una fascia orizzontale. La prima cella contiene nome, pallino e banda nel colore
+configurato; le altre cinque celle contengono le card del relativo stato. Le celle della stessa fascia
+condividono automaticamente l'altezza; le intersezioni vuote restano visivamente pulite.
 
-## Composizione applicativa
+Generica è sempre la prima fascia. Le fasce attive seguono l'ordine configurato; una fascia inattiva
+rimane visibile soltanto se contiene ancora card, così nessun elemento viene nascosto dalla board.
 
-`ApplicationCompositionRoot` è l'unico punto che costruisce il grafo runtime. Condivide una sola
-`ApplicationSession` per l'intera esecuzione e crea i repository a partire dal percorso SQLite
-normalizzato. I ViewModel dipendono da interfacce e non conoscono la costruzione concreta dei servizi.
+La matrice si estende alla larghezza disponibile e conserva una larghezza minima per non comprimere
+le card. Lo scroll verticale è unico per tutta la board e include margine sufficiente per visualizzare
+interamente l'ultima card. Il pan con il tasto centrale agisce su entrambi gli assi.
 
-Le astrazioni principali introdotte in M3.1 sono:
+La proiezione riutilizza gli stessi `CardViewModel` delle collection tecniche delle colonne: lock,
+bozze, errori e feedback di salvataggio restano associati a un'unica istanza della card.
 
-- `IAppSettingsService`;
-- `IDatabaseInitializer`;
-- `IApplicationSession`;
-- `IClock`;
-- `IRecurringTaskScheduler`;
-- `IViewModelFactory`;
-- `IAppLogger`;
-- `IErrorReferenceGenerator`;
-- `IDatabaseDiagnosticsReader`;
-- `IApplicationDiagnosticsProvider`.
+In M3.10 il drag&drop accetta qualsiasi cella operativa: consente di cambiare stato, fascia o entrambe
+le dimensioni insieme, oltre al riordino prima/dopo/in fondo nella stessa cella. La zona TIPOLOGIA non
+è una destinazione valida. Una fascia inattiva continua a mostrare e a far muovere le proprie card fra
+gli stati, ma non può ricevere card provenienti da altre fasce.
 
-Il timer Avalonia è confinato in `AvaloniaRecurringTaskScheduler`. I test usano uno scheduler manuale
-che può richiamare polling e heartbeat senza aspettare il tempo reale o inizializzare il dispatcher.
-La milestone non cambia il comportamento della board né lo schema SQLite, che resta alla versione 3.
-La decisione è descritta in [`docs/ADR-0005-composition-root.md`](docs/ADR-0005-composition-root.md).
+Le scorciatoie da tastiera sono:
 
+- `Alt` + `Su/Giù`: riordino nella cella;
+- `Alt` + `Sinistra/Destra`: cambio stato nella stessa fascia;
+- `Ctrl` + `Alt` + `Su/Giù`: cambio verso la fascia attiva precedente o successiva.
+
+Ogni intestazione operativa espone un pulsante `+`: la nuova card viene creata nella fascia
+**Generica** direttamente in BACKLOG, TODO, IN PROGRESS, TESTING o DONE. Se il catalogo definisce una
+priorità predefinita attiva, questa viene applicata subito e il repository ne calcola la scadenza.
+
+## Priorità compatta sulla card
+
+Fuori modifica ogni card mostra codice, nome e tempo residuo direttamente sullo stesso sfondo della
+card, senza un pannello separato. L’intera zona è cliccabile: acquisisce il lock, apre la bozza e porta
+il focus alla ComboBox. Il tooltip combina la descrizione della priorità con la scadenza esatta; una
+priorità inattiva resta leggibile sulle card esistenti ma non viene proposta per nuove assegnazioni.
+
+Entrando in modifica compare una ComboBox sotto le note. Il click sul riepilogo della priorità apre
+direttamente l’elenco; l’opzione `Nessuna` rimuove priorità e scadenza. La bozza non viene più chiusa
+quando il focus passa a un popup, a un altro controllo o quando il polling aggiorna i lock: resta attiva
+fino a **Salva**, **Annulla** o `Esc`. Titolo, note e priorità usano il medesimo lock, partecipano a
+`IsDirty` e vengono persistiti con una sola chiamata `UpdateAsync`. Il repository imposta
+`PriorityAssignedAtUtc`, calcola `DueAtUtc` con l’eventuale regola specifica della fascia e registra
+`PriorityChanged`; un conflitto conserva l’intera bozza.
+
+La finestra principale viene creata massimizzata, con attivazione iniziale esplicita e un passaggio
+`Topmost` temporaneo rimosso subito dopo l’apertura. In questo modo viene mostrata davanti alle altre
+applicazioni senza restare sempre in primo piano. Un margine inferiore più ampio consente di scorrere
+oltre l’ultima fascia e visualizzare sempre integralmente la card più bassa.
+
+## Tipologie come fasce
+
+Le tipologie introdotte nello schema v4 sono le fasce orizzontali della board.
+
+La migrazione v5 crea la tipologia di sistema:
+
+```text
+Generica
+```
+
+Generica:
+
+- è la prima tipologia;
+- è attiva e predefinita;
+- riceve automaticamente le card che non avevano una tipologia;
+- viene identificata dalla chiave stabile `generic`;
+- non può essere eliminata, rinominata, disattivata o riordinata.
+
+Le altre tipologie esistenti vengono conservate e ordinate sotto Generica. Dalla M3.8 la finestra
+**Configura board** le tratta esplicitamente come fasce: mostra il numero di card assegnate, non
+propone più un default configurabile e non include Generica nel riordino.
+
+### Eliminazione di una fascia
+
+Una fascia vuota può essere eliminata direttamente. Se contiene card, l’utente deve scegliere una
+fascia di destinazione attiva; Generica viene proposta per prima. L’operazione è atomica:
+
+- cambia soltanto `CardTypeId`;
+- conserva `ColumnId` e `SortOrder`;
+- conserva `PriorityAssignedAtUtc`;
+- ricalcola `DueAtUtc` con le regole della fascia di destinazione;
+- incrementa la versione della card e aggiorna l’autore dell’operazione;
+- registra un evento `TypeChanged` per ogni card trasferita.
+
+Se una card della fascia è aperta in modifica, l’eliminazione viene rifiutata per non invalidare la
+bozza attiva.
+
+## Migrazione dal planner settimanale
+
+L'upgrade dallo schema v4 applica questa trasformazione:
+
+- `Backlog` → `BACKLOG`;
+- `Lunedì`–`Domenica` → `TODO`;
+- `IN PROGRESS`, `TESTING` e `DONE` vengono create come nuove colonne;
+- le card dei giorni vengono ordinate per vecchia colonna, posizione e ID;
+- le card senza tipologia vengono assegnate a Generica.
+
+Ogni trasformazione viene registrata nello storico funzionale:
+
+- `WorkflowMigrated` per il cambio di stato;
+- `TypeMigrated` per l'assegnazione a Generica.
+
+Prima della migrazione viene creato un backup SQLite coerente. Se upgrade o controllo d'integrità
+falliscono, WeeklyPlanner ripristina il database precedente.
+
+## Snapshot atomico della board
+
+`BoardSnapshotRepository` legge in una singola transazione SQLite:
+
+```text
+KanbanBoardSnapshot
+├── Revision
+├── Columns
+├── CardTypes
+├── Priorities
+├── DeadlineRules
+├── Cards
+└── ActiveLocks
+```
+
+Il `BoardViewModel` non combina più colonne, card, cataloghi e lock letti in momenti differenti.
+Questo rende affidabile il polling del layout bidimensionale e impedisce stati intermedi incoerenti.
+
+## Ultima modifica reale della card
+
+Il riordino modifica necessariamente il `SortOrder` delle card vicine. Dalla M3.7 questi aggiornamenti
+tecnici non modificano più `UpdatedAtUtc` o `UpdatedBy` delle card vicine.
+
+Soltanto la card realmente trascinata riceve un nuovo timestamp funzionale. Questa regola è la base
+del futuro indicatore:
+
+```text
+💾 1 min fa
+💾 3 giorni fa
+```
+
+## Persistenza
+
+WeeklyPlanner usa un file SQLite locale, senza server e senza share di rete.
+
+Percorso predefinito:
+
+```text
+%LOCALAPPDATA%\WeeklyPlanner\Data\weeklyplanner.db
+```
+
+I percorsi UNC e relativi vengono rifiutati. Le directory mancanti vengono create automaticamente.
+
+## Schema SQLite v5
+
+Tabelle principali:
+
+```text
+SchemaVersion
+BoardState
+Columns
+Cards
+CardEditLocks
+Priorities
+CardTypes
+PriorityTypeDeadlines
+CardEvents
+```
+
+Novità v5:
+
+```text
+Columns.SystemKey
+Columns.IsSystem
+CardTypes.SystemKey
+CardTypes.IsSystem
+```
+
+Ogni card deve avere un `CardTypeId`. Il repository assegna automaticamente Generica quando il
+chiamante non specifica una tipologia; trigger SQLite impediscono inserimenti o aggiornamenti con
+`CardTypeId` nullo.
+
+## Storico funzionale
+
+`CardEvents` conserva gli eventi anche dopo l'eliminazione della card tramite `CardStableId`.
+
+Eventi disponibili:
+
+- `Imported`;
+- `WorkflowMigrated`;
+- `TypeMigrated`;
+- `Created`;
+- `Updated`;
+- `PriorityChanged`;
+- `TypeChanged`;
+- `Moved`;
+- `Reordered`;
+- `Deleted`.
+
+Titolo e note non vengono duplicati nei payload dello storico.
+
+## Editing e concorrenza locale
+
+- lock applicativo a scadenza per card;
+- indicatore dell'utente che sta modificando;
+- heartbeat periodico;
+- controllo ottimistico tramite `Cards.Version`;
+- bozza protetta dal polling;
+- salvataggio e annullamento espliciti;
+- recovery senza perdita della bozza;
+- shutdown coordinato con rilascio dei lock.
+
+La collaborazione vale fra istanze che aprono lo stesso file SQLite locale sulla stessa macchina.
+Database distinti non vengono sincronizzati.
+
+## Configurazione
+
+Dalle Impostazioni è possibile gestire:
+
+- nome utente;
+- percorso del database;
+- intervallo di polling;
+- tema Sistema/Chiaro/Scuro;
+- geometria della finestra;
+- priorità;
+- fasce, colori e ordine sotto Generica;
+- trasferimento atomico delle card quando si elimina una fascia usata;
+- regole di scadenza per fascia.
 
 ## Logging e diagnostica
 
-WeeklyPlanner scrive log tecnici in:
+Log tecnici:
 
 ```text
 %LOCALAPPDATA%\WeeklyPlanner\Logs
 ```
 
-Il formato è **JSON Lines**, una registrazione per riga. La scrittura avviene tramite una coda
-asincrona; i file ruotano per giorno e quando raggiungono 5 MB, con retention predefinita di 14
-giorni. Un errore del filesystem dei log non blocca la board e viene esposto nella diagnostica.
+Caratteristiche:
 
-Per principio di minimizzazione, gli eventi registrano identificativi, revisioni, stato della
-connessione e tipo di operazione. Le proprietà con nomi sensibili come `Title`, `Notes`, `Content` o
-`Text` vengono redatte e il codice applicativo non passa il contenuto delle card al logger.
+- JSON Lines;
+- coda asincrona;
+- rotazione giornaliera e per dimensione;
+- retention;
+- contenuto delle card redatto;
+- riferimento errore `WP-XXXXXX` correlabile con la UI.
 
-Gli errori operativi mostrati nella UI includono un riferimento breve, per esempio `WP-7F3A21`. Lo
-stesso riferimento compare nel record di log insieme a eccezione, stack trace e contesto tecnico.
-Sono inoltre osservate le eccezioni non gestite del dispatcher UI, del processo e delle Task non
-osservate.
+La finestra Diagnostica mostra versione, runtime, stato della board, schema SQLite, percorsi e stato
+del logger senza esporre titolo o note delle card.
 
-Il pulsante **Diagnostica** nell’intestazione apre una finestra con:
+## Struttura
 
-- versione applicazione, milestone, runtime .NET, Avalonia e sistema operativo;
-- utente, computer, sessione, stato board e ultimo aggiornamento;
-- percorso, dimensione e versione schema del database;
-- percorso delle impostazioni e dei log, stato del logger e ultimo file scritto;
-- comandi per copiare la diagnostica e aprire le cartelle log e database.
+- `WeeklyPlanner.Core`: modelli, repository, migrazioni, audit, cataloghi, resilienza e SQLite;
+- `WeeklyPlanner.App`: Avalonia, MVVM, composition root, scheduler, logging e diagnostica;
+- `WeeklyPlanner.Tests`: test unitari e integrazione su database SQLite temporanei;
+- `docs`: ADR e milestone;
+- `scripts`: verifica e publish PowerShell.
 
-La diagnostica espone conteggi aggregati, non titolo o note delle card. La decisione è descritta in
-[`docs/ADR-0007-osservabilita-diagnostica.md`](docs/ADR-0007-osservabilita-diagnostica.md).
+Astrazioni rilevanti:
+
+- `IBoardSnapshotRepository`;
+- `ICardRepository`;
+- `ICardCatalogRepository`;
+- `ICardEventRepository`;
+- `ICardEditLockRepository`;
+- `IBoardChangeDetector`;
+- `IDatabaseInitializer`;
+- `IDatabaseMigrationBackupService`;
+- `IRecurringTaskScheduler`;
+- `IAppLogger`.
 
 ## Prerequisiti
 
@@ -137,12 +321,10 @@ La diagnostica espone conteggi aggregati, non titolo o note delle card. La decis
 - Windows per la verifica primaria dell'app desktop;
 - accesso a NuGet durante il restore.
 
-Le versioni dei pacchetti sono centralizzate in `Directory.Packages.props`. Tutti i warning,
-compresi gli avvisi NuGet di sicurezza, bloccano la build.
+Le versioni NuGet sono centralizzate. Warning del compilatore, analyzer e audit NuGet sono trattati
+come errori.
 
-## Verifica completa
-
-Da PowerShell, nella radice del repository:
+## Build e test
 
 ```powershell
 .\scripts\verify.ps1
@@ -159,212 +341,26 @@ dotnet test WeeklyPlanner.sln -c Release --no-build
 ## Avvio
 
 ```powershell
-dotnet run --project WeeklyPlanner.App
+dotnet run --project .\WeeklyPlanner.App\WeeklyPlanner.App.csproj
 ```
 
-Al primo avvio vengono proposti:
+Nella M3.11 la finestra deve mostrare il badge `M3.11`, aprirsi massimizzata e presentare il pulsante
+di creazione in ciascuna intestazione operativa. La priorità deve apparire come badge in lettura e come
+ComboBox soltanto nella bozza di modifica.
 
-- il percorso locale `%LOCALAPPDATA%\WeeklyPlanner\Data\weeklyplanner.db`;
-- il nome dell'utente registrato sulle modifiche;
-- l'intervallo di polling.
+## Roadmap immediata
 
-È possibile scegliere un altro percorso, purché il database rimanga su un filesystem locale.
-Si può indicare direttamente un file `.db` oppure una cartella esistente o terminante con un
-separatore: in quest'ultimo caso l'app aggiunge `weeklyplanner.db`. La cartella padre viene creata
-automaticamente se non esiste.
+1. **M3.12 — Ultimo salvataggio relativo**  
+   Floppy verde, tempo relativo e tooltip esatto.
+2. **M3.13 — Informazioni e cronologia**  
+   Modale con metadati e storico paginato.
+3. **M3.14 — Consolidamento kanban**  
+   Test UI, prestazioni, accessibilità e documentazione finale.
 
-## Impostazioni locali
+Le decisioni del modello corrente sono descritte in:
 
-Il pulsante a forma di ingranaggio nell'header apre le impostazioni senza modificare lo schema SQLite.
-Sono configurabili:
-
-- nome registrato sulle modifiche;
-- percorso del database SQLite locale;
-- intervallo di polling da 3 a 60 secondi;
-- tema Sistema, Chiaro o Scuro;
-- apertura rapida della cartella database e della cartella `%APPDATA%\WeeklyPlanner`.
-
-Tema e polling vengono applicati immediatamente. Nome e database non possono essere cambiati mentre
-una card è in modifica o durante un'operazione critica. Un nuovo percorso database viene usato al
-riavvio successivo: la sessione attiva continua a lavorare sul file già aperto.
-
-Dimensione, posizione e stato massimizzato della finestra principale vengono salvati in
-`settings.json`. Una posizione non più appartenente a uno schermo disponibile viene ignorata e la
-finestra torna al centro dello schermo.
-
-La versione visualizzata nel titolo e nel badge deriva dai metadati dell'assembly, definiti una sola
-volta in `Directory.Build.props`.
-
-## Migrazione dello schema
-
-L'applicazione applica automaticamente le migrazioni embedded mancanti:
-
-- `0001_init.sql`: colonne e card;
-- `0002_board_revision.sql`: tabella `BoardState` e trigger di revisione;
-- `0003_card_editing.sql`: `Cards.Version`, tabella `CardEditLocks` e trigger dei lock.
-
-I database v1 e v2 vengono aggiornati automaticamente alla v3 senza perdere le card esistenti. Una
-versione dell'app più vecchia rifiuta esplicitamente uno schema più recente.
-
-## Risoluzione problemi del percorso database
-
-La configurazione è salvata in `%APPDATA%\WeeklyPlanner\settings.json`.
-
-Se l'app mostra un errore di apertura, il banner include il percorso risolto realmente utilizzato.
-La M1.1.1 migra automaticamente i casi legacy più comuni, compresi:
-
-- percorso impostato a una cartella esistente;
-- percorso terminante con `\` o `/`;
-- variabili d'ambiente Windows non ancora espanse;
-- virgolette esterne copiate insieme al percorso.
-
-I percorsi UNC e i file su share di rete restano intenzionalmente non supportati nella fase locale.
-
-## Riordino atomico
-
-`CardRepository` usa transazioni SQLite non differite per le operazioni composte. Il chiamante
-fornisce soltanto card, colonna e indice di inserimento: il repository legge l'ordine corrente,
-calcola la sequenza finale e salva tutte le righe modificate nello stesso commit.
-
-La UI non cambia più le collection prima del salvataggio. Se una scrittura fallisce, non è necessario
-un rollback visuale perché lo stato mostrato non è stato ancora modificato. Dopo il commit viene
-eseguito un merge con i dati persistiti.
-
-
-## Editing protetto
-
-Il primo focus sul titolo o sulle note acquisisce un lease di 30 secondi, rinnovato ogni 10 secondi.
-Durante l'editing:
-
-- titolo, note e posizione non vengono sostituiti dal polling;
-- compare `🔒 Stai modificando`;
-- le altre istanze mostrano `🔒 <utente> sta modificando…` e rendono i campi in sola lettura;
-- `Esc` o **Annulla** ripristinano i valori persistiti;
-- **Salva** oppure l'uscita completa dalla card eseguono il salvataggio;
-- una modifica o cancellazione esterna conserva la bozza e mostra un conflitto;
-- spostamento ed eliminazione sono bloccati finché il lease è attivo.
-
-Il lock è applicativo e a scadenza: non mantiene una transazione SQLite aperta. `Cards.Version`
-aggiunge una seconda protezione ottimistica contro sovrascritture accidentali. La decisione è
-formalizzata in [`docs/ADR-0003-editing-protetto.md`](docs/ADR-0003-editing-protetto.md).
-
-
-## Stato operativo e recupero
-
-L'intestazione distingue esplicitamente:
-
-- **Connessione al database**: inizializzazione o tentativo manuale;
-- **Database online**: letture e scritture disponibili;
-- **Connessione instabile**: errore temporaneo, con nuovo tentativo automatico;
-- **Database non disponibile**: file non apribile o I/O non disponibile;
-- **Errore database**: permessi, spazio esaurito, file non valido o errore strutturale;
-- **Chiusura in corso**: timer fermati e lock della sessione in rilascio.
-
-Il pulsante **Riprova ora** forza una nuova inizializzazione. Finché il database non è online, nuove
-scritture e drag&drop vengono rifiutati senza modificare la UI. Dopo un errore la board già caricata
-resta visibile; il recupero riutilizza i ViewModel esistenti, quindi una bozza in modifica non viene
-sostituita da una board vuota o ricostruita. Dopo il primo caricamento riuscito, se il file scompare
-l'app passa offline e non crea silenziosamente un nuovo database vuoto nello stesso percorso.
-
-Gli errori SQLite sono classificati tramite i codici numerici, non analizzando messaggi localizzati.
-`SQLITE_BUSY` e `SQLITE_LOCKED` usano retry brevi sia nelle letture sia nelle scritture. Gli errori
-temporaneamente indisponibili continuano a essere verificati dal polling; permessi, spazio, integrità
-o incompatibilità dello schema sospendono i tentativi automatici fino a **Riprova ora**.
-
-Alla chiusura, l'evento `Closing` sospende temporaneamente la chiusura della finestra, ferma polling e
-heartbeat, attende le operazioni correnti e rilascia tutti i lock della sessione. Se il database non è
-disponibile, il cleanup resta best effort e i lease scadono naturalmente. La decisione è descritta in
-[`docs/ADR-0004-stato-operativo-lifecycle.md`](docs/ADR-0004-stato-operativo-lifecycle.md).
-
-## CRUD e feedback dell'editor
-
-Ogni card espone un comando **Elimina** quando non è in modifica e non è bloccata. Il primo clic apre
-una conferma inline nella card; **Annulla** chiude la conferma e il secondo **Elimina** esegue la
-cancellazione atomica già fornita dal repository. Non vengono aperte finestre modali.
-
-Il titolo è obbligatorio e limitato a 160 caratteri. Durante l'editing vengono mostrati il contatore e
-un messaggio di validazione; **Salva** resta disabilitato finché il titolo non è valido. La stessa
-regola è applicata nel repository, che normalizza gli spazi esterni prima di creare o aggiornare una
-card.
-
-L'editor mostra gli stati **Salvataggio…**, **Salvata** oppure un errore che conferma la conservazione
-della bozza. Durante la scrittura il salvataggio rende temporaneamente i campi in sola lettura per
-evitare comandi concorrenti sulla stessa card.
-
-Ogni colonna usa un proprio `ScrollViewer` verticale; lo scorrimento orizzontale della board resta
-indipendente e l'azione compatta **+ card** rimane sempre visibile accanto al nome del giorno.
-
-## Drag&drop e tastiera
-
-Durante il drag compare una linea nel punto esatto in cui la card verrà inserita:
-
-- sopra o sotto la card sotto il puntatore;
-- in fondo alla colonna quando il puntatore è nello spazio libero;
-- nessun indicatore e nessuna scrittura per un rilascio che lascerebbe la card nella stessa posizione.
-
-La card è raggiungibile con `Tab` e mostra un bordo di focus. Con la card selezionata:
-
-- `Alt+↑` la sposta di una posizione verso l'alto;
-- `Alt+↓` la sposta di una posizione verso il basso;
-- `Alt+←` la sposta nella colonna precedente;
-- `Alt+→` la sposta nella colonna successiva.
-
-Negli spostamenti orizzontali viene mantenuta, quando possibile, la stessa posizione verticale; nelle
-colonne più corte l'indice viene adattato alla coda. Le scorciatoie non si attivano mentre il focus è
-all'interno di un campo di testo. Dopo il commit il focus torna sulla stessa card.
-
-Le card e il pulsante cestino espongono inoltre nomi e testo di aiuto tramite `AutomationProperties`.
-
-## Pubblicazione
-
-```powershell
-.\scripts\publish.ps1 -RuntimeIdentifier win-x64
-```
-
-L'output predefinito viene scritto in `artifacts/publish/win-x64` come pubblicazione
-framework-dependent.
-
-## Funzionalità presenti
-
-- colonne fisse `Backlog` e `Lunedì`–`Domenica`;
-- creazione, modifica ed eliminazione confermata di card;
-- spostamento e riordino nella stessa colonna o fra colonne tramite drag&drop;
-- inserimento prima o dopo la card sotto il puntatore con indicatore visuale;
-- spostamento da tastiera con `Alt` + frecce;
-- persistenza atomica e ricompattazione dei `SortOrder`;
-- configurazione locale resiliente;
-- polling basato su revisione monotona;
-- bozza protetta dal polling durante l'editing;
-- lock a scadenza con indicatore dell'utente;
-- optimistic concurrency tramite `Cards.Version`;
-- rilevazione delle cancellazioni anche da una seconda istanza locale;
-- migrazioni incrementali;
-- foreign key SQLite abilitate;
-- retry limitato sui lock SQLite temporanei, sia in lettura sia in scrittura;
-- stato operativo visibile e recupero manuale/automatico;
-- chiusura coordinata con rilascio dei lock della sessione;
-- titolo obbligatorio con limite di 160 caratteri e validazione nel repository;
-- feedback di persistenza per creazione, salvataggio, spostamento e riordino;
-- logging locale con rotazione, retention e riferimenti errore;
-- finestra diagnostica senza contenuto delle card;
-- scroll verticale indipendente per colonna.
-
-## Limiti noti prima dell'MVP
-
-- non sono ancora presenti test UI headless end-to-end; la logica di spostamento è coperta da test puri;
-- backup e restore guidati non sono ancora implementati;
-- non esiste sincronizzazione fra computer.
-
-La sequenza aggiornata è in [`docs/MILESTONES.md`](docs/MILESTONES.md). La visione funzionale e la
-roadmap di prodotto sono in
-[`WeeklyPlanner-Obiettivi-e-Roadmap.md`](WeeklyPlanner-Obiettivi-e-Roadmap.md).
-
-## Feedback di persistenza della card
-
-La floppy verde nel footer conferma tutte le operazioni persistite sulla card, non soltanto il salvataggio di titolo e note. Il tooltip distingue `Card inserita`, `Card salvata`, `Card spostata` e `Ordine aggiornato`. Il testo autore è allineato alla stessa rientranza dei campi della card.
-
-
-### Correzione M3.3.4 — chiusura del processo
-
-La chiusura della finestra richiede ora esplicitamente lo shutdown del lifetime desktop dopo il cleanup della board. Il rilascio globale del logger e dei servizi ha un limite di 2 secondi: un errore diagnostico non può lasciare `dotnet run` attivo dopo la chiusura della UI.
-
+- [`docs/ADR-0011-modello-kanban-swimlane.md`](docs/ADR-0011-modello-kanban-swimlane.md);
+- [`docs/ADR-0012-configurazione-fasce.md`](docs/ADR-0012-configurazione-fasce.md);
+- [`docs/ADR-0013-layout-kanban-swimlane.md`](docs/ADR-0013-layout-kanban-swimlane.md);
+- [`docs/ADR-0014-movimento-bidimensionale.md`](docs/ADR-0014-movimento-bidimensionale.md);
+- [`docs/ADR-0015-priorita-compatta-card.md`](docs/ADR-0015-priorita-compatta-card.md).

@@ -75,7 +75,7 @@ public static class CardMovePlanner
                 return true;
 
             case CardMoveDirection.Down when sourceCardIndex < sourceColumnCount - 1:
-                // MoveAsync rimuove prima la card e, se la sorgente precede la destinazione,
+                // Il repository rimuove prima la card e, se la sorgente precede la destinazione,
                 // sottrae uno all'indice. +2 produce quindi uno spostamento finale di +1.
                 plan = new CardMovePlan(sourceColumnIndex, sourceCardIndex + 2);
                 return true;

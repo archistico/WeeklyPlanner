@@ -70,6 +70,39 @@ public sealed class DatabaseFailureClassifierTests
         Assert.True(failure.RequiresAttention);
     }
 
+
+    [Fact]
+    public void Failed_migration_reports_that_the_original_database_was_restored()
+    {
+        var exception = new DatabaseMigrationFailedException(
+            2,
+            3,
+            @"C:\Backups\weeklyplanner.db",
+            new SqliteException("migration failed", 1));
+
+        var failure = DatabaseFailureClassifier.Classify(exception);
+
+        Assert.Equal(DatabaseFailureKind.Schema, failure.Kind);
+        Assert.Equal(exception.Message, failure.UserMessage);
+        Assert.False(failure.CanRetryAutomatically);
+        Assert.True(failure.RequiresAttention);
+    }
+
+    [Fact]
+    public void Integrity_failure_is_classified_as_database_corruption()
+    {
+        var exception = new DatabaseIntegrityException(
+            "prima della migrazione",
+            "page 7 is invalid");
+
+        var failure = DatabaseFailureClassifier.Classify(exception);
+
+        Assert.Equal(DatabaseFailureKind.Corrupt, failure.Kind);
+        Assert.Equal(exception.Message, failure.UserMessage);
+        Assert.False(failure.CanRetryAutomatically);
+        Assert.True(failure.RequiresAttention);
+    }
+
     [Fact]
     public void Unknown_error_has_a_safe_user_message()
     {

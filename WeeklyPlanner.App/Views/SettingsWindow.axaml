@@ -9,7 +9,17 @@
   <ScrollViewer VerticalScrollBarVisibility="Auto">
     <Border Padding="24">
       <StackPanel Spacing="14">
-        <TextBlock Text="Impostazioni" FontSize="20" FontWeight="SemiBold" />
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="Impostazioni" FontSize="20" FontWeight="SemiBold" />
+          <Button Grid.Column="1" Classes="icon" Background="Transparent"
+                  ToolTip.Tip="Configura board"
+                  AutomationProperties.Name="Configura priorità e tipologie della board"
+                  Click="OnOpenBoardConfigurationClick">
+            <Path Width="14" Height="14" Stretch="Uniform"
+                  Fill="{DynamicResource TextSecondaryBrush}"
+                  Data="M7,0 L9,0 L9.5,2.1 L11.2,3.1 L13.3,2.5 L14.3,4.2 L12.7,5.7 L12.7,7.3 L14.3,8.8 L13.3,10.5 L11.2,9.9 L9.5,10.9 L9,13 L7,13 L6.5,10.9 L4.8,9.9 L2.7,10.5 L1.7,8.8 L3.3,7.3 L3.3,5.7 L1.7,4.2 L2.7,2.5 L4.8,3.1 L6.5,2.1 Z M8,4.2 A2.3,2.3 0 1 0 8,8.8 A2.3,2.3 0 1 0 8,4.2" />
+          </Button>
+        </Grid>
 
         <Border Background="#F6D32D" Padding="10" CornerRadius="8"
                 IsVisible="{Binding IsIdentityAndDatabaseBlocked}">

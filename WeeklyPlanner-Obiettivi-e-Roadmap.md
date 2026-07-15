@@ -1,459 +1,363 @@
 # WeeklyPlanner — Obiettivi e roadmap
 
-Versione documento: **0.8.0**
-Ultimo aggiornamento: **14 luglio 2026**
+Versione documento: **2.2.0**  
+Ultimo aggiornamento: **15 luglio 2026**
 
 ## 1. Visione
 
-WeeklyPlanner è un planner settimanale desktop leggero, scritto in **C# / .NET 10 / Avalonia**.
-Riprende l'immediatezza visiva di *ThisWeekInMyLife*: una board essenziale, simile a una parete di
-post-it, con `Backlog` e una colonna per ciascun giorno della settimana.
+WeeklyPlanner è un'applicazione desktop locale in **C# / .NET 10 / Avalonia** per gestire attività
+tramite un kanban a swimlane.
 
-La fase corrente è **local-first**: una singola installazione desktop usa un database SQLite sul
-disco locale, senza server. L'obiettivo non è costruire un sistema di project management generalista,
-ma fornire uno strumento rapido e leggibile, mantenendo una base tecnica che possa tornare
-collaborativa in futuro senza riscritture continue.
+Il nome WeeklyPlanner viene mantenuto, ma la struttura non è più legata ai giorni della settimana.
+La board combina due dimensioni:
 
-La configurazione del database accetta sia un percorso completo al file sia una cartella locale. I
-percorsi legacy vengono normalizzati centralmente: le variabili d'ambiente vengono espanse e una
-cartella viene convertita nel file `weeklyplanner.db`, evitando configurazioni formalmente complete
-ma non apribili da SQLite.
+- **stato del lavoro**, rappresentato dalle colonne;
+- **tipologia o area progettuale**, rappresentata dalle fasce orizzontali.
+
+Esempi di fasce:
+
+- Generica;
+- WinCliente;
+- WinCassa;
+- Porting SIP;
+- Personale.
 
 ## 2. Principi di sviluppo
 
 - milestone piccole e verificabili;
-- test automatici per la logica dati e applicativa;
 - build senza warning;
-- migrazioni incrementali e versionate;
+- test automatici prima della chiusura di ogni milestone;
+- migrazioni incrementali, protette e reversibili;
+- SQLite locale senza server;
+- nessuna perdita silenziosa di dati o bozze;
+- storico funzionale atomico con la mutazione;
+- UI e persistenza separate;
 - documentazione aggiornata insieme al codice;
-- separazione netta fra UI, logica applicativa e persistenza;
-- nessuna milestone dichiarata conclusa senza build e test reali;
-- affidabilità e consistenza prima delle nuove funzionalità.
+- refactoring prima di aggiungere complessità non governabile.
 
-## 3. Obiettivi dell'MVP
+## 3. Modello kanban
 
-| Codice | Requisito |
-|---|---|
-| F1 | Visualizzare `Backlog` e le colonne da lunedì a domenica |
-| F2 | Creare, modificare ed eliminare card con titolo e note |
-| F3 | Spostare e riordinare card tramite drag&drop |
-| F4 | Tracciare autore e ultimo utente che ha modificato la card |
-| F5 | Rilevare automaticamente modifiche effettuate da una seconda istanza locale |
-| F6 | Configurare identità utente e percorso del database locale al primo avvio |
-| F7 | Mostrare chiaramente gli stati di caricamento, offline, errore e salvataggio |
-| F8 | Conservare l'ordinamento senza duplicati o buchi dopo ogni operazione |
-| F9 | Proteggere le bozze dal polling e indicare chi sta modificando una card |
+### 3.1 Colonne operative
 
-## 4. Non-obiettivi dell'MVP
+Le colonne sono cinque voci di sistema:
 
-- board multiple;
-- ruoli e permessi;
-- autenticazione aziendale;
-- notifiche push;
-- localizzazione multilingua;
-- colonne personalizzabili;
-- sincronizzazione offline con merge differito;
-- conflict resolution sofisticata oltre a una prima forma di optimistic concurrency;
-- applicazioni mobili o web.
+| Ordine | Chiave | Titolo |
+|---:|---|---|
+| 0 | `backlog` | BACKLOG |
+| 1 | `todo` | TODO |
+| 2 | `in_progress` | IN PROGRESS |
+| 3 | `testing` | TESTING |
+| 4 | `done` | DONE |
 
-## 5. Architettura
+Non sono configurabili, rinominabili o eliminabili.
 
-### 5.1 Layer
+`TIPOLOGIA` è soltanto l'intestazione visuale della prima area descrittiva e non una colonna dati.
+
+### 3.2 Fasce orizzontali
+
+Le righe della matrice sono le tipologie. Ogni fascia contiene una cella per ciascuno stato.
 
 ```text
-WeeklyPlanner.App
-    Avalonia, View, ViewModel, composizione applicativa
-
-WeeklyPlanner.Core
-    modelli, contratti, persistenza corrente, migrazioni, resilienza
-
-WeeklyPlanner.Tests
-    test unitari e di integrazione
+┌──────────────┬─────────┬──────┬─────────────┬─────────┬──────┐
+│ TIPOLOGIA    │ BACKLOG │ TODO │ IN PROGRESS │ TESTING │ DONE │
+├──────────────┼─────────┼──────┼─────────────┼─────────┼──────┤
+│ Generica     │  Card   │      │             │         │      │
+├──────────────┼─────────┼──────┼─────────────┼─────────┼──────┤
+│ WinCliente   │         │ Card │    Card     │         │ Card │
+├──────────────┼─────────┼──────┼─────────────┼─────────┼──────┤
+│ WinCassa     │  Card   │      │             │  Card   │      │
+└──────────────┴─────────┴──────┴─────────────┴─────────┴──────┘
 ```
 
-L'UI non deve contenere SQL né conoscere dettagli delle migrazioni. I repository non devono
-dipendere da Avalonia. Questa separazione permette di sostituire l'accesso diretto a SQLite con un
-client HTTP senza riscrivere la board.
+La posizione persistita della card è:
 
-### 5.2 Persistenza locale
+```text
+(CardTypeId, ColumnId, SortOrder)
+```
 
-La decisione corrente è descritta in
-[`ADR-0002`](docs/ADR-0002-sqlite-locale.md): WeeklyPlanner apre un file SQLite sul filesystem
-locale della macchina, senza server e senza condivisione fra computer.
+### 3.3 Tipologia Generica
+
+Generica è una voce di sistema:
+
+- chiave `generic`;
+- sempre prima;
+- sempre attiva;
+- non eliminabile, rinominabile, disattivabile o riordinabile;
+- destinazione delle card senza tipologia;
+- fascia iniziale delle nuove card.
+
+### 3.4 Priorità
+
+Le priorità restano un attributo della card, indipendente dalla posizione:
+
+| Codice | Nome | Scadenza predefinita |
+|---|---|---:|
+| U | Urgente | 72 ore |
+| B | Breve | 10 giorni |
+| D | Differibile | 30 giorni |
+| P | Programmabile | 120 giorni |
+
+Le regole alternative per tipologia sono mantenute. Esempio:
+
+```text
+D + Esame strumentale = 60 giorni
+```
+
+La priorità verrà selezionata tramite un ComboBox compatto sotto le note della card.
+
+## 4. Persistenza
+
+### 4.1 Architettura
 
 ```text
 WeeklyPlanner.App ──> SQLite locale
 ```
 
-Il percorso predefinito è `%LOCALAPPDATA%\WeeklyPlanner\Data\weeklyplanner.db`. L'ADR-0001 resta
-come analisi per un eventuale ritorno futuro al requisito multiutente.
+Percorso predefinito:
 
-### 5.3 Schema corrente v3
-
-```sql
-SchemaVersion(Version)
-Columns(Id, Name, SortOrder)
-Cards(
-    Id,
-    ColumnId,
-    Title,
-    Notes,
-    SortOrder,
-    CreatedBy,
-    UpdatedBy,
-    UpdatedAtUtc,
-    Version
-)
-BoardState(Id, Revision)
-CardEditLocks(
-    CardId,
-    SessionId,
-    UserName,
-    MachineName,
-    AcquiredAtUtc,
-    LastHeartbeatUtc,
-    ExpiresAtUtc
-)
+```text
+%LOCALAPPDATA%\WeeklyPlanner\Data\weeklyplanner.db
 ```
 
-La revisione viene incrementata da trigger SQLite nella stessa transazione di ogni inserimento,
-modifica, spostamento o cancellazione di una card e di ogni variazione dei lease di editing. Il
-polling non dipende dagli orologi dei processi. `Cards.Version` implementa il controllo di
-concorrenza ottimistico sul contenuto.
-
-### 5.4 Migrazioni
-
-- ogni modifica allo schema ha un file `NNNN_descrizione.sql` embedded;
-- le migrazioni vengono applicate in ordine, una transazione per versione;
-- `SchemaVersion` viene aggiornata dal migration runner, non dallo script;
-- un'app meno recente deve rifiutare un database con versione superiore;
-- non sono ammessi cambi manuali non rappresentati da una migrazione.
-
-## 6. Requisiti non funzionali
-
-### Affidabilità
-
-- un database locale non apribile non deve chiudere l'app;
-- ogni operazione deve produrre uno stato comprensibile;
-- le scritture composte devono essere atomiche;
-- la UI deve ripristinare lo stato precedente se una scrittura fallisce;
-- le cancellazioni devono essere osservabili da una seconda istanza locale.
-
-### Concorrenza locale
-
-- la board ha una revisione monotona indipendente dall'orologio;
-- il riordino deve aggiornare tutte le card coinvolte nella stessa transazione;
-- i `SortOrder` devono essere normalizzati e univoci nella colonna;
-- le operazioni devono restare corrette anche con due istanze locali;
-- una card in editing deve avere un lease a scadenza visibile alle altre istanze;
-- il polling non deve sovrascrivere né spostare una bozza attiva;
-- ogni salvataggio deve verificare la versione letta all'inizio dell'editing;
-- le letture devono ottenere uno snapshot coerente.
-
-### Manutenibilità
-
-- nullable reference types attivi;
-- warning trattati come errori;
-- versioni NuGet centralizzate e pinning delle dipendenze transitive di sicurezza;
-- CI su push e pull request;
-- test su database SQLite temporaneo reale;
-- nessun accesso a database o rete nei costruttori dei ViewModel.
-
-### UX
-
-- interazioni principali raggiungibili senza finestre complesse;
-- drag avviato soltanto dopo una soglia di movimento;
-- posizione di drop mostrata prima del commit;
-- riordino e cambio colonna disponibili anche da tastiera;
-- focus preservato dopo gli spostamenti;
-- colonne con scroll verticale indipendente;
-- stato di salvataggio visibile senza interrompere il lavoro;
-- conferma per operazioni distruttive;
-- tema chiaro/scuro coerente con il sistema.
-
-## 7. Identità visiva
-
-L'interfaccia richiama GTK4/Libadwaita senza tentare di copiarne i widget:
-
-- superfici piatte;
-- ombre minime;
-- angoli arrotondati;
-- palette neutra;
-- un solo colore d'accento;
-- header essenziale;
-- spaziatura su una scala coerente;
-- font Inter incluso tramite `Avalonia.Fonts.Inter`;
-- colori definiti in risorse `DynamicResource`, non nei singoli controlli salvo stati eccezionali.
-
-Palette iniziale:
-
-| Ruolo | Light | Dark |
-|---|---|---|
-| Finestra | `#FAFAFA` | `#242424` |
-| Superficie | `#FFFFFF` | `#303030` |
-| Bordo | `#DEDDDA` | `#3D3846` |
-| Testo primario | `#241F31` | `#FFFFFF` |
-| Testo secondario | `#5E5C64` | `#9A9996` |
-| Accento | `#3584E4` | `#78AAF2` |
-
-## 8. Polling locale
-
-Il polling dell'MVP resta periodico e interroga soltanto il database locale. Non costituisce una
-sincronizzazione fra computer.
-
-Lo schema v3 usa `BoardState.Revision`, incrementata automaticamente dai trigger su card e lock. Il
-client memorizza l'ultima revisione vista e ricarica la board quando il valore cambia. I lock attivi
-vengono comunque riletti a ogni ciclo: la scadenza naturale di un lease non produce infatti una
-scrittura e non può incrementare la revisione.
-
-Una successiva ottimizzazione potrà leggere board e revisione nello stesso snapshot oppure introdurre
-un change log incrementale.
-
-## 8.1 Ordinamento atomico
-
-La M1.2 considera l'indice di drop un indice di inserimento nella collection di destinazione. Il
-repository acquisisce una transazione SQLite non differita, legge l'ordine corrente e salva tutte le
-card interessate con `SortOrder` contigui. Per gli spostamenti fra colonne, sorgente e destinazione
-vengono aggiornate nello stesso commit e condividono lo stesso timestamp UTC.
-
-Il ViewModel non applica più modifiche ottimistiche alla collection. La board viene aggiornata dopo
-il commit; un errore produce quindi un messaggio ma non richiede di ricostruire manualmente l'ordine
-precedente nella UI.
-
-
-## 8.2 Editing protetto
-
-Il focus su titolo o note apre un'unica sessione di editing per l'intera card. Il ViewModel conserva
-la bozza separatamente dal modello persistito e congela titolo, note e posizione fino alla chiusura
-dell'editing. Il polling continua ad aggiornare il resto della board.
-
-`CardEditLocks` implementa un lease di 30 secondi, rinnovato ogni 10 secondi. Una seconda istanza
-mostra il nome del proprietario e rende la card in sola lettura. Il lock viene rilasciato al
-salvataggio, all'annullamento e alla chiusura; dopo un crash scade automaticamente.
-
-Il salvataggio usa inoltre `Cards.Version`: l'`UPDATE` richiede sia il lease della sessione sia la
-versione letta all'inizio. In caso di conflitto, scadenza o cancellazione la bozza viene conservata e
-l'utente riceve un messaggio esplicito.
-
-## 8.3 Drag&drop e accessibilità da tastiera
-
-Il drag mostra una linea di inserimento senza modificare anticipatamente la collection. La linea può
-comparire prima o dopo una card oppure in fondo alla colonna. Un target che, dopo la normalizzazione
-dell'indice, lascerebbe la card nella posizione originale viene rifiutato senza accedere al repository.
-
-Le card partecipano alla navigazione con `Tab`. Con il focus sul contenitore della card, `Alt+↑/↓`
-riordina nella colonna e `Alt+←/→` sposta nella colonna adiacente. Lo spostamento orizzontale conserva
-l'indice quando la destinazione è abbastanza lunga e lo limita alla coda negli altri casi. Le
-scorciatoie sono disabilitate nei campi di testo e il focus viene ripristinato dopo il merge.
-
-`AutomationProperties.Name` e `HelpText` descrivono card e azioni a icona alle tecnologie assistive.
-
-## 9. Test
-
-### Automatici
-
-- configurazione locale: assenza, corruzione, normalizzazione e salvataggio;
-- migrazioni: creazione, idempotenza, versioni mancanti e schema più recente;
-- repository: CRUD, vincoli referenziali e transazioni;
-- riordino: stessa colonna, colonne differenti, testa, coda e rollback;
-- polling: nessuna modifica, creazione, modifica, spostamento e cancellazione;
-- ViewModel: merge non distruttivo, bozza, lock, conflitti, lifecycle e comandi concorrenti.
-
-### Manuali
-
-- onboarding;
-- tema chiaro/scuro;
-- drag senza partenze accidentali;
-- resize e scroll;
-- interruzione e ripristino della persistenza;
-- due istanze locali contemporanee;
-- upgrade da ogni versione di schema supportata.
-
-## 10. Roadmap
-
-Lo stato operativo dettagliato è mantenuto in [`docs/MILESTONES.md`](docs/MILESTONES.md).
-
-### M0 — Baseline
-
-- **M0.1:** toolchain riproducibile, migrazioni reali, settings resilienti, lifecycle controllato,
-  aggiornamento drag&drop, test di base e CI;
-- **M0.1.1:** aggiornamento del runtime SQLite vulnerabile senza disattivare l'audit NuGet;
-- **M0.1.2:** adeguamento del drag&drop alle API tipizzate di Avalonia 11.3.18 e prima baseline
-  validata con build e test reali su Windows.
-
-### M1 — Coerenza dati locale
-
-- **M1.1 / M1.1.1:** ADR SQLite locale, schema v2, revisione monotona, rilevazione cancellazioni,
-  normalizzazione dei percorsi e avvio runtime validato;
-- **M1.2:** creazione, eliminazione e riordino atomici; rinumerazione completa delle colonne;
-  drop prima/dopo una card; rollback transazionale e verifica esplicita delle righe modificate;
-- **M1.3 / M1.3.1:** schema v3, bozza protetta dal polling, lease con heartbeat e indicatore utente,
-  optimistic concurrency, pacchetto verificabile e runtime validato;
-- **M1.4:** stato operativo visibile, classificazione errori SQLite, retry coerente sulle letture,
-  recupero non distruttivo, protezione dalla ricreazione silenziosa del file e chiusura coordinata
-  con rilascio dei lock.
-
-### M2 — CRUD e UX MVP
-
-- **M2.1:** comando e pulsante di eliminazione, conferma inline non invasiva, scroll verticale
-  indipendente, titolo obbligatorio e limitato, indicatore saving/saved/error;
-- **M2.1.1:** pulsante di eliminazione compatto con icona cestino nel footer della card, accanto all’autore;
-- **M2.2:** indicatore visuale della posizione di drop, rifiuto dei no-op, riordino e cambio colonna
-  con `Alt` + frecce, focus persistente e metadati di accessibilità;
-- **M2.2.1:** azione di aggiunta compatta nell’intestazione delle colonne, titolo card più leggibile,
-  footer con autore a sinistra, floppy verde di salvataggio e cestino allineato a destra;
-- **M2.2.3:** firma autore corsiva e allineata ai campi; pan orizzontale della board con trascinamento
-  tramite tasto centrale del mouse, senza interferire con drag&drop e scroll verticali;
-- **M2.3:** impostazioni modificabili dall'app, tema e polling applicati a runtime, cambio database
-  differito al riavvio, geometria finestra persistita e versione centralizzata nei metadati assembly.
-
-### M3.1 — Composizione applicativa e dependency injection
-
-- `ApplicationCompositionRoot` è l'unico punto di costruzione del grafo runtime;
-- `BoardViewModel` non istanzia più connection factory, repository, retry policy, sessione o timer;
-- settings e initializer sono esposti tramite interfacce;
-- session ID e nome macchina appartengono a una sessione applicativa condivisa;
-- polling e heartbeat dipendono da `IRecurringTaskScheduler`;
-- l'orario dell'ultimo sync dipende da `IClock`;
-- i test possono avviare e stimolare il ViewModel senza database SQLite e senza dispatcher Avalonia;
-- lo schema resta alla versione 3 e non sono previste differenze funzionali visibili.
-
-### M3 — Composizione, lifecycle deterministico e osservabilità
-
-- **M3.1:** composition root unico, constructor injection, sessione e orologio astratti, scheduler
-  Avalonia confinati in adapter e test ViewModel senza SQLite o dispatcher reale;
-- **M3.2:** scheduler completamente deterministici, cancellazione e prevenzione delle sovrapposizioni
-  verificate senza tempo reale;
-- **M3.3:** logging locale rolling, correlazione degli errori, gestione globale delle eccezioni e diagnostica runtime;
-- **M3.4:** test UI headless dei flussi critici.
-
-Retry, classificazione degli errori, stato online/offline e recupero automatico sono anticipati in
-M1.4 perché necessari a proteggere il lifecycle dell'editing.
-
-### M4 — Packaging
-
-- publish framework-dependent Windows;
-- istruzioni di installazione/configurazione;
-- test su installazione pulita e seconda istanza locale;
-- procedura backup/restore;
-- versione applicazione e compatibilità schema visibili nella UI.
-
-## 11. Iterazione successiva all'MVP
-
-Ordine proposto:
-
-1. activity log append-only;
-2. commenti;
-3. etichette e filtri;
-4. assegnatario;
-5. scadenza e priorità;
-6. checklist;
-7. descrizione Markdown;
-8. vista tabella;
-9. ricorrenze;
-10. Quick Add con parser testuale.
-
-Ogni funzione deve avere una migrazione indipendente e non deve allargare la milestone che corregge
-la consistenza di base.
-
-## 12. Definition of Done dell'MVP
-
-L'MVP è concluso soltanto quando:
-
-- restore, build e test passano in CI e su Windows senza warning;
-- due istanze locali possono aprire lo stesso database della macchina senza perdita di dati;
-- creazione, modifica, eliminazione, spostamento e riordino sono atomici;
-- dopo ogni operazione i `SortOrder` delle colonne coinvolte sono contigui da zero;
-- ogni modifica, incluse le cancellazioni, viene rilevata entro il ciclo di polling;
-- un errore temporaneo non provoca crash né perdita silenziosa delle modifiche;
-- il riavvio conserva esattamente contenuto e ordinamento;
-- il passaggio fra versioni di schema è testato;
-- la persistenza adottata è coerente con l'ADR definitiva;
-- README e documentazione descrivono il comportamento effettivo, non quello previsto.
-
-### Correzione M1.3.1 — distribuzione e ingresso in modifica
-
-- pacchetto ZIP con struttura piatta per evitare l'avvio accidentale di una copia precedente;
-- badge applicativo visibile `M1.3.1`;
-- campi titolo/note read-only prima dell'acquisizione del lease;
-- la bozza diventa modificabile solo dopo `BeginEdit`;
-- resta vietata la sovrascrittura della bozza da parte del polling.
-
-
-### Revisione M3.2.1
-
-Il feedback di persistenza della card è stato esteso a creazione, salvataggio, spostamento tra colonne e riordino nella stessa colonna. La stessa icona floppy verde usa un tooltip specifico per l’ultima operazione riuscita. Il footer autore è stato allineato ai contenuti dei campi titolo e note.
-
-
-## 9. Revisione M3.3 — Logging e diagnostica
-
-### Obiettivi completati
-
-- logger locale asincrono senza dipendenze esterne;
-- formato JSON Lines, rotazione giornaliera e per dimensione;
-- dimensione massima predefinita di 5 MB e retention di 14 giorni;
-- funzionamento best effort: un errore del log non interrompe l’applicazione;
-- redazione difensiva delle proprietà che potrebbero contenere testo delle card;
-- eventi applicativi per avvio, chiusura, connessione, polling, lock e operazioni sulle card;
-- riferimenti `WP-XXXXXX` condivisi fra messaggio UI e record tecnico;
-- osservazione delle eccezioni non gestite del dispatcher, del processo e delle Task;
-- lettura diagnostica del database in modalità read-only, senza creare file mancanti;
-- finestra Diagnostica con versioni, sessione, stato board, schema e percorsi applicativi;
-- copia della diagnostica e apertura rapida delle cartelle log/database;
-- 134 test dichiarati;
-- schema SQLite invariato alla versione 3.
-
-### Vincoli di privacy e sicurezza
-
-I log non devono contenere titolo, note o testo libero delle card. Il logger accetta esclusivamente
-metadati tecnici e applica comunque una redazione per chiavi sensibili. La diagnostica espone conteggi
-aggregati e informazioni operative necessarie all’assistenza, ma non il contenuto della board.
-
-### Criteri di accettazione
-
-1. build e test senza warning o errori;
-2. apertura dell’app e presenza del badge `M3.3.3`;
-3. creazione/modifica/spostamento di una card e comparsa degli eventi nel log;
-4. assenza del testo della card nel file log;
-5. apertura della finestra Diagnostica e lettura dello schema v3;
-6. copia della diagnostica negli appunti;
-7. apertura delle cartelle log e database;
-8. errore database con riferimento `WP-XXXXXX` uguale in UI e log;
-9. indisponibilità della cartella log senza crash o blocco della board.
-
-
-## 10. Revisione M3.3.1 — Correzione build C#
-
-- Corretto `FileAppLogger.ParseSequence`: `string.LastIndexOf(char, StringComparison)` non è un overload valido; viene ora usato `LastIndexOf(char)`.
-- Nessuna modifica al formato dei log, alla diagnostica o allo schema SQLite.
-- Versione applicativa aggiornata a `0.10.1-m3.3.1`.
-- Aggiunto un test di regressione che prosegue la rotazione da `007` a `008`.
-
-## 11. Revisione M3.3.2 — Compatibilità analyzer xUnit
-
-- Sostituiti i due pattern `Assert.Single(collection.Where(predicate))` con l’overload `Assert.Single(collection, predicate)` richiesto da `xUnit2031`.
-- Verificata l’assenza dello stesso pattern nel resto della suite.
-- Nessuna modifica al logging, alla diagnostica, alla UI o allo schema SQLite.
-- Versione applicativa aggiornata a `0.10.2-m3.3.2`.
-
-
-## 12. Revisione M3.3.3 — Test versione non fragile
-
-- Rimosse dal test `ApplicationVersionInfoTests` le stringhe hardcoded della milestone precedente.
-- Il valore atteso viene letto direttamente da `AssemblyMetadataAttribute`, mantenendo il test indipendente dagli avanzamenti di versione.
-- Il test continua a verificare che `ApplicationVersionInfo.Milestone` e il titolo finestra derivino dai metadati centralizzati.
-- Versione applicativa aggiornata a `0.10.3-m3.3.3`.
-- Nessuna modifica a logging, diagnostica, UI o schema SQLite.
-
-
-## 13. Revisione M3.3.4 — Terminazione affidabile del processo
-
-La chiusura della finestra non si limita più a `Close()`: dopo il cleanup della board viene richiesto esplicitamente lo shutdown del lifetime Avalonia. Il cleanup del composition root è bounded a 2 secondi, così il logger o un handler diagnostico difettoso non possono lasciare il processo attivo. Il worker del logger assorbe inoltre gli errori di scrittura inattesi e continua a servire Flush/Dispose.
-
-Criteri di accettazione:
-
-1. chiudendo la finestra, `dotnet run` deve terminare e restituire il prompt;
-2. polling e heartbeat devono essere già arrestati;
-3. i lock della sessione devono essere rilasciati best effort;
-4. un logger bloccato o guasto non deve impedire l'uscita oltre 2 secondi;
-5. schema SQLite invariato alla versione 3.
+Non sono supportati database distinti sincronizzati fra computer o accesso tramite share di rete.
+
+### 4.2 Schema corrente v5
+
+```text
+SchemaVersion(Version)
+BoardState(Id, Revision)
+Columns(Id, Name, SortOrder, SystemKey, IsSystem)
+Priorities(Id, Code, Name, Description, DefaultDueHours, SortOrder, IsActive, IsDefault, Version)
+CardTypes(Id, Name, ColorHex, SortOrder, IsActive, IsDefault, Version, SystemKey, IsSystem)
+PriorityTypeDeadlines(PriorityId, CardTypeId, DueHours, Version)
+Cards(
+    Id, ColumnId, StableId,
+    CreatedAtUtc, CreatedAtIsEstimated,
+    PriorityId, CardTypeId, PriorityAssignedAtUtc, DueAtUtc,
+    Title, Notes, SortOrder,
+    CreatedBy, UpdatedBy, UpdatedAtUtc, Version
+)
+CardEvents(
+    Id, CardStableId, CardId, EventType, OccurredAtUtc,
+    UserName, SessionId, MachineName, Summary, DataJson, FormatVersion
+)
+CardEditLocks(CardId, SessionId, UserName, MachineName, AcquiredAtUtc, LastHeartbeatUtc, ExpiresAtUtc)
+```
+
+### 4.3 Migrazione v4 → v5
+
+- Backlog diventa BACKLOG;
+- Lunedì-Domenica confluiscono in TODO;
+- l'ordine è deterministico: vecchia colonna, `SortOrder`, ID;
+- vengono create IN PROGRESS, TESTING e DONE;
+- viene creata Generica oppure promossa un’eventuale tipologia omonima già esistente;
+- le card senza tipologia ricevono Generica;
+- vengono scritti eventi `WorkflowMigrated` e `TypeMigrated`;
+- il backup preventivo M3.4 protegge l'upgrade;
+- `integrity_check` e `foreign_key_check` validano il risultato.
+
+### 4.4 Snapshot atomico
+
+`BoardSnapshotRepository` legge in un'unica transazione:
+
+- revisione;
+- colonne;
+- card;
+- tipologie;
+- priorità;
+- regole di scadenza;
+- lock attivi.
+
+Il polling non deve mai costruire la UI combinando dati appartenenti a revisioni differenti.
+
+## 5. Regole funzionali
+
+### 5.1 Creazione
+
+La destinazione definitiva delle nuove card sarà:
+
+```text
+Generica / BACKLOG
+```
+
+La UI transitoria M3.7 conserva ancora i pulsanti sulle colonne; il comportamento definitivo verrà
+applicato con il layout a swimlane.
+
+### 5.2 Drag&drop
+
+Il trascinamento futuro potrà modificare in una sola operazione:
+
+- tipologia;
+- stato;
+- ordine nella cella.
+
+Il drop su TIPOLOGIA sarà rifiutato.
+
+### 5.3 Timestamp
+
+`UpdatedAtUtc` rappresenta l'ultima modifica funzionale della singola card.
+
+Il riordino tecnico delle card vicine aggiorna `SortOrder`, ma non `UpdatedAtUtc` o `UpdatedBy`.
+Soltanto la card trascinata viene marcata come modificata.
+
+### 5.4 Editing
+
+- lock applicativo per card;
+- lease rinnovato da heartbeat;
+- indicatore dell'utente che modifica;
+- bozza protetta dal polling;
+- `Cards.Version` per concorrenza ottimistica;
+- salvataggio atomico di titolo, note, priorità e metadati;
+- annullamento senza perdita dei dati persistiti.
+
+### 5.5 Storico
+
+Eventi funzionali:
+
+- Imported;
+- WorkflowMigrated;
+- TypeMigrated;
+- Created;
+- Updated;
+- PriorityChanged;
+- TypeChanged;
+- Moved;
+- Reordered;
+- Deleted.
+
+Gli eventi vengono salvati nella stessa transazione della modifica.
+
+## 6. Milestone completate
+
+| Milestone | Risultato |
+|---|---|
+| M0.1.2 | baseline compilabile, testabile e senza vulnerabilità bloccanti |
+| M1.1.1 | SQLite locale e revisione monotona |
+| M1.2 | ordinamento atomico |
+| M1.3.1 | editing protetto e lock applicativi |
+| M1.4 | lifecycle e recovery |
+| M2.1.1 | CRUD completo e validazione |
+| M2.2.3 | drag&drop, tastiera e pan orizzontale |
+| M2.3 | impostazioni, tema e geometria finestra |
+| M3.1 | composition root e dependency injection |
+| M3.2.1 | scheduler deterministici e feedback di persistenza |
+| M3.3.4 | logging, diagnostica e shutdown affidabile |
+| M3.4 | backup e rollback delle migrazioni |
+| M3.5 | schema v4, cataloghi e storico |
+| M3.6.1 | CRUD priorità e tipologie |
+| M3.7 | modello kanban, schema v5 e snapshot atomico |
+| M3.8 | configurazione delle fasce e trasferimento atomico delle card |
+| M3.9 | layout kanban a swimlane e pan bidimensionale |
+
+## 7. Milestone corrente
+
+### M3.11 — Priorità compatta sulla card
+
+#### Obiettivi
+
+- mostrare la priorità come badge compatto fuori modifica;
+- mostrare la ComboBox soltanto nella bozza protetta;
+- includere l’opzione esplicita Nessuna;
+- condividere lock, annullamento, dirty state, salvataggio e conflitti con titolo e note;
+- applicare la priorità predefinita attiva alle nuove card;
+- calcolare la scadenza con la regola priorità/fascia;
+- mantenere leggibili le priorità inattive già assegnate;
+- registrare `PriorityChanged` senza duplicare operazioni UI;
+- spostare il pulsante di creazione nelle cinque intestazioni operative;
+- creare la card in Generica direttamente nello stato selezionato;
+- aprire la finestra massimizzata e attiva in primo piano;
+- mantenere la bozza aperta fino a Salva, Annulla o Esc;
+- aprire direttamente la ComboBox cliccando sul riepilogo della priorità;
+- aumentare lo spazio inferiore di scorrimento.
+
+#### Test
+
+- opzione Nessuna e priorità attive nella ComboBox;
+- priorità inattiva corrente ancora rappresentata;
+- cambio priorità incluso in `IsDirty` e nel modello editato;
+- annullamento della priorità insieme a titolo e note;
+- anteprima della scadenza con regola specifica della fascia;
+- badge e tempo residuo in sola lettura;
+- cinque pulsanti di creazione nelle intestazioni;
+- creazione in ciascuno dei cinque stati nella fascia Generica;
+- applicazione della priorità predefinita;
+- avvio massimizzato, attivazione iniziale e spazio inferiore della matrice;
+- assenza di salvataggio automatico su perdita del focus;
+- apertura diretta del menu della priorità;
+- schema SQLite ancora v5.
+
+#### Criteri di chiusura
+
+1. `dotnet build` senza warning o errori;
+2. `dotnet test` completamente verde;
+3. badge `M3.11`;
+4. ComboBox visibile soltanto durante la modifica;
+5. badge compatto visibile fuori modifica;
+6. opzione Nessuna funzionante;
+7. scadenza calcolata con la regola della fascia;
+8. lock, bozza, conflitti e storico condivisi;
+9. creazione disponibile nelle cinque intestazioni;
+10. finestra aperta massimizzata e attiva davanti alle altre applicazioni;
+11. editing stabile durante polling e apertura dei popup;
+12. click sulla priorità con apertura immediata dell’elenco;
+13. ultima card interamente raggiungibile con lo scroll;
+14. database SQLite v5 integro.
+
+## 8. Roadmap successiva
+
+### M3.12 — Ultimo salvataggio relativo
+
+- floppy verde + testo relativo;
+- `adesso`, minuti, ore e giorni;
+- tooltip con data esatta;
+- ticker condiviso, non un timer per card;
+- distinzione dirty/saving/error;
+- aggiornamento dopo modifiche esterne.
+
+### M3.13 — Informazioni e cronologia
+
+- icona `i` accanto a floppy e cestino;
+- finestra modale;
+- dati di creazione e ultima modifica;
+- fascia, stato, priorità e scadenza;
+- lock corrente;
+- cronologia paginata;
+- descrizioni dei movimenti bidimensionali.
+
+### M3.14 — Consolidamento kanban
+
+- test UI headless;
+- due istanze sullo stesso database;
+- molte fasce e molte card;
+- temi chiaro/scuro;
+- accessibilità;
+- prestazioni;
+- screenshot e manuali;
+- rimozione dei riferimenti residui al planner settimanale.
+
+## 9. Post-MVP
+
+- backup e restore manuale dalla UI;
+- verifica integrità dalla UI;
+- packaging Windows portable e self-contained;
+- release candidate;
+- filtri per fascia, stato e priorità;
+- ricerca;
+- notifiche sulle scadenze;
+- eventuale API/server solo come progetto separato futuro.
+
+## 10. Decisioni annullate o sostituite
+
+| Decisione precedente | Decisione corrente |
+|---|---|
+| Backlog + sette giorni | cinque stati kanban |
+| tipologia come semplice attributo visuale | tipologia come fascia orizzontale |
+| scelta tipologia da ComboBox sulla card | scelta tramite posizione nella fascia |
+| CRUD libero delle colonne | colonne di sistema fisse |
+| settimane precedenti/successive | fuori dalla roadmap corrente |
+| archiviazione settimanale | fuori dalla roadmap corrente |
+
+ADR di riferimento:
+
+- [`docs/ADR-0011-modello-kanban-swimlane.md`](docs/ADR-0011-modello-kanban-swimlane.md);
+- [`docs/ADR-0014-movimento-bidimensionale.md`](docs/ADR-0014-movimento-bidimensionale.md).

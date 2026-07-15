@@ -1,9 +1,8 @@
 namespace WeeklyPlanner.Core.Models;
 
 /// <summary>
-/// Rappresenta una colonna della board (nell'MVP: colonne fisse, es. Lun-Dom + Backlog).
-/// La personalizzazione delle colonne (rinomina/aggiunta/rimozione) è backlog aperto,
-/// non ancora implementata: vedi §12 del documento di progetto.
+/// Rappresenta uno stato operativo del kanban. Dallo schema v5 le cinque colonne
+/// sono voci di sistema identificate da una chiave stabile.
 /// </summary>
 public sealed class Column
 {
@@ -12,4 +11,8 @@ public sealed class Column
     public string Name { get; set; } = string.Empty;
 
     public int SortOrder { get; set; }
+
+    public string? SystemKey { get; set; }
+
+    public bool IsSystem { get; set; }
 }

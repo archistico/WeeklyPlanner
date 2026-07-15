@@ -1,3 +1,4 @@
+using Dapper;
 using Microsoft.Data.Sqlite;
 using WeeklyPlanner.Core.Data;
 using WeeklyPlanner.Core.Models;
@@ -123,6 +124,91 @@ public sealed class CardRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateAsync_places_the_new_card_at_the_end_of_its_cell_and_keeps_canonical_lane_order()
+    {
+        var genericId = GetCardTypeId(SystemCardTypeKeys.Generic, bySystemKey: true);
+        var sqlId = GetCardTypeId("SQL");
+        await CreateCardAsync("SQL prima", cardTypeId: sqlId);
+        await CreateCardAsync("Generica dopo", cardTypeId: genericId);
+        await CreateCardAsync("SQL seconda", cardTypeId: sqlId);
+
+        var cards = (await _repository.GetAllAsync())
+            .Where(card => card.ColumnId == 0)
+            .OrderBy(card => card.SortOrder)
+            .ThenBy(card => card.Id)
+            .ToList();
+
+        Assert.Equal(
+            new[] { "Generica dopo", "SQL prima", "SQL seconda" },
+            cards.Select(card => card.Title));
+        Assert.Equal(Enumerable.Range(0, cards.Count), cards.Select(card => card.SortOrder));
+    }
+
+    [Fact]
+    public async Task CreateAsync_rejects_an_inactive_card_type()
+    {
+        var sqlId = GetCardTypeId("SQL");
+        using (var connection = _connectionFactory.Create())
+        {
+            connection.Execute(
+                "UPDATE CardTypes SET IsActive = 0, Version = Version + 1 WHERE Id = @Id;",
+                new { Id = sqlId });
+        }
+        var revisionBeforeCreate = await _revisionRepository.GetCurrentRevisionAsync();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CreateCardAsync("Non creare", cardTypeId: sqlId));
+
+        Assert.Contains("inattiva", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(await _repository.GetAllAsync());
+        Assert.Equal(revisionBeforeCreate, await _revisionRepository.GetCurrentRevisionAsync());
+    }
+
+    [Fact]
+    public async Task CreateAsync_rejects_an_inactive_priority_without_advancing_revision()
+    {
+        var priorityId = GetPriorityId("D");
+        using (var connection = _connectionFactory.Create())
+        {
+            connection.Execute(
+                "UPDATE Priorities SET IsActive = 0, Version = Version + 1 WHERE Id = @Id;",
+                new { Id = priorityId });
+        }
+        var revisionBeforeCreate = await _revisionRepository.GetCurrentRevisionAsync();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CreateCardAsync("Non creare", priorityId: priorityId));
+
+        Assert.Contains("inattiva", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(await _repository.GetAllAsync());
+        Assert.Equal(revisionBeforeCreate, await _revisionRepository.GetCurrentRevisionAsync());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_rejects_assigning_an_inactive_priority_without_mutating_the_card()
+    {
+        var card = await CreateCardAsync("Senza priorità");
+        var priorityId = GetPriorityId("D");
+        using (var connection = _connectionFactory.Create())
+        {
+            connection.Execute(
+                "UPDATE Priorities SET IsActive = 0, Version = Version + 1 WHERE Id = @Id;",
+                new { Id = priorityId });
+        }
+        await AcquireEditLockAsync(card.Id);
+        var revisionBeforeUpdate = await _revisionRepository.GetCurrentRevisionAsync();
+        card.PriorityId = priorityId;
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _repository.UpdateAsync(card, TestSessionId));
+
+        Assert.Contains("inattiva", exception.Message, StringComparison.OrdinalIgnoreCase);
+        var persisted = Assert.Single(await _repository.GetAllAsync());
+        Assert.Null(persisted.PriorityId);
+        Assert.Equal(revisionBeforeUpdate, await _revisionRepository.GetCurrentRevisionAsync());
+    }
+
+    [Fact]
     public async Task GetAllAsync_returns_created_card()
     {
         await CreateCardAsync("Card A");
@@ -130,6 +216,20 @@ public sealed class CardRepositoryTests : IDisposable
         var all = await _repository.GetAllAsync();
 
         Assert.Contains(all, card => card.Title == "Card A");
+    }
+
+    [Fact]
+    public async Task CreateAsync_assigns_the_generic_system_type_when_not_specified()
+    {
+        var created = await CreateCardAsync("Card generica");
+
+        Assert.NotNull(created.CardTypeId);
+        using var connection = _connectionFactory.Create();
+        Assert.Equal(
+            SystemCardTypeKeys.Generic,
+            connection.ExecuteScalar<string>(
+                "SELECT SystemKey FROM CardTypes WHERE Id = @CardTypeId;",
+                new { created.CardTypeId }));
     }
 
     [Fact]
@@ -167,12 +267,8 @@ public sealed class CardRepositoryTests : IDisposable
         Assert.Equal(1, moved.SortOrder);
         Assert.Equal("Mover", moved.UpdatedBy);
 
-        var reorderedTimestamps = allCards
-            .Where(card => card.Title is "B" or "C" or "Y")
-            .Select(card => card.UpdatedAtUtc)
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-        Assert.Single(reorderedTimestamps);
+        Assert.Equal("Test", allCards.Single(card => card.Title == "C").UpdatedBy);
+        Assert.Equal("Test", allCards.Single(card => card.Title == "Y").UpdatedBy);
     }
 
     [Fact]
@@ -245,6 +341,190 @@ public sealed class CardRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task MoveToCellAsync_changes_type_and_state_and_recalculates_due_date_atomically()
+    {
+        var genericId = GetCardTypeId(SystemCardTypeKeys.Generic, bySystemKey: true);
+        var instrumentalExamId = GetCardTypeId("Esame strumentale");
+        var differiblePriorityId = GetPriorityId("D");
+        var card = await CreateCardAsync(
+            "Da riclassificare",
+            columnId: 0,
+            cardTypeId: genericId,
+            priorityId: differiblePriorityId);
+        var previousDueAt = card.DueAtUtc;
+
+        await _repository.MoveToCellAsync(
+            card.Id,
+            targetColumnId: 1,
+            targetCardTypeId: instrumentalExamId,
+            targetCellIndex: 0,
+            updatedBy: "Mover");
+
+        var moved = (await _repository.GetAllAsync()).Single(item => item.Id == card.Id);
+        Assert.Equal(1, moved.ColumnId);
+        Assert.Equal(instrumentalExamId, moved.CardTypeId);
+        Assert.NotEqual(previousDueAt, moved.DueAtUtc);
+        Assert.Equal(
+            TimeSpan.FromDays(60),
+            DateTimeOffset.Parse(moved.DueAtUtc!) -
+            DateTimeOffset.Parse(moved.PriorityAssignedAtUtc!));
+        Assert.Equal(card.Version + 1, moved.Version);
+
+        using var connection = _connectionFactory.Create();
+        var history = connection.QuerySingle<CardEvent>(
+            """
+            SELECT EventType, Summary, DataJson
+            FROM CardEvents
+            WHERE CardId = @CardId
+              AND EventType = @EventType
+            ORDER BY Id DESC
+            LIMIT 1;
+            """,
+            new { CardId = card.Id, EventType = CardEventTypes.Moved });
+        Assert.Equal(CardEventTypes.Moved, history.EventType);
+        Assert.Contains("Generica / BACKLOG", history.Summary, StringComparison.Ordinal);
+        Assert.Contains("Esame strumentale / TODO", history.Summary, StringComparison.Ordinal);
+        Assert.Contains("previousCardTypeId", history.DataJson, StringComparison.Ordinal);
+        Assert.Contains("previousColumnId", history.DataJson, StringComparison.Ordinal);
+        Assert.Contains("previousDueAtUtc", history.DataJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MoveToCellAsync_uses_a_cell_local_index_and_preserves_other_lanes()
+    {
+        var genericId = GetCardTypeId(SystemCardTypeKeys.Generic, bySystemKey: true);
+        var sqlId = GetCardTypeId("SQL");
+        await CreateCardAsync("Generica A", columnId: 1, cardTypeId: genericId);
+        await CreateCardAsync("SQL A", columnId: 1, cardTypeId: sqlId);
+        await CreateCardAsync("Generica B", columnId: 1, cardTypeId: genericId);
+        await CreateCardAsync("SQL B", columnId: 1, cardTypeId: sqlId);
+        var moving = await CreateCardAsync("SQL nuova", columnId: 0, cardTypeId: sqlId);
+
+        await _repository.MoveToCellAsync(
+            moving.Id,
+            targetColumnId: 1,
+            targetCardTypeId: sqlId,
+            targetCellIndex: 1,
+            updatedBy: "Mover");
+
+        var targetCards = (await _repository.GetAllAsync())
+            .Where(card => card.ColumnId == 1)
+            .OrderBy(card => card.SortOrder)
+            .ThenBy(card => card.Id)
+            .ToList();
+        Assert.Equal(
+            new[] { "Generica A", "Generica B" },
+            targetCards.Where(card => card.CardTypeId == genericId).Select(card => card.Title));
+        Assert.Equal(
+            new[] { "SQL A", "SQL nuova", "SQL B" },
+            targetCards.Where(card => card.CardTypeId == sqlId).Select(card => card.Title));
+        Assert.Equal(
+            Enumerable.Range(0, targetCards.Count),
+            targetCards.Select(card => card.SortOrder));
+    }
+
+    [Fact]
+    public async Task MoveToCellAsync_no_op_does_not_advance_revision_or_history()
+    {
+        var genericId = GetCardTypeId(SystemCardTypeKeys.Generic, bySystemKey: true);
+        var card = await CreateCardAsync("Ferma", cardTypeId: genericId);
+        var revisionBefore = await _revisionRepository.GetCurrentRevisionAsync();
+        int eventsBefore;
+        using (var connection = _connectionFactory.Create())
+        {
+            eventsBefore = connection.ExecuteScalar<int>(
+                "SELECT COUNT(1) FROM CardEvents WHERE CardId = @CardId;",
+                new { CardId = card.Id });
+        }
+
+        await _repository.MoveToCellAsync(
+            card.Id,
+            targetColumnId: 0,
+            targetCardTypeId: genericId,
+            targetCellIndex: 0,
+            updatedBy: "Mover");
+
+        Assert.Equal(revisionBefore, await _revisionRepository.GetCurrentRevisionAsync());
+        using var verifyConnection = _connectionFactory.Create();
+        Assert.Equal(
+            eventsBefore,
+            verifyConnection.ExecuteScalar<int>(
+                "SELECT COUNT(1) FROM CardEvents WHERE CardId = @CardId;",
+                new { CardId = card.Id }));
+    }
+
+    [Fact]
+    public async Task MoveToCellAsync_rejects_an_inactive_destination_without_mutating_the_card()
+    {
+        var genericId = GetCardTypeId(SystemCardTypeKeys.Generic, bySystemKey: true);
+        var sqlId = GetCardTypeId("SQL");
+        var card = await CreateCardAsync("Non archiviare", cardTypeId: genericId);
+        using (var connection = _connectionFactory.Create())
+        {
+            connection.Execute(
+                "UPDATE CardTypes SET IsActive = 0, Version = Version + 1 WHERE Id = @Id;",
+                new { Id = sqlId });
+        }
+        var revisionBeforeMove = await _revisionRepository.GetCurrentRevisionAsync();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _repository.MoveToCellAsync(
+                card.Id,
+                targetColumnId: 0,
+                targetCardTypeId: sqlId,
+                targetCellIndex: 0,
+                updatedBy: "Mover"));
+
+        Assert.Contains("inattiva", exception.Message, StringComparison.OrdinalIgnoreCase);
+        var persisted = (await _repository.GetAllAsync()).Single(item => item.Id == card.Id);
+        Assert.Equal(genericId, persisted.CardTypeId);
+        Assert.Equal(0, persisted.ColumnId);
+        Assert.Equal(revisionBeforeMove, await _revisionRepository.GetCurrentRevisionAsync());
+    }
+
+    [Fact]
+    public async Task MoveToCellAsync_rolls_back_position_type_due_date_and_revision_when_audit_fails()
+    {
+        var genericId = GetCardTypeId(SystemCardTypeKeys.Generic, bySystemKey: true);
+        var instrumentalExamId = GetCardTypeId("Esame strumentale");
+        var differiblePriorityId = GetPriorityId("D");
+        var card = await CreateCardAsync(
+            "Rollback",
+            columnId: 0,
+            cardTypeId: genericId,
+            priorityId: differiblePriorityId);
+        var revisionBefore = await _revisionRepository.GetCurrentRevisionAsync();
+
+        using (var connection = _connectionFactory.Create())
+        {
+            connection.Execute(
+                """
+                CREATE TRIGGER TR_Test_AbortBidimensionalMoveEvent
+                BEFORE INSERT ON CardEvents
+                WHEN NEW.EventType = 'Moved'
+                BEGIN
+                    SELECT RAISE(ABORT, 'forced bidimensional move audit failure');
+                END;
+                """);
+        }
+
+        await Assert.ThrowsAsync<SqliteException>(() =>
+            _repository.MoveToCellAsync(
+                card.Id,
+                targetColumnId: 1,
+                targetCardTypeId: instrumentalExamId,
+                targetCellIndex: 0,
+                updatedBy: "Mover"));
+
+        var persisted = (await _repository.GetAllAsync()).Single(item => item.Id == card.Id);
+        Assert.Equal(0, persisted.ColumnId);
+        Assert.Equal(genericId, persisted.CardTypeId);
+        Assert.Equal(card.DueAtUtc, persisted.DueAtUtc);
+        Assert.Equal(card.Version, persisted.Version);
+        Assert.Equal(revisionBefore, await _revisionRepository.GetCurrentRevisionAsync());
+    }
+
+    [Fact]
     public async Task DeleteAsync_compacts_remaining_sort_orders()
     {
         await CreateCardAsync("A");
@@ -255,7 +535,7 @@ public sealed class CardRepositoryTests : IDisposable
 
         await AssertColumnAsync(0, "A", "C");
         var remaining = (await _repository.GetAllAsync()).Where(card => card.ColumnId == 0).ToList();
-        Assert.Equal("Deleter", remaining.Single(card => card.Title == "C").UpdatedBy);
+        Assert.Equal("Test", remaining.Single(card => card.Title == "C").UpdatedBy);
     }
 
     [Fact]
@@ -368,9 +648,9 @@ public sealed class CardRepositoryTests : IDisposable
             CreatedBy = "Test",
         };
 
-        var exception = await Assert.ThrowsAsync<SqliteException>(() => _repository.CreateAsync(card));
+        var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() => _repository.CreateAsync(card));
 
-        Assert.Equal(19, exception.SqliteErrorCode);
+        Assert.Contains("999", exception.Message, StringComparison.Ordinal);
         Assert.Equal(revisionBefore, await _revisionRepository.GetCurrentRevisionAsync());
     }
 
@@ -416,16 +696,38 @@ public sealed class CardRepositoryTests : IDisposable
     private async Task<Card> CreateCardAsync(
         string title,
         long columnId = 0,
-        int requestedSortOrder = 0)
+        int requestedSortOrder = 0,
+        long? cardTypeId = null,
+        long? priorityId = null)
     {
         return await _repository.CreateAsync(new Card
         {
             ColumnId = columnId,
+            CardTypeId = cardTypeId,
+            PriorityId = priorityId,
             Title = title,
             SortOrder = requestedSortOrder,
             CreatedBy = "Test",
             UpdatedBy = "Test",
         });
+    }
+
+    private long GetCardTypeId(string value, bool bySystemKey = false)
+    {
+        using var connection = _connectionFactory.Create();
+        return connection.ExecuteScalar<long>(
+            bySystemKey
+                ? "SELECT Id FROM CardTypes WHERE SystemKey = @Value;"
+                : "SELECT Id FROM CardTypes WHERE Name = @Value;",
+            new { Value = value });
+    }
+
+    private long GetPriorityId(string code)
+    {
+        using var connection = _connectionFactory.Create();
+        return connection.ExecuteScalar<long>(
+            "SELECT Id FROM Priorities WHERE Code = @Code;",
+            new { Code = code });
     }
 
     private async Task AssertColumnAsync(long columnId, params string[] expectedTitles)
