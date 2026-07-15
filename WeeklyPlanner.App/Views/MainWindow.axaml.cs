@@ -221,6 +221,30 @@ public partial class MainWindow : Window
         }
 
         e.Handled = true;
+        await OpenPriorityEditorAsync(control, card, boardViewModel);
+    }
+
+    private async void OnPrioritySummaryKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key is not (Key.Enter or Key.Space) ||
+            sender is not Control control ||
+            control.DataContext is not CardViewModel card ||
+            DataContext is not BoardViewModel boardViewModel ||
+            card.IsEditing ||
+            card.IsLockedByAnotherUser)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await OpenPriorityEditorAsync(control, card, boardViewModel);
+    }
+
+    private static async Task OpenPriorityEditorAsync(
+        Control control,
+        CardViewModel card,
+        BoardViewModel boardViewModel)
+    {
         var cardBorder = FindAncestorBorderWithClass(control, "card");
         if (!await boardViewModel.BeginEditCardAsync(card))
         {

@@ -22,7 +22,9 @@
                     ToolTip.Tip="Trascina la card in qualsiasi cella; Alt + frecce cambia ordine o stato, Ctrl + Alt + Su/Giù cambia fascia"
                     PointerPressed="OnCardDragHandlePointerPressed"
                     PointerMoved="OnCardDragHandlePointerMoved"
-                    PointerReleased="OnCardDragHandlePointerReleased">
+                    PointerReleased="OnCardDragHandlePointerReleased"
+                    AutomationProperties.Name="Maniglia di trascinamento della card"
+                    AutomationProperties.HelpText="Trascina per cambiare fascia, stato o ordine.">
               <TextBlock Text="⋮⋮⋮"
                          HorizontalAlignment="Center"
                          Foreground="{DynamicResource TextSecondaryBrush}"
@@ -39,6 +41,7 @@
                      MaxLength="{Binding TitleMaxLength}"
                      Watermark="Titolo della card"
                      ToolTip.Tip="Clicca per acquisire il lock e modificare la card"
+                     AutomationProperties.Name="Titolo della card"
                      Background="Transparent"
                      BorderThickness="0"
                      Padding="8,4"
@@ -66,6 +69,7 @@
             <TextBox Text="{Binding Notes}"
                      Watermark="Note"
                      ToolTip.Tip="Clicca per acquisire il lock e modificare la card"
+                     AutomationProperties.Name="Note della card"
                      Background="Transparent"
                      BorderThickness="0"
                      Padding="8,4"
@@ -97,6 +101,7 @@
                         SelectedItem="{Binding SelectedPriorityOption}"
                         IsEnabled="{Binding CanEditDraft}"
                         ToolTip.Tip="La priorità e la scadenza vengono salvate insieme a titolo e note"
+                        AutomationProperties.Name="Priorità della card"
                         GotFocus="OnCardFieldGotFocus"
                         KeyDown="OnCardFieldKeyDown">
                 <ComboBox.ItemTemplate>
@@ -131,6 +136,9 @@
                     Margin="8,2,8,2"
                     Cursor="Hand"
                     Focusable="True"
+                    AutomationProperties.Name="Modifica la priorità della card"
+                    AutomationProperties.HelpText="Premi Invio o fai clic per entrare in modifica e aprire l’elenco delle priorità."
+                    KeyDown="OnPrioritySummaryKeyDown"
                     PointerPressed="OnPrioritySummaryPointerPressed">
               <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="7">
                 <Border Grid.Column="0" Classes="priorityCodeBadge">
@@ -360,6 +368,7 @@
                   IsVisible="{Binding IsOffline}" />
 
           <TextBlock Text="{Binding ConnectionStatusText}"
+                       AutomationProperties.Name="{Binding ConnectionStatusText}"
                      FontWeight="SemiBold"
                      VerticalAlignment="Center" />
           <TextBlock Text="{Binding LastSuccessfulSyncText}"

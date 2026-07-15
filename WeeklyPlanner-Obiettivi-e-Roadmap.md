@@ -253,53 +253,58 @@ Gli eventi vengono salvati nella stessa transazione della modifica.
 | M3.12 | ultimo salvataggio relativo e stati di persistenza |
 | M3.12.1 | consolidamento tecnico, startup e regole condivise |
 | M3.13 | informazioni card, lock e cronologia paginata |
+| M3.14 | consolidamento kanban, headless UI, scala e accessibilità |
 
 ## 7. Milestone corrente
 
-### M3.13 — Informazioni e cronologia
+### M3.14 — Consolidamento kanban
 
 #### Obiettivi
 
-- aggiungere l'icona `i` accanto all'indicatore di salvataggio e al cestino;
-- aprire una finestra modale senza acquisire il lock di editing;
-- mostrare creazione, ultima modifica, fascia, stato, priorità e scadenza;
-- mostrare il lock corrente con proprietario, computer e scadenza del lease;
-- caricare la cronologia dal più recente in pagine da 20 eventi;
-- consentire di raggiungere l’ultimo elemento senza tagli tramite spazio tecnico inferiore;
-- descrivere chiaramente movimento fra celle e riordino nella stessa cella;
+- eseguire test Avalonia headless sulle finestre e sul XAML reali;
+- verificare i temi chiaro e scuro e il contrasto delle coppie testuali principali;
+- garantire nomi accessibili, tooltip e attivazione da tastiera delle azioni custom;
+- verificare due istanze indipendenti sullo stesso database SQLite;
+- provare la proiezione con 30 fasce e 1.500 card;
+- rendere ripetibile la cattura degli screenshot con dati fittizi;
+- pubblicare manuale utente e checklist di verifica;
+- rimuovere API morte e riferimenti attivi al vecchio planner settimanale;
 - mantenere lo schema SQLite alla versione 5.
 
 #### Test
 
-- risoluzione dei nomi correnti di fascia, stato e priorità;
-- lock assente, lock della sessione corrente e lock esterno;
-- prima pagina e caricamento tramite `beforeEventId`;
-- etichette leggibili per eventi di movimento e riordino;
-- assenza di nuove migrazioni SQLite.
+- caricamento headless della finestra principale e delle cinque azioni di creazione;
+- apertura sotto `ThemeVariant.Light` e `ThemeVariant.Dark`;
+- tooltip e `AutomationProperties.Name` sui pulsanti a sola icona;
+- focus e tastiera sul riepilogo priorità;
+- contrasto minimo 4,5:1 per testo, azioni primarie e azioni pericolose;
+- lock, revisione e conflitto ottimistico condivisi fra due istanze;
+- scenario di scala con budget smoke di dieci secondi;
+- assenza dei nomi dei giorni nelle view attive;
+- cattura screenshot eseguita soltanto su richiesta esplicita.
 
 #### Criteri di chiusura
 
 1. `dotnet build` senza warning o errori;
 2. `dotnet test` completamente verde;
-3. icona informazioni presente su ogni card;
-4. modale centrata sulla finestra principale;
-5. dati correnti e lock leggibili anche senza cronologia;
-6. paginazione limitata a 20 eventi per lettura;
-7. descrizioni bidimensionali senza esposizione del JSON tecnico;
-8. badge `M3.13` e schema SQLite v5.
+3. test headless eseguiti sul XAML reale;
+4. temi chiaro e scuro caricabili e con contrasto verificato;
+5. priorità attivabile con mouse, `Invio` e `Spazio`;
+6. due istanze protette da lock e `Cards.Version`;
+7. 30 fasce e 1.500 card proiettate entro il budget smoke;
+8. manuale e procedura screenshot presenti;
+9. nessuna API inutilizzata del calcolatore scadenze;
+10. badge `M3.14` e schema SQLite v5.
 
 ## 8. Roadmap successiva
 
-### M3.14 — Consolidamento kanban
+### M4 — Packaging MVP locale
 
-- test UI headless;
-- due istanze sullo stesso database;
-- molte fasce e molte card;
-- temi chiaro/scuro;
-- accessibilità;
-- prestazioni;
-- screenshot e manuali;
-- rimozione dei riferimenti residui al planner settimanale.
+- publish Windows portable;
+- publish Windows self-contained;
+- procedura di backup e ripristino manuale;
+- smoke test del pacchetto su macchina pulita;
+- note di rilascio e checklist release candidate.
 
 ## 9. Post-MVP
 
@@ -328,4 +333,5 @@ ADR di riferimento:
 - [`docs/ADR-0011-modello-kanban-swimlane.md`](docs/ADR-0011-modello-kanban-swimlane.md);
 - [`docs/ADR-0014-movimento-bidimensionale.md`](docs/ADR-0014-movimento-bidimensionale.md);
 - [`docs/ADR-0017-consolidamento-tecnico-startup.md`](docs/ADR-0017-consolidamento-tecnico-startup.md);
-- [`docs/ADR-0018-informazioni-cronologia-card.md`](docs/ADR-0018-informazioni-cronologia-card.md).
+- [`docs/ADR-0018-informazioni-cronologia-card.md`](docs/ADR-0018-informazioni-cronologia-card.md);
+- [`docs/ADR-0019-consolidamento-kanban.md`](docs/ADR-0019-consolidamento-kanban.md).

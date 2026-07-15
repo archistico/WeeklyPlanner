@@ -692,6 +692,10 @@ public sealed class CardRepository : ICardRepository
         throw new CardConcurrencyException(cardId, expectedVersion, currentCard.Version);
     }
 
+    /// <summary>
+    /// Autorità finale sul lock: la UI disabilita preventivamente le azioni non valide, ma il
+    /// repository deve proteggere il database da altre istanze e da cambi di stato concorrenti.
+    /// </summary>
     private async Task EnsureCardIsNotLockedAsync(
         SqliteConnection connection,
         SqliteTransaction transaction,

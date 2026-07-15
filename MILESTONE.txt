@@ -1,8 +1,10 @@
-WeeklyPlanner M3.13 — Informazioni e cronologia
+WeeklyPlanner M3.14 — Consolidamento kanban
 
-- icona informazioni nel footer di ogni card;
-- finestra modale con metadati correnti, fascia, stato, priorità e scadenza;
-- visualizzazione del lock di modifica attivo;
-- cronologia paginata dal più recente con descrizioni dei movimenti bidimensionali;
+- test UI Avalonia headless sul XAML reale;
+- verifica temi chiaro/scuro, contrasto e accessibilità;
+- test a due istanze sullo stesso database SQLite;
+- scenario di scala con 30 fasce e 1.500 card;
+- cattura screenshot ripetibile con dati fittizi;
+- manuale utente e checklist di verifica;
+- rimozione API residue non più usate;
 - schema SQLite invariato alla versione 5.
-- spazio di scorrimento inferiore nella finestra informazioni per mostrare integralmente l’ultimo elemento.

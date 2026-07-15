@@ -27,23 +27,6 @@ public static class PriorityDeadlineCalculator
                 ?.DueHours ?? priority.DefaultDueHours;
     }
 
-    public static DateTimeOffset? CalculateDueAt(
-        DateTimeOffset assignedAtUtc,
-        long? priorityId,
-        long? cardTypeId,
-        IReadOnlyCollection<PriorityDefinition> priorities,
-        IReadOnlyCollection<PriorityTypeDeadline> deadlineRules)
-    {
-        if (priorityId is null)
-        {
-            return null;
-        }
-
-        return CalculateDueAt(
-            assignedAtUtc,
-            ResolveDueHours(priorityId.Value, cardTypeId, priorities, deadlineRules));
-    }
-
     public static DateTimeOffset CalculateDueAt(
         DateTimeOffset assignedAtUtc,
         int defaultDueHours,

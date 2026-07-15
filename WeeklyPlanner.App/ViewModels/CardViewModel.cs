@@ -389,6 +389,9 @@ public sealed partial class CardViewModel : ViewModelBase
         HasLostEditLock ||
         HasExternalChanges;
 
+    // Primo livello di difesa UX: non propone il trascinamento di una card in modifica.
+    // Il repository ripete il controllo sul lock perché deve proteggere anche altre istanze,
+    // chiamanti non UI e race condition fra la verifica visuale e la transazione SQLite.
     public bool CanDrag =>
         !IsEditing &&
         !IsLockedByAnotherUser &&

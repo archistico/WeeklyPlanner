@@ -303,7 +303,7 @@ public sealed class SwimlaneBoardProjectionTests
                 element => (string?)element.Attribute("Value"),
                 StringComparer.Ordinal);
         Assert.Equal("Transparent", prioritySummarySetters["Background"]);
-        Assert.Equal("0", prioritySummarySetters["BorderThickness"]);
+        Assert.Equal("1", prioritySummarySetters["BorderThickness"]);
 
         var matrixGrid = document
             .Descendants(avalonia + "Grid")

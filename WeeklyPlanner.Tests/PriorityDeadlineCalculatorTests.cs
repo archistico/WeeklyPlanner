@@ -10,66 +10,26 @@ public sealed class PriorityDeadlineCalculatorTests
         new(2026, 7, 15, 10, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public void No_priority_has_no_due_date()
-    {
-        var dueAt = PriorityDeadlineCalculator.CalculateDueAt(
-            AssignedAt,
-            priorityId: null,
-            cardTypeId: 5,
-            priorities: [],
-            deadlineRules: []);
-
-        Assert.Null(dueAt);
-    }
-
-    [Fact]
     public void Default_duration_is_used_when_no_type_rule_exists()
     {
-        var dueAt = PriorityDeadlineCalculator.CalculateDueAt(
-            AssignedAt,
+        PriorityDefinition[] priorities =
+        [
+            new() { Id = 3, Code = "D", DefaultDueHours = 720 },
+        ];
+
+        var dueHours = PriorityDeadlineCalculator.ResolveDueHours(
             priorityId: 3,
             cardTypeId: 4,
-            priorities:
-            [
-                new PriorityDefinition { Id = 3, Code = "D", DefaultDueHours = 720 },
-            ],
+            priorities,
             deadlineRules: []);
 
-        Assert.Equal(AssignedAt.AddDays(30), dueAt);
+        Assert.Equal(720, dueHours);
+        Assert.Equal(AssignedAt.AddDays(30),
+            PriorityDeadlineCalculator.CalculateDueAt(AssignedAt, dueHours));
     }
 
     [Fact]
     public void Type_specific_rule_overrides_default_duration()
-    {
-        var dueAt = PriorityDeadlineCalculator.CalculateDueAt(
-            AssignedAt,
-            priorityId: 3,
-            cardTypeId: 5,
-            priorities:
-            [
-                new PriorityDefinition { Id = 3, Code = "D", DefaultDueHours = 720 },
-            ],
-            deadlineRules:
-            [
-                new PriorityTypeDeadline { PriorityId = 3, CardTypeId = 5, DueHours = 1440 },
-            ]);
-
-        Assert.Equal(AssignedAt.AddDays(60), dueAt);
-    }
-
-    [Fact]
-    public void Unknown_priority_is_rejected()
-    {
-        Assert.Throws<KeyNotFoundException>(() => PriorityDeadlineCalculator.CalculateDueAt(
-            AssignedAt,
-            priorityId: 999,
-            cardTypeId: null,
-            priorities: [],
-            deadlineRules: []));
-    }
-
-    [Fact]
-    public void ResolveDueHours_is_shared_by_default_and_type_specific_paths()
     {
         PriorityDefinition[] priorities =
         [
@@ -80,10 +40,28 @@ public sealed class PriorityDeadlineCalculatorTests
             new() { PriorityId = 3, CardTypeId = 5, DueHours = 1440 },
         ];
 
-        Assert.Equal(720, PriorityDeadlineCalculator.ResolveDueHours(3, 4, priorities, rules));
-        Assert.Equal(1440, PriorityDeadlineCalculator.ResolveDueHours(3, 5, priorities, rules));
-        Assert.Equal(
-            AssignedAt.AddDays(60),
-            PriorityDeadlineCalculator.CalculateDueAt(AssignedAt, 720, 1440));
+        var dueHours = PriorityDeadlineCalculator.ResolveDueHours(3, 5, priorities, rules);
+
+        Assert.Equal(1440, dueHours);
+        Assert.Equal(AssignedAt.AddDays(60),
+            PriorityDeadlineCalculator.CalculateDueAt(AssignedAt, 720, dueHours));
+    }
+
+    [Fact]
+    public void Unknown_priority_is_rejected()
+    {
+        Assert.Throws<KeyNotFoundException>(() =>
+            PriorityDeadlineCalculator.ResolveDueHours(
+                priorityId: 999,
+                cardTypeId: null,
+                priorities: [],
+                deadlineRules: []));
+    }
+
+    [Fact]
+    public void Non_positive_duration_is_rejected()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            PriorityDeadlineCalculator.CalculateDueAt(AssignedAt, defaultDueHours: 0));
     }
 }

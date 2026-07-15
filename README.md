@@ -1,6 +1,6 @@
 # WeeklyPlanner
 
-> **M3.13 — Informazioni e cronologia**
+> **M3.14 — Consolidamento kanban**
 
 Applicazione desktop **C# / .NET 10 / Avalonia** per organizzare attività in un kanban locale,
 sviluppata per milestone piccole, test automatici, migrazioni protette e documentazione aggiornata
@@ -20,11 +20,14 @@ Il layout M3.9, comprese le correzioni a larghezza, scroll, pan e movimento nell
 accettato dall'utente nella prova manuale.
 
 La M3.10 e la M3.11 sono state validate con compilazione, test e verifica manuale riusciti. La M3.12
-rende permanente e leggibile il feedback di persistenza e la M3.12.1 consolida startup, movimento
-bidimensionale, scadenze e conflitti. La M3.13 aggiunge una finestra modale per metadati, lock e
-cronologia paginata della card. Lo schema SQLite resta alla versione 5.
+rende permanente e leggibile il feedback di persistenza, la M3.12.1 consolida startup, movimento
+bidimensionale, scadenze e conflitti e la M3.13 aggiunge metadati, lock e cronologia paginata.
 
-La suite dichiara **oltre 220 casi** considerando i test parametrizzati.
+La M3.14 chiude il consolidamento del kanban con test Avalonia headless, doppia istanza sul medesimo
+SQLite, scenario di scala, verifica dei temi e dell'accessibilità, manuale utente e cattura ripetibile
+degli screenshot. Lo schema SQLite resta alla versione 5.
+
+La suite dichiara **oltre 240 casi** considerando i test parametrizzati.
 
 ## Workflow kanban
 
@@ -360,8 +363,8 @@ dotnet test WeeklyPlanner.sln -c Release --no-build
 dotnet run --project .\WeeklyPlanner.App\WeeklyPlanner.App.csproj
 ```
 
-Nella M3.13 la finestra deve mostrare il badge `M3.13`, aprirsi massimizzata senza ripristino della
-geometria e restare attiva anche dopo l’onboarding. Ogni card espone l'icona informazioni per aprire
+Nella M3.14 la finestra mostra il badge `M3.14`, si apre massimizzata senza ripristino della
+geometria e resta attiva anche dopo l’onboarding. Ogni card espone l'icona informazioni per aprire
 metadati, lock e cronologia paginata.
 
 ## Consolidamento M3.12.1
@@ -397,12 +400,43 @@ indicano fascia e stato di origine e destinazione, così il percorso bidimension
 senza esporre il JSON tecnico dell'audit. Il caricamento di pagine precedenti usa l'identificativo
 dell'ultimo evento visualizzato e non richiede nuove tabelle o migrazioni.
 
+
+## Consolidamento M3.14
+
+La suite carica il XAML reale con `Avalonia.Headless.XUnit` e verifica la finestra principale sotto i
+temi Chiaro e Scuro. Le azioni prive di testo espongono tooltip e nomi per le tecnologie assistive;
+titolo, note, priorità e maniglia di trascinamento sono identificabili e il riepilogo priorità si
+attiva anche con `Invio` o `Spazio`.
+
+Un test di integrazione apre due insiemi indipendenti di repository sullo stesso file SQLite e verifica
+lock condivisi, revisione e controllo ottimistico. Uno smoke test costruisce 30 fasce e 1.500 card con
+un budget ampio di dieci secondi per intercettare regressioni macroscopiche, senza presentarsi come
+benchmark hardware.
+
+Il tema chiaro usa un accento con contrasto maggiore; entrambi i temi vengono verificati sulle coppie
+testuali principali con rapporto minimo 4,5:1. I target compatti principali sono stati ampliati e il
+focus della priorità è visibile senza cambiare lo sfondo normale della card.
+
+Documentazione:
+
+- [`docs/MANUALE-UTENTE.md`](docs/MANUALE-UTENTE.md);
+- [`docs/VERIFICA-M3.14.md`](docs/VERIFICA-M3.14.md);
+- [`docs/ADR-0019-consolidamento-kanban.md`](docs/ADR-0019-consolidamento-kanban.md).
+
+Gli screenshot chiaro e scuro vengono generati dal XAML reale con dati fittizi:
+
+```powershell
+.\scripts\capture-ui.ps1
+```
+
+La cattura non apre né modifica il database configurato dall'utente.
+
 ## Roadmap immediata
 
-1. **M3.14 — Consolidamento kanban**  
-   Test UI, prestazioni, accessibilità e documentazione finale.
-2. **M4 — Packaging MVP locale**  
-   Publish Windows, backup documentato e smoke test distribuibile.
+1. **M4 — Packaging MVP locale**  
+   Publish Windows portable e self-contained, backup documentato e smoke test distribuibile.
+2. **Post-MVP**  
+   Filtri, ricerca, notifiche e ulteriori strumenti di amministrazione.
 
 Le decisioni del modello corrente sono descritte in:
 
@@ -413,4 +447,5 @@ Le decisioni del modello corrente sono descritte in:
 - [`docs/ADR-0015-priorita-compatta-card.md`](docs/ADR-0015-priorita-compatta-card.md);
 - [`docs/ADR-0016-ultimo-salvataggio-relativo.md`](docs/ADR-0016-ultimo-salvataggio-relativo.md);
 - [`docs/ADR-0017-consolidamento-tecnico-startup.md`](docs/ADR-0017-consolidamento-tecnico-startup.md);
-- [`docs/ADR-0018-informazioni-cronologia-card.md`](docs/ADR-0018-informazioni-cronologia-card.md).
+- [`docs/ADR-0018-informazioni-cronologia-card.md`](docs/ADR-0018-informazioni-cronologia-card.md);
+- [`docs/ADR-0019-consolidamento-kanban.md`](docs/ADR-0019-consolidamento-kanban.md).

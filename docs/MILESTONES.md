@@ -136,7 +136,8 @@ Ogni milestone deve:
 | M3.11 — Priorità compatta | **Validata** | build, test e verifica UX riusciti; bozza persistente, badge, scadenza e avvio attivo |
 | M3.12 — Ultimo salvataggio relativo | **Implementata** | floppy verde, tempo relativo e ticker condiviso |
 | M3.12.1 — Consolidamento tecnico e startup | **Validata** | startup semplice, API 2D unica, scadenze centralizzate e conflitti espliciti |
-| M3.13 — Informazioni e cronologia | **Implementata, verifica richiesta** | modale card, lock corrente e storico paginato |
+| M3.13 — Informazioni e cronologia | **Validata** | build e test passati; modale card, lock corrente, storico paginato e scroll completo |
+| M3.14 — Consolidamento kanban | **Implementata, verifica richiesta** | UI headless, doppia istanza, scala, temi, accessibilità e manuale utente |
 | M4 — Packaging MVP locale | Pianificata | publish Windows, backup documentato, smoke test e pacchetto distribuibile |
 
 ## M1.1.1 — SQLite locale affidabile
@@ -1017,4 +1018,42 @@ per istanza o nuove colonne nel database.
 6. movimento fra fascia/stato distinguibile dal riordino locale;
 7. badge `M3.13`;
 8. database SQLite v5 integro.
+
+## M3.14 — Consolidamento kanban
+
+**Obiettivo:** verificare il kanban completo su UI reale, concorrenza locale, scala, temi e
+accessibilità prima del packaging MVP.
+
+### Implementazione
+
+- `Avalonia.Headless.XUnit` e backend Skia nella suite;
+- test headless della finestra principale e dei temi espliciti;
+- cattura opzionale di screenshot chiaro/scuro dal XAML reale;
+- test a due istanze sullo stesso database SQLite;
+- smoke test con 30 fasce e 1.500 card;
+- attivazione da tastiera del riepilogo priorità;
+- nomi accessibili e tooltip sulle azioni custom;
+- target compatti ampliati e contrasto tema verificato;
+- rimozione dell'overload inutilizzato di `PriorityDeadlineCalculator`;
+- manuale utente, checklist M3.14 e ADR-0019;
+- schema SQLite invariato alla versione 5.
+
+### Test
+
+- XAML reale e cinque pulsanti di creazione;
+- temi chiaro/scuro;
+- markup accessibile e dimensioni minime;
+- contrasto 4,5:1;
+- lock e concorrenza fra istanze;
+- proiezione di scala;
+- assenza dei giorni della settimana nelle view attive.
+
+### Criteri di chiusura
+
+1. `dotnet build` senza warning o errori;
+2. `dotnet test` completamente verde;
+3. screenshot generabili tramite script dedicato;
+4. manuale e verifica manuale aggiornati;
+5. badge `M3.14`;
+6. database SQLite v5 integro.
 
