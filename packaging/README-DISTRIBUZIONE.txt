@@ -1,4 +1,4 @@
-WeeklyPlanner — Distribuzione Windows M4
+WeeklyPlanner — Distribuzione Windows M5.1
 =======================================
 
 AVVIO
@@ -21,6 +21,7 @@ Percorsi predefiniti:
 - database: %LOCALAPPDATA%\WeeklyPlanner\Data\weeklyplanner.db
 - impostazioni: %APPDATA%\WeeklyPlanner\settings.json
 - log: %LOCALAPPDATA%\WeeklyPlanner\Logs
+- backup manuali e preventivi: %LOCALAPPDATA%\WeeklyPlanner\Backups\Manual
 - backup automatici delle migrazioni: %LOCALAPPDATA%\WeeklyPlanner\Backups\Migrations
 
 BACKUP E VERIFICA
@@ -28,5 +29,6 @@ BACKUP E VERIFICA
 Consultare la cartella Documentazione:
 - MANUALE-UTENTE.md
 - BACKUP-RIPRISTINO.md
-- SMOKE-TEST-M4.md
-- RELEASE-NOTES-M4.md
+- SMOKE-TEST-M5.1.md
+- RELEASE-NOTES-M5.1.md
+- RELEASE-CHECKLIST-M5.1.md

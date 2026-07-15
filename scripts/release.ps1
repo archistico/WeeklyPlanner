@@ -40,5 +40,5 @@ if ($checksumLines.Count -ne 2) {
     throw "SHA256SUMS.txt deve contenere due checksum; trovati: $($checksumLines.Count)."
 }
 
-Write-Host 'Release M4 verificata.' -ForegroundColor Green
+Write-Host 'Release M5.1 verificata.' -ForegroundColor Green
 Write-Host "Artefatti: $ArtifactsRoot"

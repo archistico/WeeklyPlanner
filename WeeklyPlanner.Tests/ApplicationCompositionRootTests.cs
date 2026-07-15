@@ -2,6 +2,7 @@ using WeeklyPlanner.App.Composition;
 using WeeklyPlanner.App.Diagnostics;
 using WeeklyPlanner.App.Services;
 using WeeklyPlanner.Core.Configuration;
+using WeeklyPlanner.Core.Data;
 using WeeklyPlanner.Core.Time;
 using Xunit;
 
@@ -35,13 +36,17 @@ public sealed class ApplicationCompositionRootTests : IDisposable
         var diagnostics = root.CreateDiagnosticsViewModel(
             settings,
             board.GetRuntimeDiagnostics());
+        var databaseSafety = root.CreateDatabaseSafetyViewModel(settings);
 
         Assert.NotNull(onboarding);
         Assert.NotNull(board);
         Assert.NotNull(preferences);
         Assert.NotNull(boardConfiguration);
         Assert.NotNull(diagnostics);
+        Assert.NotNull(databaseSafety);
         Assert.Same(settingsService, root.SettingsService);
+        Assert.NotNull(root.DatabaseSafetyService);
+        Assert.NotNull(root.ApplicationRestarter);
 
         await board.DisposeAsync();
     }
@@ -66,6 +71,27 @@ public sealed class ApplicationCompositionRootTests : IDisposable
 
         await board.DisposeAsync();
         Assert.False(File.Exists(databasePath));
+    }
+
+
+    [Fact]
+    public async Task Board_lifetime_registers_and_releases_the_database_instance()
+    {
+        var settings = CreateSettings();
+        var registry = new DatabaseInstanceRegistry(Path.Combine(_tempDirectory, "sessions"));
+        await using var root = new ApplicationCompositionRoot(
+            settingsService: new AppSettingsService(Path.Combine(_tempDirectory, "settings.json")),
+            applicationSession: new ApplicationSession("session-test", "PC-TEST"),
+            clock: SystemClock.Instance,
+            folderLauncher: new StubFolderLauncher(),
+            logger: NullAppLogger.Instance,
+            databaseInstanceRegistry: registry);
+
+        var board = root.CreateBoardViewModel(settings);
+
+        Assert.Single(registry.GetActiveInstances(settings.DatabasePath));
+        await board.DisposeAsync();
+        Assert.Empty(registry.GetActiveInstances(settings.DatabasePath));
     }
 
     private AppSettings CreateSettings() => new()

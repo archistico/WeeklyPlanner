@@ -16,18 +16,16 @@ TIPOLOGIA | BACKLOG | TODO | IN PROGRESS | TESTING | DONE
 
 ## Stato del progetto
 
-La baseline funzionale del kanban è stata consolidata e validata fino alla M3.14. La M4 implementa il
-processo di packaging Windows x64 con distribuzioni `portable` e `self-contained`, archivi ZIP,
-checksum e verifica automatica dei contenuti. Prima di aprire M5.1 resta da completare il gate di
-rilascio M4 con generazione e smoke test dei due pacchetti.
+La baseline kanban e il packaging Windows sono consolidati. La milestone corrente è **M5.1** e
+porta nell'applicazione backup, verifica di integrità e ripristino guidato del database locale.
 
-La fase successiva è il post-MVP locale. La roadmap parte da:
+La roadmap post-MVP prosegue con:
 
-1. backup, ripristino e controllo integrità dalla UI;
-2. ricerca e filtri;
-3. etichette multiple e viste salvate;
-4. checklist;
-5. collegamenti e allegati locali.
+1. ricerca e filtri;
+2. etichette multiple e viste salvate;
+3. checklist;
+4. collegamenti e allegati locali;
+5. template, notifiche, ricorrenze e automazioni.
 
 La pianificazione completa è in
 [`WeeklyPlanner-Obiettivi-e-Roadmap.md`](WeeklyPlanner-Obiettivi-e-Roadmap.md).
@@ -78,13 +76,20 @@ Dalle impostazioni è possibile gestire:
 - regole di scadenza specifiche per fascia;
 - trasferimento atomico delle card quando viene eliminata una fascia usata.
 
-### Diagnostica e affidabilità
+### Backup, ripristino e affidabilità
 
+- backup SQLite coerenti creati dalla UI senza chiudere la board;
+- elenco con data, dimensione, versione schema e risultato integrità;
+- restore guidato con backup preventivo automatico;
+- applicazione del restore al riavvio prima dell'apertura dei repository;
+- rollback del database precedente se la verifica finale fallisce;
+- rifiuto del restore quando un'altra istanza usa lo stesso database;
 - log tecnici JSON Lines con rotazione e retention;
 - riferimenti errore `WP-XXXXXX` correlabili con i log;
 - finestra diagnostica senza esposizione di titolo o note;
 - snapshot atomico di board, cataloghi, card e lock;
 - backup preventivo e rollback delle migrazioni;
+- pulizia controllata dei sidecar SQLite durante il restore;
 - test Avalonia headless, doppia istanza, temi, accessibilità e scenario di scala.
 
 ## Persistenza
@@ -179,6 +184,9 @@ Indice completo: [`docs/README.md`](docs/README.md).
 - [`docs/SMOKE-TEST-M4.md`](docs/SMOKE-TEST-M4.md)
 - [`docs/RELEASE-CHECKLIST-M4.md`](docs/RELEASE-CHECKLIST-M4.md)
 - [`docs/RELEASE-NOTES-M4.md`](docs/RELEASE-NOTES-M4.md)
+- [`docs/SMOKE-TEST-M5.1.md`](docs/SMOKE-TEST-M5.1.md)
+- [`docs/RELEASE-CHECKLIST-M5.1.md`](docs/RELEASE-CHECKLIST-M5.1.md)
+- [`docs/RELEASE-NOTES-M5.1.md`](docs/RELEASE-NOTES-M5.1.md)
 
 ### Pianificazione
 

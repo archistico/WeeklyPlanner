@@ -14,14 +14,14 @@ public sealed class PackagingReleaseTests
         ".."));
 
     [Fact]
-    public void Central_version_and_milestone_identify_M4()
+    public void Central_version_and_milestone_identify_M5_1()
     {
         var document = XDocument.Load(Path.Combine(RepositoryRoot, "Directory.Build.props"));
         var propertyGroup = Assert.Single(document.Root!.Elements("PropertyGroup"));
 
-        Assert.Equal("0.22.0", propertyGroup.Element("Version")?.Value);
-        Assert.Equal("0.22.0-m4", propertyGroup.Element("InformationalVersion")?.Value);
-        Assert.Equal("M4", propertyGroup.Element("WeeklyPlannerMilestone")?.Value);
+        Assert.Equal("0.23.0", propertyGroup.Element("Version")?.Value);
+        Assert.Equal("0.23.0-m5.1", propertyGroup.Element("InformationalVersion")?.Value);
+        Assert.Equal("M5.1", propertyGroup.Element("WeeklyPlannerMilestone")?.Value);
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class PackagingReleaseTests
         Assert.Contains("-p:PublishTrimmed=false", source, StringComparison.Ordinal);
         Assert.Contains("SHA256SUMS.txt", source, StringComparison.Ordinal);
         Assert.Contains("package-info.json", source, StringComparison.Ordinal);
-        Assert.Contains("RELEASE-CHECKLIST-M4.md", source, StringComparison.Ordinal);
+        Assert.Contains("RELEASE-CHECKLIST-M5.1.md", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -76,10 +76,11 @@ public sealed class PackagingReleaseTests
         {
             Path.Combine("packaging", "README-DISTRIBUZIONE.txt"),
             Path.Combine("docs", "BACKUP-RIPRISTINO.md"),
-            Path.Combine("docs", "SMOKE-TEST-M4.md"),
-            Path.Combine("docs", "RELEASE-CHECKLIST-M4.md"),
-            Path.Combine("docs", "RELEASE-NOTES-M4.md"),
+            Path.Combine("docs", "SMOKE-TEST-M5.1.md"),
+            Path.Combine("docs", "RELEASE-CHECKLIST-M5.1.md"),
+            Path.Combine("docs", "RELEASE-NOTES-M5.1.md"),
             Path.Combine("docs", "ADR-0020-packaging-mvp-locale.md"),
+            Path.Combine("docs", "ADR-0021-backup-ripristino-integrita-ui.md"),
         };
 
         foreach (var relativePath in requiredFiles)
@@ -128,8 +129,8 @@ public sealed class PackagingReleaseTests
         const string sample = """
             {
               "Product": "WeeklyPlanner",
-              "Version": "0.22.0-m4",
-              "Milestone": "M4",
+              "Version": "0.23.0-m5.1",
+              "Milestone": "M5.1",
               "RuntimeIdentifier": "win-x64",
               "PackageMode": "self-contained",
               "SelfContained": true,

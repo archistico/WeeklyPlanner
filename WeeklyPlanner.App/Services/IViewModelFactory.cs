@@ -19,4 +19,6 @@ public interface IViewModelFactory
     DiagnosticsViewModel CreateDiagnosticsViewModel(
         AppSettings settings,
         BoardRuntimeDiagnostics boardRuntime);
+
+    DatabaseSafetyViewModel CreateDatabaseSafetyViewModel(AppSettings settings);
 }

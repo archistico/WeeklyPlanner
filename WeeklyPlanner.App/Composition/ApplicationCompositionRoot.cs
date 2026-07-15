@@ -21,11 +21,16 @@ public sealed class ApplicationCompositionRoot : IViewModelFactory, IAsyncDispos
     private readonly IErrorReferenceGenerator _errorReferences;
     private readonly IApplicationDiagnosticsProvider _diagnosticsProvider;
     private readonly GlobalExceptionMonitor _globalExceptionMonitor;
+    private readonly IDatabaseInstanceRegistry _databaseInstanceRegistry;
     private int _disposed;
 
     public IAppSettingsService SettingsService { get; }
 
     public IAppLogger Logger { get; }
+
+    public IDatabaseSafetyService DatabaseSafetyService { get; }
+
+    public IApplicationRestarter ApplicationRestarter { get; }
 
     public ApplicationCompositionRoot(
         IAppSettingsService? settingsService = null,
@@ -34,7 +39,10 @@ public sealed class ApplicationCompositionRoot : IViewModelFactory, IAsyncDispos
         IFolderLauncher? folderLauncher = null,
         IAppLogger? logger = null,
         IErrorReferenceGenerator? errorReferences = null,
-        IDatabaseDiagnosticsReader? databaseDiagnosticsReader = null)
+        IDatabaseDiagnosticsReader? databaseDiagnosticsReader = null,
+        IDatabaseSafetyService? databaseSafetyService = null,
+        IDatabaseInstanceRegistry? databaseInstanceRegistry = null,
+        IApplicationRestarter? applicationRestarter = null)
     {
         SettingsService = settingsService ?? new AppSettingsService();
         _applicationSession = applicationSession ?? ApplicationSession.CreateDefault();
@@ -42,6 +50,11 @@ public sealed class ApplicationCompositionRoot : IViewModelFactory, IAsyncDispos
         _folderLauncher = folderLauncher ?? new ShellFolderLauncher();
         Logger = logger ?? new FileAppLogger(clock: _clock);
         _errorReferences = errorReferences ?? new ErrorReferenceGenerator();
+        _databaseInstanceRegistry = databaseInstanceRegistry ?? new DatabaseInstanceRegistry();
+        DatabaseSafetyService = databaseSafetyService ?? new SqliteDatabaseSafetyService(
+            instanceRegistry: _databaseInstanceRegistry,
+            clock: _clock);
+        ApplicationRestarter = applicationRestarter ?? new ShellApplicationRestarter();
         _globalExceptionMonitor = new GlobalExceptionMonitor(Logger, _errorReferences);
         _diagnosticsProvider = new ApplicationDiagnosticsProvider(
             Logger,
@@ -88,6 +101,17 @@ public sealed class ApplicationCompositionRoot : IViewModelFactory, IAsyncDispos
         BoardRuntimeDiagnostics boardRuntime) =>
         new(settings, boardRuntime, _diagnosticsProvider, _folderLauncher);
 
+    public DatabaseSafetyViewModel CreateDatabaseSafetyViewModel(AppSettings settings) =>
+        new(
+            settings,
+            _applicationSession.SessionId,
+            DatabaseSafetyService,
+            _folderLauncher);
+
+    public Task<DatabaseRestoreStartupResult> ProcessPendingDatabaseRestoreAsync(
+        CancellationToken cancellationToken = default) =>
+        DatabaseSafetyService.ProcessPendingRestoreAsync(cancellationToken);
+
     public BoardViewModel CreateBoardViewModel(AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -129,20 +153,33 @@ public sealed class ApplicationCompositionRoot : IViewModelFactory, IAsyncDispos
         var heartbeatScheduler = new AvaloniaRecurringTaskScheduler(
             EditLockHeartbeatInterval);
 
-        return new BoardViewModel(
-            normalizedSettings,
-            databaseInitializer,
-            cardRepository,
-            cardEventRepository,
-            editLockRepository,
-            snapshotRepository,
-            changeDetector,
-            pollingScheduler,
-            heartbeatScheduler,
-            _applicationSession,
-            _clock,
-            Logger,
-            _errorReferences);
+        var databaseInstanceLease = _databaseInstanceRegistry.Register(
+            normalizedSettings.DatabasePath,
+            _applicationSession.SessionId);
+
+        try
+        {
+            return new BoardViewModel(
+                normalizedSettings,
+                databaseInitializer,
+                cardRepository,
+                cardEventRepository,
+                editLockRepository,
+                snapshotRepository,
+                changeDetector,
+                pollingScheduler,
+                heartbeatScheduler,
+                _applicationSession,
+                _clock,
+                Logger,
+                _errorReferences,
+                databaseInstanceLease);
+        }
+        catch
+        {
+            databaseInstanceLease.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            throw;
+        }
     }
 
     public async ValueTask DisposeAsync()

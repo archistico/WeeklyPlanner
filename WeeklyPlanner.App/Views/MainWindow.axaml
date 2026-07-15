@@ -389,6 +389,15 @@
                      VerticalAlignment="Center" />
           <Button Classes="icon"
                   Background="Transparent"
+                  ToolTip.Tip="Backup, ripristino e integrità"
+                  AutomationProperties.Name="Apri backup, ripristino e integrità"
+                  Click="OnOpenDatabaseSafetyClick">
+            <Path Width="14" Height="14" Stretch="Uniform"
+                  Fill="{DynamicResource TextSecondaryBrush}"
+                  Data="M2,1 L12,1 L12,5 L2,5 Z M3,2 L5,2 L5,4 L3,4 Z M1,6 L13,6 L13,13 L1,13 Z M3,8 L11,8 L11,11 L3,11 Z" />
+          </Button>
+          <Button Classes="icon"
+                  Background="Transparent"
                   ToolTip.Tip="Informazioni e diagnostica"
                   AutomationProperties.Name="Apri informazioni e diagnostica"
                   Click="OnOpenDiagnosticsClick">

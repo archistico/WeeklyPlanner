@@ -8,6 +8,7 @@ using WeeklyPlanner.App.Diagnostics;
 using WeeklyPlanner.App.Services;
 using WeeklyPlanner.App.Views;
 using WeeklyPlanner.Core.Configuration;
+using WeeklyPlanner.Core.Data;
 
 namespace WeeklyPlanner.App;
 
@@ -39,16 +40,27 @@ public partial class App : Application
 
             desktop.Exit += OnDesktopExit;
 
+            var restoreResult = ProcessPendingDatabaseRestore(_compositionRoot);
             var settings = _compositionRoot.SettingsService.Load();
             ApplyThemePreference(settings.ThemePreference);
 
-            if (!settings.IsComplete())
+            if (restoreResult.Status == DatabaseRestoreStartupStatus.Blocked)
             {
-                OpenOnboarding(desktop, _compositionRoot, settings);
+                desktop.MainWindow = new DatabaseRestoreResultWindow(restoreResult)
+                {
+                    ShowActivated = true,
+                    ShowInTaskbar = true,
+                };
+            }
+            else if (!settings.IsComplete())
+            {
+                OpenOnboarding(desktop, _compositionRoot, settings, restoreResult);
             }
             else
             {
-                desktop.MainWindow = CreateMainWindow(_compositionRoot, settings);
+                var mainWindow = CreateMainWindow(_compositionRoot, settings);
+                AttachRestoreResultNotice(mainWindow, restoreResult);
+                desktop.MainWindow = mainWindow;
             }
         }
 
@@ -100,7 +112,8 @@ public partial class App : Application
     private static void OpenOnboarding(
         IClassicDesktopStyleApplicationLifetime desktop,
         ApplicationCompositionRoot compositionRoot,
-        AppSettings settings)
+        AppSettings settings,
+        DatabaseRestoreStartupResult restoreResult)
     {
         var viewModel = compositionRoot.CreateOnboardingViewModel(settings);
         var window = new OnboardingWindow
@@ -116,6 +129,7 @@ public partial class App : Application
             }
 
             var mainWindow = CreateMainWindow(compositionRoot, completedSettings);
+            AttachRestoreResultNotice(mainWindow, restoreResult);
             desktop.MainWindow = mainWindow;
             mainWindow.Show();
             window.Close();
@@ -123,6 +137,61 @@ public partial class App : Application
         };
 
         desktop.MainWindow = window;
+    }
+
+
+    private static DatabaseRestoreStartupResult ProcessPendingDatabaseRestore(
+        ApplicationCompositionRoot compositionRoot)
+    {
+        try
+        {
+            var result = compositionRoot
+                .ProcessPendingDatabaseRestoreAsync()
+                .GetAwaiter()
+                .GetResult();
+            if (result.HasResult)
+            {
+                compositionRoot.Logger.Information(
+                    "database.restore_startup_result",
+                    result.Message,
+                    new Dictionary<string, object?>
+                    {
+                        ["status"] = result.Status,
+                        ["databasePath"] = result.DatabasePath,
+                        ["backupPath"] = result.BackupPath,
+                        ["preRestoreBackupPath"] = result.PreRestoreBackupPath,
+                    });
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            compositionRoot.Logger.Log(
+                AppLogLevel.Error,
+                "database.restore_startup_failed",
+                "Errore non gestito durante il ripristino differito.",
+                exception: ex);
+            return new DatabaseRestoreStartupResult(
+                DatabaseRestoreStartupStatus.Failed,
+                $"Il ripristino non è stato eseguito a causa di un errore inatteso: {ex.Message}");
+        }
+    }
+
+    private static void AttachRestoreResultNotice(
+        MainWindow mainWindow,
+        DatabaseRestoreStartupResult restoreResult)
+    {
+        if (!restoreResult.HasResult)
+        {
+            return;
+        }
+
+        mainWindow.Opened += async (_, _) =>
+        {
+            var noticeWindow = new DatabaseRestoreResultWindow(restoreResult);
+            await noticeWindow.ShowDialog(mainWindow);
+        };
     }
 
     private static MainWindow CreateMainWindow(
@@ -138,7 +207,10 @@ public partial class App : Application
             WindowState = Avalonia.Controls.WindowState.Maximized,
         };
 
-        mainWindow.ConfigureApplicationServices(compositionRoot, settings);
+        mainWindow.ConfigureApplicationServices(
+            compositionRoot,
+            settings,
+            compositionRoot.ApplicationRestarter);
         mainWindow.Opened += async (_, _) => await viewModel.StartAsync();
         return mainWindow;
     }

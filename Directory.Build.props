@@ -8,9 +8,9 @@
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
 
-    <Version>0.22.0</Version>
-    <InformationalVersion>0.22.0-m4</InformationalVersion>
-    <WeeklyPlannerMilestone>M4</WeeklyPlannerMilestone>
+    <Version>0.23.0</Version>
+    <InformationalVersion>0.23.0-m5.1</InformationalVersion>
+    <WeeklyPlannerMilestone>M5.1</WeeklyPlannerMilestone>
   </PropertyGroup>
 
   <ItemGroup>

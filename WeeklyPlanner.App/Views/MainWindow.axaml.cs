@@ -10,6 +10,7 @@ using WeeklyPlanner.App.Interaction;
 using WeeklyPlanner.App.Services;
 using WeeklyPlanner.App.ViewModels;
 using WeeklyPlanner.Core.Configuration;
+using WeeklyPlanner.Core.Data;
 
 namespace WeeklyPlanner.App.Views;
 
@@ -31,6 +32,7 @@ public partial class MainWindow : Window
     private Point _boardPanStartPoint;
     private Vector _boardPanStartOffset;
     private IViewModelFactory? _viewModelFactory;
+    private IApplicationRestarter? _applicationRestarter;
     private AppSettings? _applicationSettings;
 
     public MainWindow()
@@ -60,12 +62,15 @@ public partial class MainWindow : Window
 
     public void ConfigureApplicationServices(
         IViewModelFactory viewModelFactory,
-        AppSettings settings)
+        AppSettings settings,
+        IApplicationRestarter applicationRestarter)
     {
         ArgumentNullException.ThrowIfNull(viewModelFactory);
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(applicationRestarter);
 
         _viewModelFactory = viewModelFactory;
+        _applicationRestarter = applicationRestarter;
         _applicationSettings = settings.Clone();
         _applicationSettings.Normalize();
     }
@@ -106,6 +111,71 @@ public partial class MainWindow : Window
 
             // Non affidarsi soltanto alla rilevazione implicita dell'ultima finestra chiusa:
             // dopo il cleanup della board richiedere esplicitamente la terminazione del lifetime.
+            if (Application.Current?.ApplicationLifetime is
+                IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                desktop.Shutdown();
+            }
+            else
+            {
+                Close();
+            }
+        }
+    }
+
+    private async void OnOpenDatabaseSafetyClick(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModelFactory is null ||
+            _applicationRestarter is null ||
+            _applicationSettings is null ||
+            DataContext is not BoardViewModel boardViewModel)
+        {
+            return;
+        }
+
+        if (!boardViewModel.CanChangeIdentityAndDatabaseSettings)
+        {
+            var blockedWindow = new DatabaseRestoreResultWindow(
+                new DatabaseRestoreStartupResult(
+                    DatabaseRestoreStartupStatus.Blocked,
+                    "Termina la modifica delle card e attendi la conclusione delle operazioni prima di aprire backup e ripristino."));
+            await blockedWindow.ShowDialog(this);
+            return;
+        }
+
+        var viewModel = _viewModelFactory.CreateDatabaseSafetyViewModel(_applicationSettings);
+        var window = new DatabaseSafetyWindow
+        {
+            DataContext = viewModel,
+        };
+
+        viewModel.RestorePrepared += (_, preparation) => window.Close(preparation);
+        var preparation = await window.ShowDialog<DatabaseRestorePreparation?>(this);
+        if (preparation is null)
+        {
+            return;
+        }
+
+        if (!_applicationRestarter.TryStartNewInstance(out var restartError))
+        {
+            await viewModel.CancelPreparedRestoreAsync(preparation);
+            var errorWindow = new DatabaseRestoreResultWindow(
+                new DatabaseRestoreStartupResult(
+                    DatabaseRestoreStartupStatus.Failed,
+                    $"Il ripristino è stato annullato perché non è stato possibile riavviare WeeklyPlanner. Dettagli: {restartError}"));
+            await errorWindow.ShowDialog(this);
+            return;
+        }
+
+        _shutdownInProgress = true;
+        IsEnabled = false;
+        try
+        {
+            await boardViewModel.DisposeAsync();
+        }
+        finally
+        {
+            _shutdownCompleted = true;
             if (Application.Current?.ApplicationLifetime is
                 IClassicDesktopStyleApplicationLifetime desktop)
             {

@@ -126,7 +126,25 @@ In caso di errore, conservare il riferimento `WP-XXXXXX` mostrato nell'interfacc
 ```
 
 
-## 12. Distribuzione Windows
+
+## 12. Backup e ripristino
+
+L'icona backup nell'intestazione apre la finestra **Backup, ripristino e integrità**.
+
+Da questa finestra è possibile:
+
+- creare immediatamente una copia coerente del database;
+- aprire la cartella dei backup;
+- vedere data, dimensione, schema e integrità di ogni file;
+- selezionare un backup valido e prepararne il ripristino.
+
+Il restore crea sempre un backup preventivo del database corrente e richiede il riavvio. Se un'altra
+istanza usa lo stesso database, WeeklyPlanner rifiuta l'operazione. Il database precedente viene
+ripristinato automaticamente se il nuovo file non supera il controllo finale.
+
+La procedura completa è in [`BACKUP-RIPRISTINO.md`](BACKUP-RIPRISTINO.md).
+
+## 13. Distribuzione Windows
 
 La distribuzione **portable** richiede .NET 10 x64 installato. La distribuzione
 **self-contained** include il runtime necessario. In entrambi i casi estrarre completamente lo ZIP e avviare

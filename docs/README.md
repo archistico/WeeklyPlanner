@@ -12,15 +12,19 @@
 | [`REGRESSION-CHECKLIST-KANBAN.md`](REGRESSION-CHECKLIST-KANBAN.md) | verifica manuale ricorrente della board |
 | [`BACKUP-RIPRISTINO.md`](BACKUP-RIPRISTINO.md) | procedura operativa corrente per i dati locali |
 
-## Packaging M4
+## Release e packaging
 
-Questi documenti descrivono la release e restano versionati perché fanno parte dei pacchetti
-Windows M4:
+La baseline M4 resta documentata come decisione di packaging. La release corrente M5.1 aggiunge i
+controlli operativi per backup e restore:
 
 - [`SMOKE-TEST-M4.md`](SMOKE-TEST-M4.md)
 - [`RELEASE-CHECKLIST-M4.md`](RELEASE-CHECKLIST-M4.md)
 - [`RELEASE-NOTES-M4.md`](RELEASE-NOTES-M4.md)
 - [`ADR-0020-packaging-mvp-locale.md`](ADR-0020-packaging-mvp-locale.md)
+- [`SMOKE-TEST-M5.1.md`](SMOKE-TEST-M5.1.md)
+- [`RELEASE-CHECKLIST-M5.1.md`](RELEASE-CHECKLIST-M5.1.md)
+- [`RELEASE-NOTES-M5.1.md`](RELEASE-NOTES-M5.1.md)
+- [`ADR-0021-backup-ripristino-integrita-ui.md`](ADR-0021-backup-ripristino-integrita-ui.md)
 
 ## Decisioni architetturali
 
@@ -40,6 +44,7 @@ Principali ADR del modello corrente:
 - [`ADR-0018-informazioni-cronologia-card.md`](ADR-0018-informazioni-cronologia-card.md)
 - [`ADR-0019-consolidamento-kanban.md`](ADR-0019-consolidamento-kanban.md)
 - [`ADR-0020-packaging-mvp-locale.md`](ADR-0020-packaging-mvp-locale.md)
+- [`ADR-0021-backup-ripristino-integrita-ui.md`](ADR-0021-backup-ripristino-integrita-ui.md)
 
 ## Screenshot
 

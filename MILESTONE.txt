@@ -1,11 +1,12 @@
-WeeklyPlanner M4 — Packaging MVP locale
+WeeklyPlanner M5.1 — Backup, ripristino e integrità dalla UI
 
-- publish Windows win-x64 portable framework-dependent;
-- publish Windows win-x64 self-contained;
-- archivi ZIP versionati e checksum SHA-256;
-- verifica automatica della struttura dei pacchetti;
-- procedura manuale di backup e ripristino;
-- smoke test su macchina pulita;
-- note di rilascio e checklist release candidate;
-- workflow GitHub Actions per il packaging;
+- creazione di backup SQLite coerenti direttamente dall’app;
+- elenco dei backup con data, dimensione, schema e integrità;
+- cartella backup apribile dalla board;
+- ripristino guidato con conferma esplicita;
+- backup preventivo automatico prima del restore;
+- restore differito al riavvio, prima dell’apertura delle connessioni della board;
+- rollback del database precedente se la verifica finale fallisce;
+- rilevamento delle altre istanze locali sullo stesso database;
+- rimozione dei sidecar SQLite durante il ripristino;
 - schema SQLite invariato alla versione 5.

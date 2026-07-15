@@ -31,9 +31,9 @@ try {
         'README-DISTRIBUZIONE.txt',
         'Documentazione\MANUALE-UTENTE.md',
         'Documentazione\BACKUP-RIPRISTINO.md',
-        'Documentazione\SMOKE-TEST-M4.md',
-        'Documentazione\RELEASE-NOTES-M4.md',
-        'Documentazione\RELEASE-CHECKLIST-M4.md'
+        'Documentazione\SMOKE-TEST-M5.1.md',
+        'Documentazione\RELEASE-NOTES-M5.1.md',
+        'Documentazione\RELEASE-CHECKLIST-M5.1.md'
     )
 
     foreach ($relativePath in $requiredFiles) {

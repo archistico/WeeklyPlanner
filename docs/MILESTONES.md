@@ -197,9 +197,8 @@ Deve descrivere soltanto funzioni disponibili nella baseline corrente.
 
 | Ordine | Milestone | Stato | Dipendenza principale | Schema previsto |
 |---:|---|---|---|---|
-| 0 | Gate di rilascio M4 | Implementata — verifica richiesta | M4 | v5 invariato |
-| 1 | M5.1 Backup, restore e integrità UI | Pianificata | M4 validata | v5 invariato |
-| 2 | M5.2 Ricerca e filtri | Pianificata | M5.1 | v5 invariato |
+| 0 | M5.1 Backup, restore e integrità UI | Implementata — verifica richiesta | M4 | v5 invariato |
+| 1 | M5.2 Ricerca e filtri | Pianificata | M5.1 validata | v5 invariato |
 | 3 | M5.3 Etichette e viste salvate | Pianificata | M5.2 | migrazione richiesta |
 | 4 | M5.4 Checklist | Pianificata | M5.3 | migrazione richiesta |
 | 5 | M5.5 Collegamenti e allegati | Pianificata | M5.1, M5.4 | migrazione + filesystem |
@@ -211,7 +210,8 @@ Deve descrivere soltanto funzioni disponibili nella baseline corrente.
 | 11 | M6 Board multiple | Rinviata | validazione uso reale | architetturale |
 | 12 | M7 Server e collaborazione | Rinviata | progetto separato | non applicabile al solo client |
 
-Prima di portare M5.1 allo stato **Pronta**, deve essere chiuso il gate di rilascio M4.
+M5.1 può passare a **Validata** dopo build, test e prova manuale completa di backup e restore su un
+database di test. Le verifiche distributive M4 restano nella checklist di ogni release Windows.
 
 ## 10. Cronologia sintetica delle fasi consolidate
 
@@ -223,7 +223,8 @@ Prima di portare M5.1 allo stato **Pronta**, deve essere chiuso il gate di rilas
 | M3.1–M3.4 | composition root, scheduler, diagnostica, shutdown e migrazioni protette |
 | M3.5–M3.8 | cataloghi, storico, schema v5, modello kanban e fasce |
 | M3.9–M3.14 | layout swimlane, movimento 2D, priorità, cronologia e consolidamento UI |
-| M4 | packaging Windows e processo di release implementati; verifica distributiva ancora richiesta |
+| M4 | packaging Windows e processo di release consolidati |
+| M5.1 | backup, integrità e restore guidato implementati; verifica locale richiesta |
 
 Le correzioni intermedie e i dettagli delle scelte sono ricostruibili tramite Git e ADR; non vengono
 più duplicati in questo documento.

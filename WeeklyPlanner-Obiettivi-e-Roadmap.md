@@ -106,7 +106,8 @@ rete non sono supportati.
 
 ### 4.4 Gate di rilascio M4
 
-M4 è implementata nel codice corrente. Prima di iniziare M5.1 devono essere completati:
+M4 costituisce la baseline di packaging usata dalle milestone post-MVP. Prima di una distribuzione
+pubblica devono essere completati:
 
 1. `dotnet test` in configurazione Release;
 2. `scripts\release.ps1` con produzione dei due archivi;
@@ -115,8 +116,8 @@ M4 è implementata nel codice corrente. Prima di iniziare M5.1 devono essere com
 5. smoke test del self-contained su Windows x64 senza runtime separato;
 6. prova documentata di backup e ripristino su dati di test.
 
-Il superamento di questo gate porta M4 allo stato **Validata**. Non richiede una nuova milestone né
-modifiche allo schema.
+Queste verifiche restano parte della checklist di ogni release e non bloccano l'implementazione delle
+funzioni locali successive.
 
 ## 5. Roadmap post-MVP
 
@@ -127,6 +128,8 @@ bloccanti.
 ---
 
 ## M5.1 — Backup, ripristino e integrità dalla UI
+
+**Stato:** Implementata — verifica richiesta
 
 ### Obiettivo
 
@@ -141,16 +144,21 @@ manuali.
 - apertura della cartella backup;
 - ripristino guidato;
 - backup automatico immediatamente prima del restore;
-- chiusura coordinata delle connessioni;
-- riavvio controllato dopo il ripristino;
+- richiesta di restore persistita atomicamente;
+- riavvio controllato dopo la preparazione;
+- applicazione del restore prima dell'apertura della board;
+- registro locale delle istanze attive sul database;
 - messaggi chiari in caso di file incompatibile o corrotto.
 
 ### Dati e architettura
 
 - nessuna modifica necessaria allo schema funzionale v5;
-- nuovo servizio applicativo per backup e restore manuale;
-- riuso di `IDatabaseIntegrityChecker` e delle primitive SQLite già testate;
-- nessuna copia del database mentre esistono connessioni attive non coordinate.
+- `SqliteDatabaseSafetyService` come servizio unico per backup, ispezione e restore;
+- SQLite Online Backup per creare copie coerenti mentre la board è aperta;
+- `DatabaseInstanceRegistry` per rifiutare restore concorrenti;
+- richiesta differita applicata al riavvio prima dei repository;
+- riuso di `IDatabaseIntegrityChecker`;
+- nessuna sostituzione del file mentre la board mantiene connessioni o scheduler attivi.
 
 ### Test minimi
 
@@ -625,7 +633,8 @@ senza cambiare la natura local-first del prodotto.
 | M3.1–M3.4 | composition root, scheduler, diagnostica, shutdown e migrazioni protette |
 | M3.5–M3.8 | cataloghi, storico, schema v5, modello kanban e configurazione fasce |
 | M3.9–M3.14 | swimlane, movimento 2D, priorità, cronologia, accessibilità e consolidamento |
-| M4 | packaging Windows portable/self-contained implementato; gate di rilascio da completare |
+| M4 | packaging Windows portable/self-contained consolidato; checklist distributiva permanente |
+| M5.1 | backup, integrità e restore guidato dalla UI implementati; verifica locale richiesta |
 
 I dettagli storici delle scelte tecniche sono conservati negli ADR. La roadmap non ripete più la
 cronaca di ogni correzione intermedia.

@@ -104,9 +104,9 @@ foreach ($definition in $definitions) {
     Copy-Item -LiteralPath (Join-Path $root 'packaging\README-DISTRIBUZIONE.txt') -Destination $outputDirectory
     Copy-Item -LiteralPath (Join-Path $root 'docs\MANUALE-UTENTE.md') -Destination $documentationDirectory
     Copy-Item -LiteralPath (Join-Path $root 'docs\BACKUP-RIPRISTINO.md') -Destination $documentationDirectory
-    Copy-Item -LiteralPath (Join-Path $root 'docs\SMOKE-TEST-M4.md') -Destination $documentationDirectory
-    Copy-Item -LiteralPath (Join-Path $root 'docs\RELEASE-NOTES-M4.md') -Destination $documentationDirectory
-    Copy-Item -LiteralPath (Join-Path $root 'docs\RELEASE-CHECKLIST-M4.md') -Destination $documentationDirectory
+    Copy-Item -LiteralPath (Join-Path $root 'docs\SMOKE-TEST-M5.1.md') -Destination $documentationDirectory
+    Copy-Item -LiteralPath (Join-Path $root 'docs\RELEASE-NOTES-M5.1.md') -Destination $documentationDirectory
+    Copy-Item -LiteralPath (Join-Path $root 'docs\RELEASE-CHECKLIST-M5.1.md') -Destination $documentationDirectory
 
     $packageInfo = [ordered]@{
         Product = 'WeeklyPlanner'

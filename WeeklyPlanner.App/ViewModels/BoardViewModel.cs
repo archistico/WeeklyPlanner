@@ -33,6 +33,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
     private readonly IClock _clock;
     private readonly IAppLogger _logger;
     private readonly IErrorReferenceGenerator _errorReferences;
+    private readonly IDatabaseInstanceLease? _databaseInstanceLease;
 
     private int _consecutiveFailures;
     private bool _automaticRetryAllowed = true;
@@ -294,7 +295,8 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         IApplicationSession applicationSession,
         IClock clock,
         IAppLogger? logger = null,
-        IErrorReferenceGenerator? errorReferences = null)
+        IErrorReferenceGenerator? errorReferences = null,
+        IDatabaseInstanceLease? databaseInstanceLease = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(databaseInitializer);
@@ -322,6 +324,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         _clock = clock;
         _logger = logger ?? NullAppLogger.Instance;
         _errorReferences = errorReferences ?? new ErrorReferenceGenerator();
+        _databaseInstanceLease = databaseInstanceLease;
 
         _pollingScheduler.Interval = TimeSpan.FromSeconds(_settings.PollingIntervalSeconds);
         _lockHeartbeatScheduler.Interval = EditLockHeartbeatInterval;
@@ -1623,18 +1626,20 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
             });
         ConnectionState = BoardConnectionState.ShuttingDown;
         SetActivity("Rilascio dei lock e chiusura...");
-        // Impedire nuovi tick, annullare le callback attive e attenderne la conclusione prima
-        // di entrare nel cleanup finale. Nessun polling o heartbeat può sopravvivere alla finestra.
         _lifetimeCancellation.Cancel();
-        await Task.WhenAll(
-            _pollingScheduler.StopAsync(),
-            _lockHeartbeatScheduler.StopAsync());
 
-        // Attendere la conclusione dell'operazione eventualmente in corso prima di rilasciare
-        // tutti i lease della sessione. La finestra resta aperta finché il cleanup termina.
-        await _operationGate.WaitAsync(CancellationToken.None);
+        var operationGateAcquired = false;
         try
         {
+            // Nessun polling o heartbeat può sopravvivere alla finestra.
+            await Task.WhenAll(
+                _pollingScheduler.StopAsync(),
+                _lockHeartbeatScheduler.StopAsync());
+
+            // Attendere l'operazione eventualmente in corso prima di rilasciare i lease.
+            await _operationGate.WaitAsync(CancellationToken.None);
+            operationGateAcquired = true;
+
             if (_isStarted)
             {
                 try
@@ -1658,12 +1663,38 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         }
         finally
         {
-            _operationGate.Release();
-            await _pollingScheduler.DisposeAsync();
-            await _lockHeartbeatScheduler.DisposeAsync();
-            _operationGate.Dispose();
-            _lifetimeCancellation.Dispose();
-            _logger.Information("board.shutdown_completed", "Chiusura della board completata.");
+            if (operationGateAcquired)
+            {
+                _operationGate.Release();
+            }
+
+            try
+            {
+                await _pollingScheduler.DisposeAsync();
+            }
+            finally
+            {
+                try
+                {
+                    await _lockHeartbeatScheduler.DisposeAsync();
+                }
+                finally
+                {
+                    try
+                    {
+                        if (_databaseInstanceLease is not null)
+                        {
+                            await _databaseInstanceLease.DisposeAsync();
+                        }
+                    }
+                    finally
+                    {
+                        _operationGate.Dispose();
+                        _lifetimeCancellation.Dispose();
+                        _logger.Information("board.shutdown_completed", "Chiusura della board completata.");
+                    }
+                }
+            }
         }
     }
 

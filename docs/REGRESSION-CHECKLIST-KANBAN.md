@@ -66,3 +66,14 @@ Atteso:
 
 Il comando deve aggiornare gli screenshot chiaro e scuro usando dati fittizi, senza aprire o
 modificare il database configurato dall'utente.
+
+## Backup e ripristino M5.1
+
+- [ ] La finestra backup si apre dall'intestazione senza alterare la board.
+- [ ] **Crea backup ora** produce un file valido e selezionabile.
+- [ ] Data, dimensione, schema e integrità sono leggibili.
+- [ ] Un file corrotto non abilita il pulsante di ripristino.
+- [ ] Il restore crea un backup preventivo e riavvia l'app.
+- [ ] Dopo il riavvio viene mostrato l'esito.
+- [ ] Con una seconda istanza aperta il restore viene rifiutato.
+- [ ] Dopo un restore riuscito drag&drop, editing, polling e cronologia funzionano ancora.
