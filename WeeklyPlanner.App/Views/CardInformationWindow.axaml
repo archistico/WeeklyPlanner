@@ -1,0 +1,207 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:WeeklyPlanner.App.ViewModels"
+        x:Class="WeeklyPlanner.App.Views.CardInformationWindow"
+        Title="Informazioni card"
+        Width="780"
+        Height="720"
+        MinWidth="640"
+        MinHeight="520"
+        WindowStartupLocation="CenterOwner">
+  <Window.Resources>
+    <DataTemplate x:Key="CardHistoryTemplate" DataType="vm:CardHistoryItemViewModel">
+      <Border Background="{DynamicResource SurfaceBackgroundBrush}"
+              BorderBrush="{DynamicResource BorderBrush}"
+              BorderThickness="1"
+              CornerRadius="8"
+              Padding="12"
+              Margin="0,0,0,8">
+        <Grid ColumnDefinitions="34,*" ColumnSpacing="10">
+          <Border Grid.Column="0"
+                  Width="30"
+                  Height="30"
+                  CornerRadius="15"
+                  Background="{DynamicResource WindowBackgroundBrush}"
+                  BorderBrush="{DynamicResource BorderBrush}"
+                  BorderThickness="1">
+            <TextBlock Text="{Binding EventSymbol}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       FontWeight="SemiBold" />
+          </Border>
+
+          <StackPanel Grid.Column="1" Spacing="4">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+              <TextBlock Grid.Column="0"
+                         Text="{Binding EventTypeText}"
+                         FontWeight="SemiBold" />
+              <TextBlock Grid.Column="1"
+                         Text="{Binding OccurredAtText}"
+                         Foreground="{DynamicResource TextSecondaryBrush}"
+                         FontSize="11" />
+            </Grid>
+            <TextBlock Text="{Binding Summary}"
+                       TextWrapping="Wrap" />
+            <TextBlock Text="{Binding MovementContextText}"
+                       IsVisible="{Binding IsMovement}"
+                       Foreground="{DynamicResource AccentBrush}"
+                       FontSize="10" />
+            <TextBlock Text="{Binding ActorText}"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       FontSize="11" />
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+  </Window.Resources>
+
+  <Grid RowDefinitions="Auto,*,Auto">
+    <Border Grid.Row="0" Classes="headerBar">
+      <StackPanel Spacing="3">
+        <TextBlock Text="Informazioni card"
+                   FontSize="18"
+                   FontWeight="SemiBold" />
+        <TextBlock Text="{Binding Title}"
+                   FontSize="14"
+                   TextWrapping="Wrap" />
+        <TextBlock Text="{Binding IdentifierText}"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   FontSize="10"
+                   TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <ScrollViewer x:Name="CardInformationScrollViewer"
+                  Grid.Row="1"
+                  Padding="18,18,18,0"
+                  HorizontalContentAlignment="Stretch"
+                  VerticalContentAlignment="Top"
+                  HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="16">
+        <TextBlock Text="Dati correnti"
+                   FontSize="15"
+                   FontWeight="SemiBold" />
+
+        <Border Background="{DynamicResource SurfaceBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="10"
+                Padding="14">
+          <Grid ColumnDefinitions="160,*"
+                RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                ColumnSpacing="14"
+                RowSpacing="8">
+            <TextBlock Grid.Row="0" Text="Creata il" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
+              <TextBlock Text="{Binding CreatedAtText}" />
+              <TextBlock Text="{Binding CreatedAtNote}"
+                         Foreground="{DynamicResource TextSecondaryBrush}"
+                         FontSize="10" />
+            </StackPanel>
+
+            <TextBlock Grid.Row="1" Text="Creata da" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding CreatedByText}" />
+
+            <TextBlock Grid.Row="2" Text="Ultima modifica" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding UpdatedAtText}" />
+
+            <TextBlock Grid.Row="3" Text="Modificata da" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding UpdatedByText}" />
+
+            <TextBlock Grid.Row="4" Text="Fascia" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding CardTypeName}" FontWeight="SemiBold" />
+
+            <TextBlock Grid.Row="5" Text="Stato" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding WorkflowStateName}" FontWeight="SemiBold" />
+
+            <TextBlock Grid.Row="6" Text="Priorità" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding PriorityText}" />
+
+            <TextBlock Grid.Row="7" Text="Scadenza" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding DueAtText}" />
+          </Grid>
+        </Border>
+
+        <TextBlock Text="Lock corrente"
+                   FontSize="15"
+                   FontWeight="SemiBold" />
+        <Border Background="{DynamicResource SurfaceBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="10"
+                Padding="14">
+          <StackPanel Spacing="4">
+            <TextBlock Text="{Binding LockStatusText}"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap" />
+            <TextBlock Text="{Binding LockDetailsText}"
+                       IsVisible="{Binding HasLockDetails}"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       FontSize="11"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Grid.Column="0"
+                     Text="Cronologia"
+                     FontSize="15"
+                     FontWeight="SemiBold" />
+          <TextBlock Grid.Column="1"
+                     Text="dal più recente"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
+                     FontSize="11"
+                     VerticalAlignment="Center" />
+        </Grid>
+
+        <TextBlock Text="Caricamento della cronologia…"
+                   IsVisible="{Binding IsLoading}"
+                   Foreground="{DynamicResource TextSecondaryBrush}" />
+
+        <Border Background="{DynamicResource DangerSurfaceBrush}"
+                BorderBrush="{DynamicResource DangerBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="10"
+                IsVisible="{Binding HasError}">
+          <TextBlock Text="{Binding ErrorMessage}"
+                     Foreground="{DynamicResource DangerBrush}"
+                     TextWrapping="Wrap" />
+        </Border>
+
+        <TextBlock Text="Nessun evento disponibile per questa card."
+                   IsVisible="{Binding IsHistoryEmpty}"
+                   Foreground="{DynamicResource TextSecondaryBrush}" />
+
+        <ItemsControl ItemsSource="{Binding History}"
+                      ItemTemplate="{StaticResource CardHistoryTemplate}" />
+
+        <Button Content="Carica eventi precedenti"
+                HorizontalAlignment="Center"
+                Command="{Binding LoadMoreCommand}"
+                IsVisible="{Binding HasMoreHistory}"
+                IsEnabled="{Binding CanLoadMore}" />
+
+        <TextBlock Text="Caricamento degli eventi precedenti…"
+                   HorizontalAlignment="Center"
+                   IsVisible="{Binding IsLoadingMore}"
+                   Foreground="{DynamicResource TextSecondaryBrush}" />
+
+        <!-- Spazio tecnico per portare interamente l'ultimo elemento sopra il bordo inferiore. -->
+        <Border x:Name="BottomScrollSpacer"
+                Height="96"
+                IsHitTestVisible="False" />
+      </StackPanel>
+    </ScrollViewer>
+
+    <Border Grid.Row="2"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="0,1,0,0"
+            Padding="18,12">
+      <Button Content="Chiudi"
+              HorizontalAlignment="Right"
+              Click="OnCloseClick" />
+    </Border>
+  </Grid>
+</Window>

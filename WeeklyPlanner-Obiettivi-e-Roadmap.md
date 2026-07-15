@@ -252,54 +252,43 @@ Gli eventi vengono salvati nella stessa transazione della modifica.
 | M3.11 | priorità compatta, editing stabile e avvio massimizzato |
 | M3.12 | ultimo salvataggio relativo e stati di persistenza |
 | M3.12.1 | consolidamento tecnico, startup e regole condivise |
+| M3.13 | informazioni card, lock e cronologia paginata |
 
 ## 7. Milestone corrente
 
-### M3.12.1 — Consolidamento tecnico e startup
+### M3.13 — Informazioni e cronologia
 
 #### Obiettivi
 
-- aprire la board come normale finestra massimizzata e attiva;
-- non salvare né ripristinare posizione, dimensione o stato della finestra;
-- eliminare `Topmost` e le attivazioni ripetute;
-- rimuovere l’API monodimensionale `MoveAsync`;
-- centralizzare il calcolo delle scadenze;
-- rappresentare esplicitamente i conflitti di concorrenza senza modelli parziali;
-- evitare duplicazioni nel calcolo delle modifiche di titolo e note;
+- aggiungere l'icona `i` accanto all'indicatore di salvataggio e al cestino;
+- aprire una finestra modale senza acquisire il lock di editing;
+- mostrare creazione, ultima modifica, fascia, stato, priorità e scadenza;
+- mostrare il lock corrente con proprietario, computer e scadenza del lease;
+- caricare la cronologia dal più recente in pagine da 20 eventi;
+- consentire di raggiungere l’ultimo elemento senza tagli tramite spazio tecnico inferiore;
+- descrivere chiaramente movimento fra celle e riordino nella stessa cella;
 - mantenere lo schema SQLite alla versione 5.
 
 #### Test
 
-- startup diretto e dopo onboarding configurato una sola volta;
-- assenza di persistenza della geometria e di `Topmost`;
-- caricamento dei settings compatibile con le vecchie proprietà finestra ignorate;
-- assenza di `MoveAsync` dall’interfaccia e dal repository;
-- scadenze coerenti tra calcolo predefinito e regole specifiche per fascia;
-- conflitto concorrente con bozza conservata e un solo stato di errore;
-- nessuna nuova migrazione SQLite.
+- risoluzione dei nomi correnti di fascia, stato e priorità;
+- lock assente, lock della sessione corrente e lock esterno;
+- prima pagina e caricamento tramite `beforeEventId`;
+- etichette leggibili per eventi di movimento e riordino;
+- assenza di nuove migrazioni SQLite.
 
 #### Criteri di chiusura
 
 1. `dotnet build` senza warning o errori;
 2. `dotnet test` completamente verde;
-3. apertura massimizzata al lancio diretto e dopo onboarding;
-4. nessun `Topmost` e nessuna persistenza della geometria;
-5. nessun riferimento produttivo a `MoveAsync`;
-6. scadenze coerenti in creazione, modifica, movimento, trasferimento fascia e anteprima;
-7. conflitto concorrente con bozza conservata e un solo messaggio;
-8. badge `M3.12.1` e schema SQLite v5.
+3. icona informazioni presente su ogni card;
+4. modale centrata sulla finestra principale;
+5. dati correnti e lock leggibili anche senza cronologia;
+6. paginazione limitata a 20 eventi per lettura;
+7. descrizioni bidimensionali senza esposizione del JSON tecnico;
+8. badge `M3.13` e schema SQLite v5.
 
 ## 8. Roadmap successiva
-
-### M3.13 — Informazioni e cronologia
-
-- icona `i` accanto a floppy e cestino;
-- finestra modale;
-- dati di creazione e ultima modifica;
-- fascia, stato, priorità e scadenza;
-- lock corrente;
-- cronologia paginata;
-- descrizioni dei movimenti bidimensionali.
 
 ### M3.14 — Consolidamento kanban
 
@@ -338,4 +327,5 @@ ADR di riferimento:
 
 - [`docs/ADR-0011-modello-kanban-swimlane.md`](docs/ADR-0011-modello-kanban-swimlane.md);
 - [`docs/ADR-0014-movimento-bidimensionale.md`](docs/ADR-0014-movimento-bidimensionale.md);
-- [`docs/ADR-0017-consolidamento-tecnico-startup.md`](docs/ADR-0017-consolidamento-tecnico-startup.md).
+- [`docs/ADR-0017-consolidamento-tecnico-startup.md`](docs/ADR-0017-consolidamento-tecnico-startup.md);
+- [`docs/ADR-0018-informazioni-cronologia-card.md`](docs/ADR-0018-informazioni-cronologia-card.md).

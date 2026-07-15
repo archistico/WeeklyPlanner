@@ -1,8 +1,8 @@
-WeeklyPlanner M3.12.1 — Consolidamento tecnico e startup
+WeeklyPlanner M3.13 — Informazioni e cronologia
 
-- avvio della board massimizzato e attivo, senza persistenza della geometria;
-- rimozione di Topmost, WindowPlacementCalculator e MoveAsync;
-- calcolo delle scadenze centralizzato in PriorityDeadlineCalculator;
-- conflitti concorrenti rappresentati esplicitamente senza Card parziali;
-- calcolo delle modifiche di titolo e note non duplicato;
+- icona informazioni nel footer di ogni card;
+- finestra modale con metadati correnti, fascia, stato, priorità e scadenza;
+- visualizzazione del lock di modifica attivo;
+- cronologia paginata dal più recente con descrizioni dei movimenti bidimensionali;
 - schema SQLite invariato alla versione 5.
+- spazio di scorrimento inferiore nella finestra informazioni per mostrare integralmente l’ultimo elemento.

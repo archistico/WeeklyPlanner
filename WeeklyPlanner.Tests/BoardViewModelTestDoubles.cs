@@ -19,6 +19,7 @@ internal static class BoardViewModelTestDoubles
     {
         var initializer = new StubDatabaseInitializer();
         var cards = new StubCardRepository();
+        var events = new StubCardEventRepository();
         var locks = new StubCardEditLockRepository();
         var columns = new StubColumnRepository();
         var snapshot = new StubBoardSnapshotRepository(columns, cards, locks);
@@ -38,6 +39,7 @@ internal static class BoardViewModelTestDoubles
             effectiveSettings,
             initializer,
             cards,
+            events,
             locks,
             snapshot,
             detector,
@@ -52,6 +54,7 @@ internal static class BoardViewModelTestDoubles
             viewModel,
             initializer,
             cards,
+            events,
             locks,
             columns,
             snapshot,
@@ -66,6 +69,7 @@ internal static class BoardViewModelTestDoubles
         BoardViewModel ViewModel,
         StubDatabaseInitializer Initializer,
         StubCardRepository Cards,
+        StubCardEventRepository Events,
         StubCardEditLockRepository Locks,
         StubColumnRepository Columns,
         StubBoardSnapshotRepository Snapshot,
@@ -244,6 +248,32 @@ internal static class BoardViewModelTestDoubles
             UpdatedAtUtc = card.UpdatedAtUtc,
             Version = card.Version,
         };
+    }
+
+    internal sealed class StubCardEventRepository : ICardEventRepository
+    {
+        public List<CardEvent> Items { get; } = [];
+
+        public List<(string StableId, int Take, long? BeforeEventId)> Requests { get; } = [];
+
+        public Task<IReadOnlyList<CardEvent>> GetByCardStableIdAsync(
+            string cardStableId,
+            int take = 50,
+            long? beforeEventId = null,
+            CancellationToken cancellationToken = default)
+        {
+            Requests.Add((cardStableId, take, beforeEventId));
+            var page = Items
+                .Where(item => string.Equals(
+                    item.CardStableId,
+                    cardStableId,
+                    StringComparison.Ordinal))
+                .Where(item => beforeEventId is null || item.Id < beforeEventId.Value)
+                .OrderByDescending(item => item.Id)
+                .Take(take)
+                .ToList();
+            return Task.FromResult<IReadOnlyList<CardEvent>>(page);
+        }
     }
 
     internal sealed class StubCardEditLockRepository : ICardEditLockRepository

@@ -1,6 +1,6 @@
 # WeeklyPlanner
 
-> **M3.12.1 — Consolidamento tecnico e startup**
+> **M3.13 — Informazioni e cronologia**
 
 Applicazione desktop **C# / .NET 10 / Avalonia** per organizzare attività in un kanban locale,
 sviluppata per milestone piccole, test automatici, migrazioni protette e documentazione aggiornata
@@ -20,9 +20,9 @@ Il layout M3.9, comprese le correzioni a larghezza, scroll, pan e movimento nell
 accettato dall'utente nella prova manuale.
 
 La M3.10 e la M3.11 sono state validate con compilazione, test e verifica manuale riusciti. La M3.12
-rende permanente e leggibile il feedback di persistenza. La M3.12.1 consolida la base prima della
-cronologia: startup semplificato, geometria non persistita, movimento esclusivamente bidimensionale,
-scadenze centralizzate e conflitti concorrenti espliciti. Lo schema SQLite resta alla versione 5.
+rende permanente e leggibile il feedback di persistenza e la M3.12.1 consolida startup, movimento
+bidimensionale, scadenze e conflitti. La M3.13 aggiunge una finestra modale per metadati, lock e
+cronologia paginata della card. Lo schema SQLite resta alla versione 5.
 
 La suite dichiara **oltre 220 casi** considerando i test parametrizzati.
 
@@ -360,9 +360,9 @@ dotnet test WeeklyPlanner.sln -c Release --no-build
 dotnet run --project .\WeeklyPlanner.App\WeeklyPlanner.App.csproj
 ```
 
-Nella M3.12.1 la finestra deve mostrare il badge `M3.12.1`, aprirsi massimizzata senza ripristino della
-geometria e restare attiva anche dopo l’onboarding. Le card conservano gli indicatori di persistenza
-introdotti in M3.12.
+Nella M3.13 la finestra deve mostrare il badge `M3.13`, aprirsi massimizzata senza ripristino della
+geometria e restare attiva anche dopo l’onboarding. Ogni card espone l'icona informazioni per aprire
+metadati, lock e cronologia paginata.
 
 ## Consolidamento M3.12.1
 
@@ -377,13 +377,31 @@ introdotti in M3.12.
 - un conflitto di versione conserva la bozza, blocca il nuovo salvataggio e mostra un solo messaggio;
 - titolo e note vengono confrontati una sola volta prima di costruire audit e riepilogo.
 
+## Informazioni e cronologia M3.13
+
+Nel footer di ogni card, accanto all'indicatore di salvataggio e al cestino, è disponibile l'icona
+`i`. L'azione apre una finestra modale centrata sulla board senza entrare in modifica e senza acquisire
+un nuovo lock.
+
+La finestra mostra:
+
+- data e autore di creazione, evidenziando le date stimate provenienti dalle migrazioni;
+- data e autore dell'ultima modifica;
+- fascia, stato operativo, priorità e scadenza correnti;
+- eventuale lock attivo, proprietario, computer, acquisizione e scadenza del lease;
+- cronologia dal più recente, caricata in pagine da 20 eventi.
+- spazio inferiore di scorrimento per visualizzare integralmente l’ultimo evento o comando.
+
+Gli eventi di movimento distinguono cambio di cella e riordino locale. Le descrizioni persistite
+indicano fascia e stato di origine e destinazione, così il percorso bidimensionale resta leggibile
+senza esporre il JSON tecnico dell'audit. Il caricamento di pagine precedenti usa l'identificativo
+dell'ultimo evento visualizzato e non richiede nuove tabelle o migrazioni.
+
 ## Roadmap immediata
 
-1. **M3.13 — Informazioni e cronologia**  
-   Modale con metadati e storico paginato.
-2. **M3.14 — Consolidamento kanban**  
+1. **M3.14 — Consolidamento kanban**  
    Test UI, prestazioni, accessibilità e documentazione finale.
-3. **M4 — Packaging MVP locale**  
+2. **M4 — Packaging MVP locale**  
    Publish Windows, backup documentato e smoke test distribuibile.
 
 Le decisioni del modello corrente sono descritte in:
@@ -394,4 +412,5 @@ Le decisioni del modello corrente sono descritte in:
 - [`docs/ADR-0014-movimento-bidimensionale.md`](docs/ADR-0014-movimento-bidimensionale.md);
 - [`docs/ADR-0015-priorita-compatta-card.md`](docs/ADR-0015-priorita-compatta-card.md);
 - [`docs/ADR-0016-ultimo-salvataggio-relativo.md`](docs/ADR-0016-ultimo-salvataggio-relativo.md);
-- [`docs/ADR-0017-consolidamento-tecnico-startup.md`](docs/ADR-0017-consolidamento-tecnico-startup.md).
+- [`docs/ADR-0017-consolidamento-tecnico-startup.md`](docs/ADR-0017-consolidamento-tecnico-startup.md);
+- [`docs/ADR-0018-informazioni-cronologia-card.md`](docs/ADR-0018-informazioni-cronologia-card.md).

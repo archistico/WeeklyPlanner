@@ -138,6 +138,21 @@ public partial class MainWindow : Window
         await window.ShowDialog(this);
     }
 
+    private async void OnOpenCardInformationClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { DataContext: CardViewModel card } ||
+            DataContext is not BoardViewModel boardViewModel)
+        {
+            return;
+        }
+
+        var window = new CardInformationWindow
+        {
+            DataContext = boardViewModel.CreateCardInformationViewModel(card),
+        };
+        await window.ShowDialog(this);
+    }
+
     private async void OnOpenSettingsClick(object? sender, RoutedEventArgs e)
     {
         if (_viewModelFactory is null ||

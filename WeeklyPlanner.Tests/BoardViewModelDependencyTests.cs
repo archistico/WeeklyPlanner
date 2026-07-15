@@ -136,4 +136,48 @@ public sealed class BoardViewModelDependencyTests
         await context.ViewModel.DisposeAsync();
     }
 
+    [Fact]
+    public async Task Card_information_factory_resolves_current_catalog_names()
+    {
+        var context = BoardViewModelTestDoubles.Create();
+        context.Snapshot.Priorities =
+        [
+            new WeeklyPlanner.Core.Models.PriorityDefinition
+            {
+                Id = 4,
+                Code = "P",
+                Name = "Programmabile",
+                DefaultDueHours = 2880,
+                SortOrder = 0,
+                IsActive = true,
+                Version = 1,
+            },
+        ];
+        context.Cards.Items.Add(new WeeklyPlanner.Core.Models.Card
+        {
+            Id = 9,
+            ColumnId = 1,
+            CardTypeId = 1,
+            PriorityId = 4,
+            StableId = "information-card",
+            CreatedAtUtc = "2026-07-15T08:00:00.0000000Z",
+            Title = "Informazioni",
+            SortOrder = 0,
+            CreatedBy = "Emilie",
+            UpdatedBy = "Emilie",
+            UpdatedAtUtc = "2026-07-15T08:00:00.0000000Z",
+            Version = 1,
+        });
+        await context.ViewModel.StartAsync();
+        var card = Assert.Single(context.ViewModel.TodoColumn!.Cards);
+
+        var information = context.ViewModel.CreateCardInformationViewModel(card);
+
+        Assert.Equal("TODO", information.WorkflowStateName);
+        Assert.Equal("Generica", information.CardTypeName);
+        Assert.Equal("P — Programmabile", information.PriorityText);
+
+        await context.ViewModel.DisposeAsync();
+    }
+
 }

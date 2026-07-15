@@ -21,6 +21,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
     private readonly AppSettings _settings;
     private readonly IDatabaseInitializer _databaseInitializer;
     private readonly ICardRepository _cardRepository;
+    private readonly ICardEventRepository _cardEventRepository;
     private readonly ICardEditLockRepository _editLockRepository;
     private readonly IBoardSnapshotRepository _snapshotRepository;
     private readonly IBoardChangeDetector _changeDetector;
@@ -205,6 +206,44 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         Columns.Sum(column => column.Cards.Count),
         CurrentDatabasePath);
 
+    public CardInformationViewModel CreateCardInformationViewModel(CardViewModel card)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+
+        var columnName = Columns
+            .FirstOrDefault(column => column.Id == card.Model.ColumnId)?.Name
+            ?? $"Stato #{card.Model.ColumnId}";
+        var cardTypeName = card.Model.CardTypeId is long cardTypeId
+            ? CardTypes.FirstOrDefault(cardType => cardType.Id == cardTypeId)?.Name
+                ?? $"Fascia #{cardTypeId}"
+            : "Fascia non disponibile";
+        var priorityText = card.Model.PriorityId is long priorityId
+            ? BuildPriorityText(priorityId)
+            : "Nessuna priorità";
+
+        return new CardInformationViewModel(
+            card.Model,
+            columnName,
+            cardTypeName,
+            priorityText,
+            _cardEventRepository,
+            _editLockRepository,
+            _applicationSession.SessionId);
+    }
+
+    private string BuildPriorityText(long priorityId)
+    {
+        var priority = Priorities.FirstOrDefault(candidate => candidate.Id == priorityId);
+        if (priority is null)
+        {
+            return $"Priorità #{priorityId}";
+        }
+
+        return string.IsNullOrWhiteSpace(priority.Code)
+            ? priority.Name
+            : $"{priority.Code} — {priority.Name}";
+    }
+
     public void ApplyRuntimeSettings(AppSettings settings, bool databaseChangeRequiresRestart)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -246,6 +285,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         AppSettings settings,
         IDatabaseInitializer databaseInitializer,
         ICardRepository cardRepository,
+        ICardEventRepository cardEventRepository,
         ICardEditLockRepository editLockRepository,
         IBoardSnapshotRepository snapshotRepository,
         IBoardChangeDetector changeDetector,
@@ -259,6 +299,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(databaseInitializer);
         ArgumentNullException.ThrowIfNull(cardRepository);
+        ArgumentNullException.ThrowIfNull(cardEventRepository);
         ArgumentNullException.ThrowIfNull(editLockRepository);
         ArgumentNullException.ThrowIfNull(snapshotRepository);
         ArgumentNullException.ThrowIfNull(changeDetector);
@@ -271,6 +312,7 @@ public sealed partial class BoardViewModel : ViewModelBase, IAsyncDisposable
         _settings.Normalize();
         _databaseInitializer = databaseInitializer;
         _cardRepository = cardRepository;
+        _cardEventRepository = cardEventRepository;
         _editLockRepository = editLockRepository;
         _snapshotRepository = snapshotRepository;
         _changeDetector = changeDetector;

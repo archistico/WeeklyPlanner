@@ -112,6 +112,9 @@ public sealed class ApplicationCompositionRoot : IViewModelFactory, IAsyncDispos
             writePipeline,
             readPipeline: readPipeline,
             auditContextProvider: new ApplicationSessionCardAuditContextProvider(_applicationSession));
+        var cardEventRepository = new CardEventRepository(
+            connectionFactory,
+            readPipeline);
         var editLockRepository = new CardEditLockRepository(
             connectionFactory,
             writePipeline,
@@ -130,6 +133,7 @@ public sealed class ApplicationCompositionRoot : IViewModelFactory, IAsyncDispos
             normalizedSettings,
             databaseInitializer,
             cardRepository,
+            cardEventRepository,
             editLockRepository,
             snapshotRepository,
             changeDetector,

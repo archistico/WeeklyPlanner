@@ -135,7 +135,8 @@ Ogni milestone deve:
 | M3.10 — Drag&drop bidimensionale | **Validata** | compilazione e 225 test passati; cambio fascia/stato atomico e indice locale |
 | M3.11 — Priorità compatta | **Validata** | build, test e verifica UX riusciti; bozza persistente, badge, scadenza e avvio attivo |
 | M3.12 — Ultimo salvataggio relativo | **Implementata** | floppy verde, tempo relativo e ticker condiviso |
-| M3.12.1 — Consolidamento tecnico e startup | **Implementata, verifica richiesta** | startup semplice, API 2D unica, scadenze centralizzate e conflitti espliciti |
+| M3.12.1 — Consolidamento tecnico e startup | **Validata** | startup semplice, API 2D unica, scadenze centralizzate e conflitti espliciti |
+| M3.13 — Informazioni e cronologia | **Implementata, verifica richiesta** | modale card, lock corrente e storico paginato |
 | M4 — Packaging MVP locale | Pianificata | publish Windows, backup documentato, smoke test e pacchetto distribuibile |
 
 ## M1.1.1 — SQLite locale affidabile
@@ -980,4 +981,40 @@ per istanza o nuove colonne nel database.
 8. bozza concorrente conservata con un solo messaggio;
 9. badge `M3.12.1`;
 10. database SQLite v5 integro.
+
+## M3.13 — Informazioni e cronologia
+
+**Obiettivo:** rendere consultabili i metadati e l'audit di una card senza entrare in modifica.
+
+### Implementazione
+
+- icona `i` nel footer della card, accanto a persistenza e cestino;
+- finestra `CardInformationWindow` modale e centrata sul proprietario;
+- snapshot dei dati correnti della card con nomi risolti dai cataloghi della board;
+- lettura del lock attivo tramite `ICardEditLockRepository`;
+- lettura cronologia tramite `ICardEventRepository`;
+- pagine da 20 eventi ordinate dal più recente e cursore `beforeEventId`;
+- etichette e simboli specifici per creazione, modifiche, priorità, fascia, movimento, riordino ed eliminazione;
+- riepiloghi dei movimenti bidimensionali basati sulle descrizioni persistite;
+- nessuna esposizione del payload JSON tecnico nella UI;
+- schema SQLite invariato alla versione 5.
+
+### Test
+
+- dati correnti, priorità e nomi catalogo;
+- lock della sessione corrente e assenza di lock;
+- pagina iniziale, caricamento successivo e cursore dell'ultimo evento;
+- descrizione di movimento e stato cronologia vuota;
+- composition root aggiornato con il repository eventi.
+
+### Criteri di chiusura
+
+1. `dotnet build` senza warning o errori;
+2. `dotnet test` completamente verde;
+3. modale apribile da ogni card;
+4. metadati e lock leggibili;
+5. cronologia paginata senza caricare più di 20 eventi per richiesta;
+6. movimento fra fascia/stato distinguibile dal riordino locale;
+7. badge `M3.13`;
+8. database SQLite v5 integro.
 
