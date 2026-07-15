@@ -2,7 +2,8 @@
 
 ## Stato
 
-Accettata nella milestone M3.9. Il contratto di movimento è completato da ADR-0014.
+Accettata. Il contratto di movimento transitorio descritto qui è stato sostituito dal movimento
+bidimensionale definitivo di ADR-0014.
 
 ## Contesto
 
@@ -14,9 +15,9 @@ Il `BoardViewModel` possiede già gli stessi oggetti `CardViewModel` usati da ed
 concorrenza ottimistica e feedback. Creare copie distinte per il nuovo layout avrebbe prodotto due
 stati UI concorrenti per la stessa card e avrebbe messo a rischio le bozze durante il polling.
 
-Inoltre il repository M3.9 conserva ancora un ordine tecnico per colonna. Abilitare nel nuovo layout
-un trascinamento calcolato sulle sole card della cella avrebbe quindi passato al repository indici
-con una semantica diversa.
+Nella prima introduzione del layout, il repository conservava ancora un ordine tecnico per colonna.
+Il movimento definitivo è stato successivamente riallineato alla semantica locale della cella da
+ADR-0014.
 
 ## Decisione
 
@@ -47,11 +48,9 @@ La finestra usa un solo `ScrollViewer` per l'intera matrice:
 - scroll orizzontale globale;
 - pan bidimensionale con il tasto centrale.
 
-L'aggiunta transitoria è disponibile nelle celle di Generica e continua a creare una card Generica
-nello stato selezionato. La M3.9 mantiene il contratto tecnico di ordinamento per colonna, ma traduce
-gli indici visuali della singola cella negli indici usati dal repository. In questo modo drag&drop e
-scorciatoie `Alt` consentono nuovamente il riordino nella cella e il cambio di stato, senza cambiare
-fascia. La M3.10 introdurrà il movimento atomico completo fra fascia, stato e ordine della cella.
+Le azioni di creazione sono collocate nelle cinque intestazioni operative e creano una card nella
+fascia Generica nello stato selezionato. Il movimento corrente usa il contratto atomico definito da
+ADR-0014 e può cambiare fascia, stato e ordine locale della cella.
 
 ## Conseguenze
 
@@ -61,6 +60,6 @@ fascia. La M3.10 introdurrà il movimento atomico completo fra fascia, stato e o
 - una fascia con molte card aumenta l'altezza dell'intera riga, mantenendo l'allineamento;
 - le card di fasce inattive non vengono nascoste;
 - la matrice usa tutta la larghezza disponibile con una soglia minima di leggibilità;
-- il riordino e il cambio stato restano disponibili senza alterare `CardTypeId`;
-- M3.10 dovrà rendere `SortOrder` coerente con la cella `(CardTypeId, ColumnId)` e registrare lo
-  spostamento bidimensionale atomico nello storico.
+- riordino, cambio stato e cambio fascia usano la posizione `(CardTypeId, ColumnId, SortOrder)`;
+- lo spostamento bidimensionale viene registrato atomicamente nello storico come definito da
+  ADR-0014.

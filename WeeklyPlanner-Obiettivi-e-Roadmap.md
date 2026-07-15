@@ -1,43 +1,62 @@
 # WeeklyPlanner — Obiettivi e roadmap
 
-Versione documento: **2.2.0**  
+Versione documento: **3.0.0**  
 Ultimo aggiornamento: **15 luglio 2026**
 
 ## 1. Visione
 
 WeeklyPlanner è un'applicazione desktop locale in **C# / .NET 10 / Avalonia** per gestire attività
-tramite un kanban a swimlane.
+tramite una board kanban a swimlane.
 
-Il nome WeeklyPlanner viene mantenuto, ma la struttura non è più legata ai giorni della settimana.
-La board combina due dimensioni:
+Il prodotto deve restare:
 
-- **stato del lavoro**, rappresentato dalle colonne;
-- **tipologia o area progettuale**, rappresentata dalle fasce orizzontali.
+- rapido da avviare e usare;
+- affidabile su un singolo database SQLite locale;
+- comprensibile senza amministrazione di server;
+- ricco nella gestione della singola attività;
+- prudente nell'aggiungere funzioni che aumentano la complessità operativa.
 
-Esempi di fasce:
+La struttura corrente combina:
 
-- Generica;
-- WinCliente;
-- WinCassa;
-- Porting SIP;
-- Personale.
+- **stato del lavoro** nelle colonne;
+- **tipologia o area progettuale** nelle fasce;
+- **priorità, scadenza, note e storico** nella card.
 
-## 2. Principi di sviluppo
+## 2. Posizionamento
 
-- milestone piccole e verificabili;
+WeeklyPlanner non deve diventare una copia ridotta di una piattaforma collaborativa web. Il suo
+vantaggio è offrire un kanban desktop locale, veloce e verificabile, con:
+
+- nessun server obbligatorio;
+- dati sotto il controllo dell'utente;
+- matrice bidimensionale tipologia × stato;
+- modifica diretta delle card;
+- storico, lock e concorrenza locale;
+- packaging Windows semplice e ispezionabile.
+
+Il confronto con Vikunja, Kanboard, TaskBoard, Kan e Kanba è sintetizzato in
+[`docs/DIREZIONE-PRODOTTO.md`](docs/DIREZIONE-PRODOTTO.md).
+
+## 3. Principi di sviluppo
+
+- milestone piccole, verificabili e reversibili;
 - build senza warning;
-- test automatici prima della chiusura di ogni milestone;
-- migrazioni incrementali, protette e reversibili;
-- SQLite locale senza server;
+- test automatici prima della chiusura;
+- verifica manuale per le modifiche UX;
+- migrazioni incrementali protette da backup e rollback;
 - nessuna perdita silenziosa di dati o bozze;
 - storico funzionale atomico con la mutazione;
-- UI e persistenza separate;
+- business logic fuori dalla UI;
 - documentazione aggiornata insieme al codice;
-- refactoring prima di aggiungere complessità non governabile.
+- niente compatibilità retroattiva non necessaria prima di un rilascio stabile;
+- nessuna funzione server introdotta indirettamente nel modello locale.
 
-## 3. Modello kanban
+Le regole operative per aprire, implementare e validare le milestone sono definite in
+[`docs/MILESTONES.md`](docs/MILESTONES.md).
 
-### 3.1 Colonne operative
+## 4. Baseline corrente
+
+### 4.1 Kanban
 
 Le colonne sono cinque voci di sistema:
 
@@ -49,25 +68,8 @@ Le colonne sono cinque voci di sistema:
 | 3 | `testing` | TESTING |
 | 4 | `done` | DONE |
 
-Non sono configurabili, rinominabili o eliminabili.
-
-`TIPOLOGIA` è soltanto l'intestazione visuale della prima area descrittiva e non una colonna dati.
-
-### 3.2 Fasce orizzontali
-
-Le righe della matrice sono le tipologie. Ogni fascia contiene una cella per ciascuno stato.
-
-```text
-┌──────────────┬─────────┬──────┬─────────────┬─────────┬──────┐
-│ TIPOLOGIA    │ BACKLOG │ TODO │ IN PROGRESS │ TESTING │ DONE │
-├──────────────┼─────────┼──────┼─────────────┼─────────┼──────┤
-│ Generica     │  Card   │      │             │         │      │
-├──────────────┼─────────┼──────┼─────────────┼─────────┼──────┤
-│ WinCliente   │         │ Card │    Card     │         │ Card │
-├──────────────┼─────────┼──────┼─────────────┼─────────┼──────┤
-│ WinCassa     │  Card   │      │             │  Card   │      │
-└──────────────┴─────────┴──────┴─────────────┴─────────┴──────┘
-```
+Le fasce sono configurabili. **Generica** è una voce di sistema sempre presente, attiva e al primo
+posto.
 
 La posizione persistita della card è:
 
@@ -75,39 +77,7 @@ La posizione persistita della card è:
 (CardTypeId, ColumnId, SortOrder)
 ```
 
-### 3.3 Tipologia Generica
-
-Generica è una voce di sistema:
-
-- chiave `generic`;
-- sempre prima;
-- sempre attiva;
-- non eliminabile, rinominabile, disattivabile o riordinabile;
-- destinazione delle card senza tipologia;
-- fascia iniziale delle nuove card.
-
-### 3.4 Priorità
-
-Le priorità restano un attributo della card, indipendente dalla posizione:
-
-| Codice | Nome | Scadenza predefinita |
-|---|---|---:|
-| U | Urgente | 72 ore |
-| B | Breve | 10 giorni |
-| D | Differibile | 30 giorni |
-| P | Programmabile | 120 giorni |
-
-Le regole alternative per tipologia sono mantenute. Esempio:
-
-```text
-D + Esame strumentale = 60 giorni
-```
-
-La priorità verrà selezionata tramite un ComboBox compatto sotto le note della card.
-
-## 4. Persistenza
-
-### 4.1 Architettura
+### 4.2 Persistenza
 
 ```text
 WeeklyPlanner.App ──> SQLite locale
@@ -119,208 +89,543 @@ Percorso predefinito:
 %LOCALAPPDATA%\WeeklyPlanner\Data\weeklyplanner.db
 ```
 
-Non sono supportati database distinti sincronizzati fra computer o accesso tramite share di rete.
+Lo schema corrente è la versione **5**. Database distinti non vengono sincronizzati e i percorsi di
+rete non sono supportati.
 
-### 4.2 Schema corrente v5
+### 4.3 Funzioni consolidate
 
-```text
-SchemaVersion(Version)
-BoardState(Id, Revision)
-Columns(Id, Name, SortOrder, SystemKey, IsSystem)
-Priorities(Id, Code, Name, Description, DefaultDueHours, SortOrder, IsActive, IsDefault, Version)
-CardTypes(Id, Name, ColorHex, SortOrder, IsActive, IsDefault, Version, SystemKey, IsSystem)
-PriorityTypeDeadlines(PriorityId, CardTypeId, DueHours, Version)
-Cards(
-    Id, ColumnId, StableId,
-    CreatedAtUtc, CreatedAtIsEstimated,
-    PriorityId, CardTypeId, PriorityAssignedAtUtc, DueAtUtc,
-    Title, Notes, SortOrder,
-    CreatedBy, UpdatedBy, UpdatedAtUtc, Version
-)
-CardEvents(
-    Id, CardStableId, CardId, EventType, OccurredAtUtc,
-    UserName, SessionId, MachineName, Summary, DataJson, FormatVersion
-)
-CardEditLocks(CardId, SessionId, UserName, MachineName, AcquiredAtUtc, LastHeartbeatUtc, ExpiresAtUtc)
-```
+- board a swimlane e movimento bidimensionale;
+- configurazione di fasce, priorità e regole di scadenza;
+- editing protetto, heartbeat e controllo ottimistico;
+- feedback di salvataggio e ultimo aggiornamento relativo;
+- informazioni e cronologia paginata;
+- logging e diagnostica;
+- backup e rollback delle migrazioni;
+- test UI headless, accessibilità, doppia istanza e scenario di scala;
+- processo di packaging Windows `portable` e `self-contained`.
 
-### 4.3 Migrazione v4 → v5
+### 4.4 Gate di rilascio M4
 
-- Backlog diventa BACKLOG;
-- Lunedì-Domenica confluiscono in TODO;
-- l'ordine è deterministico: vecchia colonna, `SortOrder`, ID;
-- vengono create IN PROGRESS, TESTING e DONE;
-- viene creata Generica oppure promossa un’eventuale tipologia omonima già esistente;
-- le card senza tipologia ricevono Generica;
-- vengono scritti eventi `WorkflowMigrated` e `TypeMigrated`;
-- il backup preventivo M3.4 protegge l'upgrade;
-- `integrity_check` e `foreign_key_check` validano il risultato.
+M4 è implementata nel codice corrente. Prima di iniziare M5.1 devono essere completati:
 
-### 4.4 Snapshot atomico
+1. `dotnet test` in configurazione Release;
+2. `scripts\release.ps1` con produzione dei due archivi;
+3. verifica automatica di entrambi i pacchetti;
+4. smoke test del portable su Windows x64 con .NET 10;
+5. smoke test del self-contained su Windows x64 senza runtime separato;
+6. prova documentata di backup e ripristino su dati di test.
 
-`BoardSnapshotRepository` legge in un'unica transazione:
+Il superamento di questo gate porta M4 allo stato **Validata**. Non richiede una nuova milestone né
+modifiche allo schema.
 
-- revisione;
-- colonne;
-- card;
-- tipologie;
-- priorità;
-- regole di scadenza;
-- lock attivi.
+## 5. Roadmap post-MVP
 
-Il polling non deve mai costruire la UI combinando dati appartenenti a revisioni differenti.
+L'ordine seguente è vincolante salvo una decisione esplicita documentata. Ogni milestone deve essere
+validata prima di iniziare quella successiva, salvo attività puramente documentali o correzioni
+bloccanti.
 
-## 5. Regole funzionali
+---
 
-### 5.1 Creazione
+## M5.1 — Backup, ripristino e integrità dalla UI
 
-La destinazione definitiva delle nuove card sarà:
+### Obiettivo
 
-```text
-Generica / BACKLOG
-```
+Portare nell'applicazione le operazioni di sicurezza oggi disponibili solo tramite procedure
+manuali.
 
-La UI transitoria M3.7 conserva ancora i pulsanti sulle colonne; il comportamento definitivo verrà
-applicato con il layout a swimlane.
+### Ambito
 
-### 5.2 Drag&drop
+- comando **Crea backup ora**;
+- elenco dei backup disponibili;
+- data, dimensione, versione schema e risultato del controllo integrità;
+- apertura della cartella backup;
+- ripristino guidato;
+- backup automatico immediatamente prima del restore;
+- chiusura coordinata delle connessioni;
+- riavvio controllato dopo il ripristino;
+- messaggi chiari in caso di file incompatibile o corrotto.
 
-Il trascinamento futuro potrà modificare in una sola operazione:
+### Dati e architettura
 
-- tipologia;
+- nessuna modifica necessaria allo schema funzionale v5;
+- nuovo servizio applicativo per backup e restore manuale;
+- riuso di `IDatabaseIntegrityChecker` e delle primitive SQLite già testate;
+- nessuna copia del database mentre esistono connessioni attive non coordinate.
+
+### Test minimi
+
+- backup di database valido;
+- rifiuto di database corrotto;
+- restore con backup preventivo;
+- rollback se il restore non può essere completato;
+- file sidecar gestiti correttamente;
+- UI disabilitata durante l'operazione;
+- due istanze aperte: operazione rifiutata o coordinata esplicitamente.
+
+### Criteri di chiusura
+
+1. build e test verdi;
+2. backup e restore verificati su database di prova;
+3. integrità mostrata dalla UI;
+4. nessuna perdita del database precedente in caso di errore;
+5. manuale utente e documentazione operativa aggiornati.
+
+### Esclusioni
+
+- pianificazione automatica dei backup;
+- sincronizzazione cloud;
+- cifratura del database;
+- gestione remota dei backup.
+
+---
+
+## M5.2 — Ricerca e filtri temporanei
+
+### Obiettivo
+
+Rendere utilizzabile una board con molte card senza alterarne posizione o contenuto.
+
+### Ambito
+
+Ricerca in:
+
+- titolo;
+- note;
+- ID stabile o identificativo card;
+- autore di creazione o ultima modifica.
+
+Filtri combinabili:
+
+- fascia;
 - stato;
-- ordine nella cella.
+- priorità;
+- senza priorità;
+- scaduta;
+- in scadenza;
+- senza scadenza;
+- modificata recentemente;
+- bloccata in modifica.
 
-Il drop su TIPOLOGIA sarà rifiutato.
+UX:
 
-### 5.3 Timestamp
+- barra compatta sopra la matrice;
+- `Ctrl+F` per attivare la ricerca;
+- chip dei filtri applicati;
+- conteggio `visibili / totali`;
+- comando unico **Azzera filtri**;
+- indicazione chiara quando una fascia non contiene risultati visibili.
 
-`UpdatedAtUtc` rappresenta l'ultima modifica funzionale della singola card.
+### Dati e architettura
 
-Il riordino tecnico delle card vicine aggiorna `SortOrder`, ma non `UpdatedAtUtc` o `UpdatedBy`.
-Soltanto la card trascinata viene marcata come modificata.
+- nessuna migrazione prevista;
+- ricerca normalizzata in memoria sulla snapshot già caricata;
+- nessuna modifica a `SortOrder` o alle collection persistite;
+- il filtro opera sulla proiezione, non sui repository di scrittura.
 
-### 5.4 Editing
+### Test minimi
 
-- lock applicativo per card;
-- lease rinnovato da heartbeat;
-- indicatore dell'utente che modifica;
-- bozza protetta dal polling;
-- `Cards.Version` per concorrenza ottimistica;
-- salvataggio atomico di titolo, note, priorità e metadati;
-- annullamento senza perdita dei dati persistiti.
+- combinazioni di filtri;
+- normalizzazione maiuscole/minuscole e spazi;
+- ricerca con caratteri accentati;
+- bozza attiva durante filtro e polling;
+- movimento o modifica di una card filtrata;
+- scenario da almeno 1.500 card.
 
-### 5.5 Storico
+### Criteri di chiusura
 
-Eventi funzionali:
+1. ricerca reattiva senza bloccare la UI;
+2. filtri completamente azzerabili;
+3. nessuna mutazione dei dati per effetto del filtro;
+4. navigazione da tastiera verificata;
+5. manuale e screenshot aggiornati.
 
-- Imported;
-- WorkflowMigrated;
-- TypeMigrated;
-- Created;
-- Updated;
-- PriorityChanged;
-- TypeChanged;
-- Moved;
-- Reordered;
-- Deleted.
+### Esclusioni
 
-Gli eventi vengono salvati nella stessa transazione della modifica.
+- SQLite FTS;
+- viste salvate;
+- sintassi di query avanzata;
+- ricerca fra database differenti.
 
-## 6. Milestone completate
+---
 
-| Milestone | Risultato |
+## M5.3 — Etichette multiple e viste salvate
+
+### Obiettivo
+
+Aggiungere una classificazione trasversale senza sovraccaricare il significato delle fasce.
+
+### Ambito
+
+- CRUD etichette con nome, colore, ordine e stato attivo;
+- più etichette sulla stessa card;
+- badge compatti;
+- assegnazione dalla bozza della card;
+- filtro per una o più etichette;
+- viste salvate contenenti ricerca e filtri;
+- viste preferite disponibili dalla board;
+- conservazione delle etichette inattive già assegnate.
+
+### Modello dati indicativo
+
+```text
+Labels
+CardLabels
+SavedViews
+```
+
+La versione esatta della migrazione sarà assegnata durante l'implementazione. La tipologia resta
+esclusiva; le etichette sono multiple.
+
+### Test minimi
+
+- unicità e normalizzazione dei nomi;
+- assegnazione atomica con la card;
+- etichette inattive leggibili ma non riassegnabili;
+- filtri AND/OR formalizzati e testati;
+- viste salvate compatibili con filtri rimossi o cataloghi inattivi;
+- migrazione, backup e rollback.
+
+### Esclusioni
+
+- etichette gerarchiche;
+- permessi sulle etichette;
+- condivisione fra database;
+- automazioni basate su etichette, previste più avanti.
+
+---
+
+## M5.4 — Checklist sulla card
+
+### Obiettivo
+
+Gestire passi operativi interni a una card senza introdurre un secondo sistema kanban annidato.
+
+### Ambito
+
+- aggiunta rapida degli elementi;
+- modifica, completamento, riordino ed eliminazione;
+- indicatore `completati/totali` sulla card;
+- barra di avanzamento opzionale;
+- visualizzazione completa nella finestra Informazioni;
+- storico delle modifiche significative.
+
+### Regole
+
+Un elemento checklist non possiede:
+
+- fascia;
+- stato kanban;
+- priorità;
+- allegati;
+- ricorrenza autonoma.
+
+### Test minimi
+
+- ordinamento atomico;
+- concorrenza e lock condivisi con la card;
+- annullamento della bozza;
+- eliminazione della card con cleanup coerente;
+- storico e conteggi;
+- migrazione protetta.
+
+---
+
+## M5.5 — Collegamenti e allegati locali
+
+### Obiettivo
+
+Associare riferimenti esterni e file alle card mantenendo backup e integrità sotto controllo.
+
+### Fase A — Collegamenti
+
+- URL o percorso locale;
+- descrizione facoltativa;
+- apertura con applicazione predefinita;
+- copia del collegamento;
+- indicatore numerico sulla card;
+- validazione senza richiedere che la destinazione esista sempre.
+
+### Fase B — Allegati
+
+Gli allegati vengono copiati nell'area dati dell'applicazione:
+
+```text
+Data
+├── weeklyplanner.db
+└── Attachments
+    └── <CardStableId>
+```
+
+Metadati minimi:
+
+- ID stabile;
+- nome originale;
+- nome fisico sicuro;
+- dimensione;
+- hash;
+- data e autore;
+- stato del file.
+
+### Vincoli
+
+- nessun semplice riferimento al file originale come unica copia;
+- backup e restore devono includere gli allegati;
+- rilevamento di file mancanti e orfani;
+- nomi fisici non derivati direttamente da input non affidabile;
+- eliminazione coerente fra database e filesystem.
+
+### Esclusioni
+
+- anteprime complesse;
+- modifica dei file dentro WeeklyPlanner;
+- storage cloud;
+- sincronizzazione tra computer.
+
+---
+
+## M5.6 — Duplicazione e template
+
+### Obiettivo
+
+Velocizzare la creazione di attività ripetitive senza introdurre ancora uno scheduler.
+
+### Ambito
+
+- duplicazione della card;
+- scelta della cella di destinazione;
+- scelta degli elementi da copiare;
+- copia opzionale di etichette, checklist e collegamenti;
+- copia degli allegati soltanto su richiesta esplicita;
+- salvataggio come template;
+- creazione da template;
+- CRUD e ordinamento dei template.
+
+### Regole
+
+- la nuova card riceve un nuovo `StableId`;
+- storico e timestamp ripartono dalla creazione;
+- checklist copiata con stato formalizzato: mantenuto o azzerato;
+- i template non contengono lock, versioni o dati di audit.
+
+---
+
+## M5.7 — Centro scadenze e notifiche locali
+
+### Obiettivo
+
+Trasformare le scadenze già presenti in uno strumento operativo quotidiano.
+
+### Ambito
+
+- viste Scadute, Oggi e Prossimi giorni;
+- badge riepilogativo;
+- notifiche desktop locali;
+- anticipo configurabile;
+- rinvio di una notifica;
+- deduplicazione persistente;
+- apertura diretta della card dalla notifica.
+
+### Decisione di dominio preliminare
+
+Prima dell'implementazione deve essere formalizzata la distinzione fra:
+
+- scadenza calcolata dalla priorità;
+- eventuale scadenza manuale;
+- promemoria;
+- stato della notifica.
+
+### Esclusioni
+
+- email;
+- notifiche push remote;
+- calendario completo;
+- sincronizzazione con servizi esterni.
+
+---
+
+## M5.8 — Attività ricorrenti
+
+### Obiettivo
+
+Generare nuove card in modo prevedibile e idempotente.
+
+### Ambito
+
+Trigger iniziali:
+
+- intervallo temporale;
+- ingresso in DONE;
+- numero di giorni dal completamento.
+
+Configurazioni:
+
+- giornaliera;
+- settimanale;
+- mensile;
+- intervallo personalizzato;
+- data finale;
+- numero massimo di occorrenze.
+
+La nuova card può ereditare:
+
+- titolo e note;
+- tipologia;
+- priorità;
+- etichette;
+- checklist azzerata;
+- collegamenti;
+- stato iniziale, normalmente BACKLOG.
+
+### Vincoli
+
+- idempotenza;
+- storico della generazione;
+- nessuna riapertura silenziosa della card completata;
+- recupero sicuro dopo arresto dell'applicazione.
+
+---
+
+## M5.9 — Automazioni locali
+
+### Obiettivo
+
+Consentire semplici regole evento-condizione-azione senza introdurre script arbitrari.
+
+```text
+Evento → condizioni → azione
+```
+
+Esempi:
+
+- entrando in TESTING, aggiungi un'etichetta;
+- entrando in DONE, rimuovi la priorità;
+- assegnando una priorità urgente, sposta in TODO;
+- completando una card ricorrente, genera la successiva.
+
+### Vincoli
+
+- prevenzione dei cicli;
+- limite massimo di azioni concatenate;
+- anteprima della regola;
+- audit distinto fra azione manuale e automatica;
+- rollback atomico;
+- nessun codice o script personalizzato.
+
+---
+
+## M5.10 — Limiti WIP e statistiche Kanban
+
+### Obiettivo
+
+Aggiungere disciplina kanban e indicatori utili senza costruire una piattaforma di business
+intelligence.
+
+### Limiti WIP
+
+- limite globale per stato;
+- limite opzionale per cella tipologia × stato;
+- inizialmente solo avviso;
+- evidenziazione delle intestazioni e delle celle superate.
+
+### Statistiche
+
+- card completate per periodo;
+- tempo medio nei principali stati;
+- cycle time;
+- aging delle card aperte;
+- attività scadute per fascia;
+- cumulative flow semplificato.
+
+### Prerequisito
+
+Prima dell'implementazione deve essere verificato che `CardEvents` contenga tutte le transizioni e i
+timestamp necessari. Le statistiche non devono essere ricostruite da `UpdatedAtUtc`.
+
+---
+
+## 6. Evoluzioni architetturali successive
+
+## M6 — Board multiple e progetti
+
+M6 è una modifica di dominio, non un semplice elemento di navigazione. Prima di implementarla devono
+essere decisi:
+
+- cataloghi globali o per board;
+- spostamento delle card fra board;
+- storico e ID stabile;
+- ricerca globale;
+- template globali o locali;
+- impostazioni e backup.
+
+M6 verrà avviata solo se l'uso reale dimostrerà che le fasce non sono sufficienti.
+
+## M7 — Server e collaborazione distribuita
+
+M7 è un progetto separato e comprende eventualmente:
+
+- API;
+- autenticazione;
+- ruoli e permessi;
+- sincronizzazione;
+- conflitti distribuiti;
+- allegati condivisi;
+- notifiche server;
+- deployment e aggiornamenti.
+
+Le esigenze di M7 non devono complicare prematuramente il modello locale.
+
+## 7. Funzioni fuori dalla roadmap corrente
+
+- Gantt;
+- calendario completo;
+- CalDAV;
+- workspace condivisi;
+- link pubblici;
+- billing;
+- plugin e scripting arbitrario;
+- OAuth, LDAP o SSO;
+- database su share di rete;
+- sincronizzazione automatica fra file SQLite distinti.
+
+Una funzione esclusa può rientrare soltanto con una nuova decisione di prodotto e una valutazione di
+costi, sicurezza, migrazioni e manutenzione.
+
+## 8. Sequenza raccomandata
+
+```text
+M5.1 Backup e integrità
+  ↓
+M5.2 Ricerca e filtri
+  ↓
+M5.3 Etichette e viste
+  ↓
+M5.4 Checklist
+  ↓
+M5.5 Collegamenti e allegati
+  ↓
+M5.6 Duplicazione e template
+  ↓
+M5.7 Scadenze e notifiche
+  ↓
+M5.8 Ricorrenze
+  ↓
+M5.9 Automazioni
+  ↓
+M5.10 WIP e statistiche
+```
+
+Le prime quattro milestone hanno priorità maggiore perché migliorano direttamente l'uso quotidiano
+senza cambiare la natura local-first del prodotto.
+
+## 9. Cronologia sintetica
+
+| Fase | Risultato consolidato |
 |---|---|
-| M0.1.2 | baseline compilabile, testabile e senza vulnerabilità bloccanti |
-| M1.1.1 | SQLite locale e revisione monotona |
-| M1.2 | ordinamento atomico |
-| M1.3.1 | editing protetto e lock applicativi |
-| M1.4 | lifecycle e recovery |
-| M2.1.1 | CRUD completo e validazione |
-| M2.2.3 | drag&drop, tastiera e pan orizzontale |
-| M2.3 | impostazioni e tema; la geometria finestra viene rimossa in M3.12.1 |
-| M3.1 | composition root e dependency injection |
-| M3.2.1 | scheduler deterministici e feedback di persistenza |
-| M3.3.4 | logging, diagnostica e shutdown affidabile |
-| M3.4 | backup e rollback delle migrazioni |
-| M3.5 | schema v4, cataloghi e storico |
-| M3.6.1 | CRUD priorità e tipologie |
-| M3.7 | modello kanban, schema v5 e snapshot atomico |
-| M3.8 | configurazione delle fasce e trasferimento atomico delle card |
-| M3.9 | layout kanban a swimlane e pan bidimensionale |
-| M3.10 | movimento bidimensionale atomico |
-| M3.11 | priorità compatta, editing stabile e avvio massimizzato |
-| M3.12 | ultimo salvataggio relativo e stati di persistenza |
-| M3.12.1 | consolidamento tecnico, startup e regole condivise |
-| M3.13 | informazioni card, lock e cronologia paginata |
-| M3.14 | consolidamento kanban, headless UI, scala e accessibilità |
-| M4 | packaging MVP locale Windows x64 |
+| M0–M2 | baseline, SQLite locale, CRUD, ordinamento, editing protetto, tema e interazione |
+| M3.1–M3.4 | composition root, scheduler, diagnostica, shutdown e migrazioni protette |
+| M3.5–M3.8 | cataloghi, storico, schema v5, modello kanban e configurazione fasce |
+| M3.9–M3.14 | swimlane, movimento 2D, priorità, cronologia, accessibilità e consolidamento |
+| M4 | packaging Windows portable/self-contained implementato; gate di rilascio da completare |
 
-## 7. Milestone corrente
-
-### M4 — Packaging MVP locale
-
-Obiettivo: produrre una release Windows x64 ripetibile e verificabile, separando software e dati
-locali.
-
-Implementazione:
-
-- pacchetto `portable` framework-dependent per `win-x64`;
-- pacchetto `self-contained` per `win-x64`;
-- single-file e trimming disattivati;
-- cartelle e ZIP versionati;
-- `package-info.json` in ogni distribuzione;
-- checksum SHA-256 degli archivi;
-- script `release.ps1`, `publish.ps1` e `verify-package.ps1`;
-- workflow GitHub Actions manuale e su tag;
-- documentazione backup/ripristino e smoke test;
-- note di rilascio e checklist release candidate;
-- nessun database, settings o log incluso nei pacchetti;
-- schema SQLite invariato alla versione 5.
-
-#### Criteri di chiusura
-
-1. `dotnet build` senza warning o errori;
-2. `dotnet test` completamente verde;
-3. `scripts\release.ps1` produce due archivi ZIP;
-4. entrambi gli archivi superano `verify-package.ps1`;
-5. checksum SHA-256 generati;
-6. portable avviato su Windows x64 con .NET 10;
-7. self-contained avviato su Windows x64 senza runtime separato;
-8. backup e ripristino verificati su database di prova;
-9. documentazione inclusa nei pacchetti;
-10. badge `M4` e schema SQLite v5.
-
-## 8. Roadmap successiva
-
-Dopo la validazione M4 l'MVP locale entra in release candidate. Gli sviluppi successivi vengono
-gestiti come post-MVP e non devono alterare retroattivamente il perimetro della release.
-
-## 9. Post-MVP
-
-- backup e restore manuale dalla UI;
-- verifica integrità dalla UI;
-- filtri per fascia, stato e priorità;
-- ricerca;
-- notifiche sulle scadenze;
-- eventuale API/server solo come progetto separato futuro.
-
-## 10. Decisioni annullate o sostituite
-
-| Decisione precedente | Decisione corrente |
-|---|---|
-| Backlog + sette giorni | cinque stati kanban |
-| tipologia come semplice attributo visuale | tipologia come fascia orizzontale |
-| scelta tipologia da ComboBox sulla card | scelta tramite posizione nella fascia |
-| CRUD libero delle colonne | colonne di sistema fisse |
-| settimane precedenti/successive | fuori dalla roadmap corrente |
-| archiviazione settimanale | fuori dalla roadmap corrente |
-
-ADR di riferimento:
-
-- [`docs/ADR-0011-modello-kanban-swimlane.md`](docs/ADR-0011-modello-kanban-swimlane.md);
-- [`docs/ADR-0014-movimento-bidimensionale.md`](docs/ADR-0014-movimento-bidimensionale.md);
-- [`docs/ADR-0017-consolidamento-tecnico-startup.md`](docs/ADR-0017-consolidamento-tecnico-startup.md);
-- [`docs/ADR-0018-informazioni-cronologia-card.md`](docs/ADR-0018-informazioni-cronologia-card.md);
-- [`docs/ADR-0019-consolidamento-kanban.md`](docs/ADR-0019-consolidamento-kanban.md);
-- [`docs/ADR-0020-packaging-mvp-locale.md`](docs/ADR-0020-packaging-mvp-locale.md).
+I dettagli storici delle scelte tecniche sono conservati negli ADR. La roadmap non ripete più la
+cronaca di ogni correzione intermedia.

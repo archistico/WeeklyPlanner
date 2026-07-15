@@ -2,7 +2,7 @@
 
 ## Stato
 
-Accettato — M3.7.
+Accettato. Layout e movimento definitivi sono completati da ADR-0013 e ADR-0014.
 
 ## Contesto
 
@@ -20,18 +20,18 @@ La board usa cinque stati di sistema, identificati da chiavi stabili:
 - `testing` — TESTING;
 - `done` — DONE.
 
-Le tipologie diventano le future fasce orizzontali della board. La prima fascia è la tipologia di
+Le tipologie sono le fasce orizzontali della board. La prima fascia è la tipologia di
 sistema `generic`, visualizzata come Generica. Ogni card deve appartenere a una tipologia.
 Generica resta sempre attiva, al primo posto e predefinita per le nuove card; le altre tipologie non
 possono sostituirla come valore predefinito.
 
-La posizione futura della card sarà quindi la coppia:
+La posizione persistita della card è:
 
 ```text
 (CardTypeId, ColumnId, SortOrder)
 ```
 
-`TIPOLOGIA` sarà soltanto l'intestazione visuale della prima colonna descrittiva e non una riga della
+`TIPOLOGIA` è soltanto l'intestazione visuale della prima colonna descrittiva e non una riga della
 tabella `Columns`.
 
 ## Migrazione
@@ -59,12 +59,11 @@ più letture appartenenti a revisioni differenti.
 
 Il riordino di una card può cambiare il `SortOrder` delle card vicine, ma non deve modificarne
 `UpdatedAtUtc` o `UpdatedBy`. Soltanto la card trascinata riceve un nuovo timestamp funzionale.
-Questo rende affidabile il futuro indicatore “ultimo salvataggio”.
+Questo rende affidabile l’indicatore di ultimo salvataggio definito da ADR-0016.
 
 ## Conseguenze
 
-- la UI transitoria M3.7 mostra cinque colonne verticali;
-- il layout a swimlane verrà introdotto in M3.9;
-- il drag&drop bidimensionale verrà introdotto in M3.10;
+- la UI mostra la matrice a swimlane definita da ADR-0013;
+- il drag&drop usa il contratto bidimensionale definito da ADR-0014;
 - il CRUD delle colonne libere è eliminato dalla roadmap;
-- Generica e le regole delle fasce sono consolidate dalla configurazione M3.8 descritta in ADR-0012.
+- Generica e le regole delle fasce sono governate da ADR-0012.

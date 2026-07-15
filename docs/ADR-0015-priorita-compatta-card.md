@@ -2,7 +2,7 @@
 
 ## Stato
 
-Implementata nella M3.11; verifica build, test e runtime richiesta.
+Accettata e validata. Il ticker temporale condiviso è definito da ADR-0016.
 
 ## Contesto
 
@@ -33,8 +33,7 @@ La priorità è parte della stessa bozza protetta di titolo e note:
 11. un cambio remoto di priorità o scadenza durante l'editing segnala conflitto senza sovrascrivere la
    bozza locale.
 
-Il tempo residuo della M3.11 è calcolato rispetto all'orologio condiviso quando la card viene caricata o
-aggiornata. La M3.12 introdurrà un ticker condiviso per mantenerlo aggiornato senza creare un timer per
+Il tempo residuo viene aggiornato dal ticker condiviso definito da ADR-0016, senza creare un timer per
 ogni card.
 
 Le azioni di creazione vengono spostate nelle cinque intestazioni operative. Ogni azione crea una card
@@ -49,4 +48,4 @@ predefinita attiva viene applicata subito.
 - la board rimane compatta quando le card non sono in modifica;
 - le priorità inattive non possono essere assegnate di nuovo ma non scompaiono dalle card esistenti;
 - la creazione è disponibile in tutti gli stati, sempre nella fascia Generica;
-- la M3.12 potrà aggiornare i testi relativi usando `UpdateDisplayNow` su un ticker unico.
+- i testi relativi vengono aggiornati tramite `UpdateDisplayNow` sul ticker unico della board.

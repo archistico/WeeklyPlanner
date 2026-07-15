@@ -126,10 +126,10 @@ In caso di errore, conservare il riferimento `WP-XXXXXX` mostrato nell'interfacc
 ```
 
 
-## 12. Pacchetti Windows M4
+## 12. Distribuzione Windows
 
-Il pacchetto **portable** richiede .NET 10 x64 installato. Il pacchetto **self-contained** include il
-runtime necessario. In entrambi i casi estrarre completamente lo ZIP e avviare
+La distribuzione **portable** richiede .NET 10 x64 installato. La distribuzione
+**self-contained** include il runtime necessario. In entrambi i casi estrarre completamente lo ZIP e avviare
 `WeeklyPlanner.App.exe`.
 
 I pacchetti non includono database, impostazioni o log. Prima di trasferire o sostituire una

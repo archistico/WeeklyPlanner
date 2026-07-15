@@ -36,13 +36,13 @@ nell'adapter `AvaloniaRecurringTaskScheduler`; i test possono usare uno schedule
 - sessione e clock determinabili nei test;
 - polling e heartbeat sostituibili senza dispatcher UI;
 - costruzione runtime rintracciabile in un unico file;
-- preparazione alla scomposizione successiva del lifecycle e della sincronizzazione.
+- base per scheduler deterministici, lifecycle coordinato e test isolati.
 
 ### Negative
 
 - il costruttore di `BoardViewModel` espone numerose dipendenze;
 - l'adapter Avalonia contiene ancora il necessario bridge `async void` dell'evento timer;
-- la completa determinizzazione delle esecuzioni periodiche è rimandata alla M3.2.
+- la determinizzazione delle esecuzioni periodiche è stata completata successivamente da ADR-0006.
 
 ## Alternative escluse
 

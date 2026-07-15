@@ -54,7 +54,7 @@ della sessione.
 - nessuna sovrapposizione silenziosa;
 - nessun task faulted non osservato nello scheduler;
 - shutdown verificabile e più prevedibile;
-- base pronta per logging e diagnostica della M3.3.
+- integrazione con logging e diagnostica completata da ADR-0007.
 
 ### Negative
 

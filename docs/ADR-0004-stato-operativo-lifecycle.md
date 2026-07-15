@@ -39,5 +39,5 @@ asincrono termini prima dell'uscita del processo.
 - nessuna sostituzione silenziosa della board con un nuovo database vuoto;
 - stato operativo comprensibile e retry manuale disponibile;
 - riduzione dei lock fantasma alla chiusura normale;
-- i dettagli tecnici completi richiedono ancora il logging rolling previsto in M3;
+- i dettagli tecnici completi vengono registrati dal logging rolling definito in ADR-0007;
 - il modello non introduce sincronizzazione fra database locali differenti.

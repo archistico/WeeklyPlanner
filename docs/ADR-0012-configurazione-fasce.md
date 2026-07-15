@@ -6,8 +6,8 @@ Accettata nella milestone M3.8.
 
 ## Contesto
 
-Con il modello kanban introdotto dalla M3.7, `CardTypes` non rappresenta più soltanto un attributo
-catalogato: ogni voce diventerà una fascia orizzontale della board. Il CRUD M3.6 consentiva ancora
+Nel modello kanban, `CardTypes` non rappresenta più soltanto un attributo catalogato: ogni voce è
+una fascia orizzontale della board. Il CRUD originario consentiva ancora
 un default configurabile e impediva l’eliminazione delle tipologie usate, regole non più adatte al
 modello a swimlane.
 
@@ -54,4 +54,4 @@ rifiutata. In questo modo una bozza aperta non cambia classificazione alle spall
   trasferimenti ed eliminazione;
 - la posizione kanban e l’ordine relativo delle card restano stabili;
 - la scadenza può cambiare legittimamente perché dipende dalla nuova fascia;
-- il futuro layout M3.9 può usare direttamente l’ordine delle fasce e i conteggi esposti dal catalogo.
+- il layout swimlane usa direttamente l'ordine delle fasce e i conteggi esposti dal catalogo.

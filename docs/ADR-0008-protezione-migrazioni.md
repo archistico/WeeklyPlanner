@@ -9,8 +9,8 @@ Accettata in M3.4.
 Le migrazioni di WeeklyPlanner sono applicate automaticamente all'avvio e ogni versione viene
 confermata in una transazione distinta. Questo permette di individuare con precisione la versione
 raggiunta, ma una migrazione successiva fallita potrebbe lasciare il database a una versione
-intermedia. Prima della futura migrazione v4, che introdurrà cataloghi e storico, è necessario
-proteggere il file locale esistente.
+intermedia. La protezione è stata introdotta prima delle migrazioni v4 e v5, che hanno aggiunto cataloghi,
+storico e modello kanban.
 
 Una semplice copia del file mentre SQLite è aperto non è una strategia sufficiente. Il backup deve
 essere prodotto tramite l'API SQLite della connessione e deve essere verificato prima di iniziare
@@ -55,7 +55,7 @@ nuovo tentativo pulito.
 - il backup viene creato da SQLite e non tramite copia non coordinata del file;
 - corruzione e foreign key non valide bloccano la migrazione prima della prima modifica;
 - il rollback è verificato sia per integrità sia per versione schema;
-- la futura migrazione v4 può essere sviluppata sopra una procedura di recupero già testata.
+- le migrazioni v4 e v5 sono state applicate sopra una procedura di recupero già testata.
 
 ### Costi e limiti
 
@@ -64,5 +64,5 @@ nuovo tentativo pulito.
 - `integrity_check` può richiedere tempo su database molto grandi;
 - se falliscono sia la migrazione sia il ripristino, WeeklyPlanner segnala un errore di recovery e
   conserva il backup preventivo per un intervento manuale;
-- M3.4 protegge gli upgrade automatici, ma non sostituisce ancora il futuro backup/restore manuale
-  previsto per l'MVP.
+- questa decisione protegge gli upgrade automatici; backup, restore e verifica manuale dalla UI sono
+  pianificati separatamente in M5.1.

@@ -2,7 +2,8 @@
 
 ## Stato
 
-Accettata nella milestone M3.6. La parte relativa alle tipologie è parzialmente superata da ADR-0012 nella M3.8.
+Accettata. La parte relativa alle tipologie è stata specializzata da ADR-0012; le priorità restano
+governate da questa decisione.
 
 ## Decisione
 
@@ -20,4 +21,4 @@ Il valore predefinito resta configurabile soltanto per le priorità.
 - nessuna migrazione aggiuntiva rispetto allo schema v4;
 - ogni update/delete/reorder richiede la versione attesa;
 - le modifiche incrementano la revisione della board tramite i trigger v4;
-- la successiva M3.7 può consumare cataloghi attivi e mantenere visibili quelli inattivi già assegnati.
+- il modello kanban consuma i cataloghi attivi e mantiene leggibili quelli inattivi già assegnati.
