@@ -1,6 +1,6 @@
 # WeeklyPlanner
 
-> **M3.14 — Consolidamento kanban**
+> **M4 — Packaging MVP locale**
 
 Applicazione desktop **C# / .NET 10 / Avalonia** per organizzare attività in un kanban locale,
 sviluppata per milestone piccole, test automatici, migrazioni protette e documentazione aggiornata
@@ -23,9 +23,13 @@ La M3.10 e la M3.11 sono state validate con compilazione, test e verifica manual
 rende permanente e leggibile il feedback di persistenza, la M3.12.1 consolida startup, movimento
 bidimensionale, scadenze e conflitti e la M3.13 aggiunge metadati, lock e cronologia paginata.
 
-La M3.14 chiude il consolidamento del kanban con test Avalonia headless, doppia istanza sul medesimo
-SQLite, scenario di scala, verifica dei temi e dell'accessibilità, manuale utente e cattura ripetibile
-degli screenshot. Lo schema SQLite resta alla versione 5.
+La M3.14, validata con compilazione e test completi, chiude il consolidamento del kanban con test
+Avalonia headless, doppia istanza sul medesimo SQLite, scenario di scala, verifica dei temi e
+dell'accessibilità, manuale utente e cattura ripetibile degli screenshot.
+
+La M4 aggiunge il processo di packaging Windows x64: distribuzioni portable e self-contained,
+archivi versionati, checksum, verifica automatica e documentazione operativa. Lo schema SQLite resta
+alla versione 5.
 
 La suite dichiara **oltre 240 casi** considerando i test parametrizzati.
 
@@ -363,7 +367,7 @@ dotnet test WeeklyPlanner.sln -c Release --no-build
 dotnet run --project .\WeeklyPlanner.App\WeeklyPlanner.App.csproj
 ```
 
-Nella M3.14 la finestra mostra il badge `M3.14`, si apre massimizzata senza ripristino della
+Nella M4 la finestra mostra il badge `M4`, si apre massimizzata senza ripristino della
 geometria e resta attiva anche dopo l’onboarding. Ogni card espone l'icona informazioni per aprire
 metadati, lock e cronologia paginata.
 
@@ -421,7 +425,8 @@ Documentazione:
 
 - [`docs/MANUALE-UTENTE.md`](docs/MANUALE-UTENTE.md);
 - [`docs/VERIFICA-M3.14.md`](docs/VERIFICA-M3.14.md);
-- [`docs/ADR-0019-consolidamento-kanban.md`](docs/ADR-0019-consolidamento-kanban.md).
+- [`docs/ADR-0019-consolidamento-kanban.md`](docs/ADR-0019-consolidamento-kanban.md);
+- [`docs/ADR-0020-packaging-mvp-locale.md`](docs/ADR-0020-packaging-mvp-locale.md).
 
 Gli screenshot chiaro e scuro vengono generati dal XAML reale con dati fittizi:
 
@@ -431,10 +436,31 @@ Gli screenshot chiaro e scuro vengono generati dal XAML reale con dati fittizi:
 
 La cattura non apre né modifica il database configurato dall'utente.
 
+## Packaging M4
+
+La release Windows x64 viene generata con:
+
+```powershell
+.\scripts\release.ps1
+```
+
+Il comando esegue verifica Release, produce i pacchetti `portable` e `self-contained`, crea gli ZIP,
+genera `SHA256SUMS.txt` e controlla automaticamente la struttura degli archivi. Il pacchetto
+portable richiede .NET 10 x64 installato; il self-contained include il runtime. Single-file e
+trimming restano disattivati per preservare risorse Avalonia e dipendenze native SQLite.
+
+Documentazione di rilascio:
+
+- [`docs/BACKUP-RIPRISTINO.md`](docs/BACKUP-RIPRISTINO.md);
+- [`docs/SMOKE-TEST-M4.md`](docs/SMOKE-TEST-M4.md);
+- [`docs/RELEASE-CHECKLIST-M4.md`](docs/RELEASE-CHECKLIST-M4.md);
+- [`docs/RELEASE-NOTES-M4.md`](docs/RELEASE-NOTES-M4.md);
+- [`docs/ADR-0020-packaging-mvp-locale.md`](docs/ADR-0020-packaging-mvp-locale.md).
+
 ## Roadmap immediata
 
-1. **M4 — Packaging MVP locale**  
-   Publish Windows portable e self-contained, backup documentato e smoke test distribuibile.
+1. **Validazione M4**  
+   Eseguire `dotnet test`, generare entrambi i pacchetti e completare lo smoke test su macchina pulita.
 2. **Post-MVP**  
    Filtri, ricerca, notifiche e ulteriori strumenti di amministrazione.
 
@@ -448,4 +474,5 @@ Le decisioni del modello corrente sono descritte in:
 - [`docs/ADR-0016-ultimo-salvataggio-relativo.md`](docs/ADR-0016-ultimo-salvataggio-relativo.md);
 - [`docs/ADR-0017-consolidamento-tecnico-startup.md`](docs/ADR-0017-consolidamento-tecnico-startup.md);
 - [`docs/ADR-0018-informazioni-cronologia-card.md`](docs/ADR-0018-informazioni-cronologia-card.md);
-- [`docs/ADR-0019-consolidamento-kanban.md`](docs/ADR-0019-consolidamento-kanban.md).
+- [`docs/ADR-0019-consolidamento-kanban.md`](docs/ADR-0019-consolidamento-kanban.md);
+- [`docs/ADR-0020-packaging-mvp-locale.md`](docs/ADR-0020-packaging-mvp-locale.md).

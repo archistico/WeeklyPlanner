@@ -1,10 +1,11 @@
-WeeklyPlanner M3.14 — Consolidamento kanban
+WeeklyPlanner M4 — Packaging MVP locale
 
-- test UI Avalonia headless sul XAML reale;
-- verifica temi chiaro/scuro, contrasto e accessibilità;
-- test a due istanze sullo stesso database SQLite;
-- scenario di scala con 30 fasce e 1.500 card;
-- cattura screenshot ripetibile con dati fittizi;
-- manuale utente e checklist di verifica;
-- rimozione API residue non più usate;
+- publish Windows win-x64 portable framework-dependent;
+- publish Windows win-x64 self-contained;
+- archivi ZIP versionati e checksum SHA-256;
+- verifica automatica della struttura dei pacchetti;
+- procedura manuale di backup e ripristino;
+- smoke test su macchina pulita;
+- note di rilascio e checklist release candidate;
+- workflow GitHub Actions per il packaging;
 - schema SQLite invariato alla versione 5.

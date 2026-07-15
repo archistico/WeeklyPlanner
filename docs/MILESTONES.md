@@ -137,8 +137,8 @@ Ogni milestone deve:
 | M3.12 — Ultimo salvataggio relativo | **Implementata** | floppy verde, tempo relativo e ticker condiviso |
 | M3.12.1 — Consolidamento tecnico e startup | **Validata** | startup semplice, API 2D unica, scadenze centralizzate e conflitti espliciti |
 | M3.13 — Informazioni e cronologia | **Validata** | build e test passati; modale card, lock corrente, storico paginato e scroll completo |
-| M3.14 — Consolidamento kanban | **Implementata, verifica richiesta** | UI headless, doppia istanza, scala, temi, accessibilità e manuale utente |
-| M4 — Packaging MVP locale | Pianificata | publish Windows, backup documentato, smoke test e pacchetto distribuibile |
+| M3.14 — Consolidamento kanban | **Validata** | build e 252 test passati; UI headless, doppia istanza, scala, temi, accessibilità e manuale utente |
+| M4 — Packaging MVP locale | **Implementata, verifica richiesta** | publish Windows, ZIP e checksum, verifica pacchetti, backup documentato e smoke test |
 
 ## M1.1.1 — SQLite locale affidabile
 
@@ -1057,3 +1057,43 @@ accessibilità prima del packaging MVP.
 5. badge `M3.14`;
 6. database SQLite v5 integro.
 
+
+
+## M4 — Packaging MVP locale
+
+**Obiettivo:** distribuire l'MVP Windows x64 in modo ripetibile, verificabile e separato dai dati
+dell'utente.
+
+### Implementazione
+
+- publish framework-dependent `portable` e publish `self-contained`;
+- archivi ZIP versionati per `win-x64`;
+- single-file e trimming disattivati;
+- documentazione copiata in ogni pacchetto;
+- `package-info.json` e checksum SHA-256;
+- verifica automatica di entry point, runtime e assenza di dati locali;
+- workflow GitHub Actions dedicato;
+- procedura manuale di backup e ripristino;
+- smoke test e checklist release candidate;
+- schema SQLite invariato alla versione 5.
+
+### Test
+
+- metadati centrali M4;
+- presenza dei due modi di publish;
+- flag di pubblicazione conservativi;
+- rifiuto di database, settings e log nei pacchetti;
+- distinzione tramite `coreclr.dll`;
+- documentazione e workflow di package presenti.
+
+### Criteri di chiusura
+
+1. `dotnet build` senza warning o errori;
+2. `dotnet test` completamente verde;
+3. due ZIP prodotti da `release.ps1`;
+4. verifica automatica superata;
+5. checksum pubblicati;
+6. smoke test portable e self-contained completato;
+7. backup/ripristino verificato;
+8. badge `M4`;
+9. database SQLite v5 integro.

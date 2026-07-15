@@ -124,3 +124,13 @@ In caso di errore, conservare il riferimento `WP-XXXXXX` mostrato nell'interfacc
 ```text
 %LOCALAPPDATA%\WeeklyPlanner\Logs
 ```
+
+
+## 12. Pacchetti Windows M4
+
+Il pacchetto **portable** richiede .NET 10 x64 installato. Il pacchetto **self-contained** include il
+runtime necessario. In entrambi i casi estrarre completamente lo ZIP e avviare
+`WeeklyPlanner.App.exe`.
+
+I pacchetti non includono database, impostazioni o log. Prima di trasferire o sostituire una
+postazione seguire [`BACKUP-RIPRISTINO.md`](BACKUP-RIPRISTINO.md).

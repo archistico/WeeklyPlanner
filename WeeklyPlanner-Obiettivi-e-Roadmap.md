@@ -254,64 +254,52 @@ Gli eventi vengono salvati nella stessa transazione della modifica.
 | M3.12.1 | consolidamento tecnico, startup e regole condivise |
 | M3.13 | informazioni card, lock e cronologia paginata |
 | M3.14 | consolidamento kanban, headless UI, scala e accessibilità |
+| M4 | packaging MVP locale Windows x64 |
 
 ## 7. Milestone corrente
 
-### M3.14 — Consolidamento kanban
+### M4 — Packaging MVP locale
 
-#### Obiettivi
+Obiettivo: produrre una release Windows x64 ripetibile e verificabile, separando software e dati
+locali.
 
-- eseguire test Avalonia headless sulle finestre e sul XAML reali;
-- verificare i temi chiaro e scuro e il contrasto delle coppie testuali principali;
-- garantire nomi accessibili, tooltip e attivazione da tastiera delle azioni custom;
-- verificare due istanze indipendenti sullo stesso database SQLite;
-- provare la proiezione con 30 fasce e 1.500 card;
-- rendere ripetibile la cattura degli screenshot con dati fittizi;
-- pubblicare manuale utente e checklist di verifica;
-- rimuovere API morte e riferimenti attivi al vecchio planner settimanale;
-- mantenere lo schema SQLite alla versione 5.
+Implementazione:
 
-#### Test
-
-- caricamento headless della finestra principale e delle cinque azioni di creazione;
-- apertura sotto `ThemeVariant.Light` e `ThemeVariant.Dark`;
-- tooltip e `AutomationProperties.Name` sui pulsanti a sola icona;
-- focus e tastiera sul riepilogo priorità;
-- contrasto minimo 4,5:1 per testo, azioni primarie e azioni pericolose;
-- lock, revisione e conflitto ottimistico condivisi fra due istanze;
-- scenario di scala con budget smoke di dieci secondi;
-- assenza dei nomi dei giorni nelle view attive;
-- cattura screenshot eseguita soltanto su richiesta esplicita.
+- pacchetto `portable` framework-dependent per `win-x64`;
+- pacchetto `self-contained` per `win-x64`;
+- single-file e trimming disattivati;
+- cartelle e ZIP versionati;
+- `package-info.json` in ogni distribuzione;
+- checksum SHA-256 degli archivi;
+- script `release.ps1`, `publish.ps1` e `verify-package.ps1`;
+- workflow GitHub Actions manuale e su tag;
+- documentazione backup/ripristino e smoke test;
+- note di rilascio e checklist release candidate;
+- nessun database, settings o log incluso nei pacchetti;
+- schema SQLite invariato alla versione 5.
 
 #### Criteri di chiusura
 
 1. `dotnet build` senza warning o errori;
 2. `dotnet test` completamente verde;
-3. test headless eseguiti sul XAML reale;
-4. temi chiaro e scuro caricabili e con contrasto verificato;
-5. priorità attivabile con mouse, `Invio` e `Spazio`;
-6. due istanze protette da lock e `Cards.Version`;
-7. 30 fasce e 1.500 card proiettate entro il budget smoke;
-8. manuale e procedura screenshot presenti;
-9. nessuna API inutilizzata del calcolatore scadenze;
-10. badge `M3.14` e schema SQLite v5.
+3. `scripts\release.ps1` produce due archivi ZIP;
+4. entrambi gli archivi superano `verify-package.ps1`;
+5. checksum SHA-256 generati;
+6. portable avviato su Windows x64 con .NET 10;
+7. self-contained avviato su Windows x64 senza runtime separato;
+8. backup e ripristino verificati su database di prova;
+9. documentazione inclusa nei pacchetti;
+10. badge `M4` e schema SQLite v5.
 
 ## 8. Roadmap successiva
 
-### M4 — Packaging MVP locale
-
-- publish Windows portable;
-- publish Windows self-contained;
-- procedura di backup e ripristino manuale;
-- smoke test del pacchetto su macchina pulita;
-- note di rilascio e checklist release candidate.
+Dopo la validazione M4 l'MVP locale entra in release candidate. Gli sviluppi successivi vengono
+gestiti come post-MVP e non devono alterare retroattivamente il perimetro della release.
 
 ## 9. Post-MVP
 
 - backup e restore manuale dalla UI;
 - verifica integrità dalla UI;
-- packaging Windows portable e self-contained;
-- release candidate;
 - filtri per fascia, stato e priorità;
 - ricerca;
 - notifiche sulle scadenze;
@@ -334,4 +322,5 @@ ADR di riferimento:
 - [`docs/ADR-0014-movimento-bidimensionale.md`](docs/ADR-0014-movimento-bidimensionale.md);
 - [`docs/ADR-0017-consolidamento-tecnico-startup.md`](docs/ADR-0017-consolidamento-tecnico-startup.md);
 - [`docs/ADR-0018-informazioni-cronologia-card.md`](docs/ADR-0018-informazioni-cronologia-card.md);
-- [`docs/ADR-0019-consolidamento-kanban.md`](docs/ADR-0019-consolidamento-kanban.md).
+- [`docs/ADR-0019-consolidamento-kanban.md`](docs/ADR-0019-consolidamento-kanban.md);
+- [`docs/ADR-0020-packaging-mvp-locale.md`](docs/ADR-0020-packaging-mvp-locale.md).

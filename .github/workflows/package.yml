@@ -1,0 +1,36 @@
+name: Package M4
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  package-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Build, test and package
+        shell: pwsh
+        run: .\scripts\release.ps1 -RuntimeIdentifier win-x64
+
+      - name: Upload Windows packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: weeklyplanner-m4-win-x64
+          path: |
+            artifacts/release/*.zip
+            artifacts/release/SHA256SUMS.txt
+          if-no-files-found: error
